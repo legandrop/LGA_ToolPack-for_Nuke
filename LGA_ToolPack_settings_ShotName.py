@@ -23,7 +23,7 @@ from PySide2.QtWidgets import (
 from PySide2.QtCore import Qt
 
 # Variable global para controlar el debug (si se necesita en el futuro)
-DEBUG = True
+debug = False
 
 # --- Instancia global para la ventana de ShotName Settings ---
 shotname_window_instance = None

@@ -29,7 +29,7 @@ except:
     from PySide2.QtWidgets import QApplication
     from PySide2.QtCore import QTimer, QEventLoop
 
-DEBUG = True
+debug = False
 
 # Variable global para mantener el estado del snapshot hold
 _lga_snapshot_hold_state = None

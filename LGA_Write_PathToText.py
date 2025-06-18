@@ -12,7 +12,7 @@ from PySide2.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushB
 from PySide2.QtCore import Qt
 
 # Variable global para activar o desactivar los prints de depuracion
-debug = True  # Cambiar a False para ocultar los mensajes de debug
+debug = False  # Cambiar a False para ocultar los mensajes de debug
 
 app = None
 window = None

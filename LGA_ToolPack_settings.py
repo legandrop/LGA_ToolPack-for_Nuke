@@ -32,7 +32,7 @@ from PySide2.QtWidgets import (
 from PySide2.QtCore import Qt
 
 # Variable global para controlar el debug
-DEBUG = True
+debug = False
 
 # Espaciado vertical para divisores horizontales (en pixeles)
 LINE_SPACING = 10
