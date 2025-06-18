@@ -3,3 +3,7 @@ snapshot_gallery/
 *.pyc
 +exclude.lst
 *.log
+__pycache__/
++Building_Blocks/
++OLD/
+
