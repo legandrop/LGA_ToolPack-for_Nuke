@@ -30,6 +30,14 @@ except:
     from PySide2.QtWidgets import QApplication, QPushButton, QDialog, QHBoxLayout
 
 
+DEBUG = False
+
+
+def debug_print(*message):
+    if DEBUG:
+        print(*message)
+
+
 def launch():
     """Funcion principal que inserta los botones en el viewer"""
 
@@ -99,7 +107,7 @@ def launch():
                     nuke.message(f"Error: Script no encontrado en {script_path}")
             except Exception as e:
                 nuke.message(f"Error al ejecutar SnapShot: {str(e)}")
-                print(f"Error en take_snapshot: {e}")
+                debug_print(f"Error en take_snapshot: {e}")
 
     class Show_SnapShotButton(QDialog):
         """Boton para mostrar snapshot mientras se mantiene presionado"""
@@ -148,22 +156,22 @@ def launch():
                     if spec and spec.loader:
                         self.snapshot_module = importlib.util.module_from_spec(spec)
                         spec.loader.exec_module(self.snapshot_module)
-                        print("✅ Módulo SnapShot importado correctamente")
+                        debug_print("✅ Módulo SnapShot importado correctamente")
                     else:
-                        print("❌ Error: No se pudo cargar el módulo de SnapShot")
+                        debug_print("❌ Error: No se pudo cargar el módulo de SnapShot")
                 else:
-                    print(f"❌ Error: Script no encontrado en {script_path}")
+                    debug_print(f"❌ Error: Script no encontrado en {script_path}")
             except Exception as e:
-                print(f"❌ Error al importar módulo SnapShot: {str(e)}")
+                debug_print(f"❌ Error al importar módulo SnapShot: {str(e)}")
 
         def on_pressed(self):
             """Se ejecuta cuando se presiona el boton"""
-            print("🔽 Boton presionado - mostrando snapshot")
+            debug_print("🔽 Boton presionado - mostrando snapshot")
             self.call_show_snapshot(start=True)
 
         def on_released(self):
             """Se ejecuta cuando se suelta el boton"""
-            print("🔼 Boton liberado - ocultando snapshot")
+            debug_print("🔼 Boton liberado - ocultando snapshot")
             self.call_show_snapshot(start=False)
 
         def call_show_snapshot(self, start):
@@ -173,12 +181,12 @@ def launch():
                     # USAR EL MÓDULO YA IMPORTADO - NO REIMPORTAR
                     self.snapshot_module.show_snapshot_hold(start)
                 else:
-                    print("❌ Error: Módulo SnapShot no está disponible")
+                    debug_print("❌ Error: Módulo SnapShot no está disponible")
             except Exception as e:
-                print(f"❌ Error al ejecutar show_snapshot_hold: {str(e)}")
+                debug_print(f"❌ Error al ejecutar show_snapshot_hold: {str(e)}")
                 import traceback
 
-                print(f"Traceback: {traceback.format_exc()}")
+                debug_print(f"Traceback: {traceback.format_exc()}")
 
     class Gallery_SnapShotButton(QDialog):
         """Boton para abrir la galeria de snapshots"""
@@ -230,7 +238,7 @@ def launch():
                     nuke.message(f"Error: Script no encontrado en {script_path}")
             except Exception as e:
                 nuke.message(f"Error al ejecutar Gallery: {str(e)}")
-                print(f"Error en open_gallery: {e}")
+                debug_print(f"Error en open_gallery: {e}")
 
     def find_viewer():
         """Encuentra el widget del viewer activo"""
@@ -267,7 +275,7 @@ def launch():
                     c.parentWidget().layout().addWidget(show_snapshot_btn)
                     c.parentWidget().layout().addWidget(gallery_snapshot_btn)
 
-                    print(
+                    debug_print(
                         "✅ Botones LGA SnapShot agregados al viewer (Take, Show y Gallery)"
                     )
                     return c
@@ -280,4 +288,4 @@ def launch():
     if viewer_widget:
         find_framerange(viewer_widget)
     else:
-        print("⚠️ No se pudo encontrar el widget del viewer")
+        debug_print("⚠️ No se pudo encontrar el widget del viewer")
