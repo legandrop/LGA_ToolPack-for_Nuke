@@ -6,4 +6,6 @@ snapshot_gallery/
 __pycache__/
 +Building_Blocks/
 +OLD/
+.DS_Store
+Thumbs.db
 
