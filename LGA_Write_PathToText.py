@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_PathToText v1.1 | Lega
+  LGA_Write_PathToText v1.2 | Lega
   Script para mostrar el path de un Write seleccionado, su evaluación y su versión normalizada en una ventana personalizada.
 _______________________________________________________________________________________________________________________________
 """
@@ -21,6 +21,91 @@ window = None
 def debug_print(*message):
     if debug:
         print("[LGA_Write_PathToText]", *message)
+
+
+def get_color_for_level(level):
+    """
+    Define los colores por nivel de directorio.
+    Robado del sistema de colores del LGA_mediaManager.
+    """
+    colors = {
+        0: "#ffff66",  # Amarillo           T
+        1: "#28b5b5",  # Verde Cian         Proye
+        2: "#ff9a8a",  # Naranja pastel     Grupo
+        3: "#0088ff",  # Azul               Shot
+        4: "#ffd369",  # Amarillo mostaza
+        5: "#28b5b5",  # Verde Cian
+        6: "#ff9a8a",  # Naranja pastel
+        7: "#6bc9ff",  # Celeste
+        8: "#ffd369",  # Amarillo mostaza
+        9: "#28b5b5",  # Verde Cian
+        10: "#ff9a8a",  # Naranja pastel
+        11: "#6bc9ff",  # Celeste
+    }
+    return colors.get(level, "#AEAEAE")  # Color gris por defecto
+
+
+def apply_path_coloring(path, shot_folder_parts):
+    """
+    Aplica el sistema de colores por nivel a una ruta.
+    Basado en el sistema del LGA_mediaManager.
+    PRESERVA LA CAPITALIZACIÓN ORIGINAL del path.
+    """
+    if not path:
+        return path
+
+    # Dividir la ruta en partes PRESERVANDO la capitalización original
+    parts = path.replace("\\", "/").split("/")
+    colored_parts = []
+
+    # Para la comparación, convertir a minúsculas SOLO para comparar
+    parts_lower = [part.lower() for part in parts]
+
+    debug_print(f"Path a colorear: {path}")
+    debug_print(f"Parts originales: {parts}")
+    debug_print(f"Parts lowercase: {parts_lower}")
+    debug_print(f"Shot folder parts: {shot_folder_parts}")
+
+    # Aplicar colores a cada parte de la ruta excepto el nombre del archivo
+    # USAR LA MISMA LÓGICA QUE EL MEDIA MANAGER
+    for i, part in enumerate(parts[:-1]):  # Usar el part original (con capitalización)
+        part_lower = parts_lower[i]  # Usar la versión en minúsculas solo para comparar
+
+        # LÓGICA EXACTA DEL MEDIA MANAGER:
+        # Si i >= len(shot_folder_parts) OR part != shot_folder_parts[i] → get_color_for_level(i)
+        # Si no (i < len(shot_folder_parts) AND part == shot_folder_parts[i]) → violeta
+
+        # Verificar si estamos dentro del rango del shot_folder_parts y si coincide
+        within_shot_range = i < len(shot_folder_parts)
+        matches_shot_part = within_shot_range and part_lower == shot_folder_parts[i]
+
+        debug_print(f"  Parte {i}: '{part}' (lower: '{part_lower}')")
+        debug_print(f"    within_shot_range: {within_shot_range}")
+        if within_shot_range:
+            debug_print(f"    shot_folder_parts[{i}]: '{shot_folder_parts[i]}'")
+            debug_print(f"    matches_shot_part: {matches_shot_part}")
+
+        if i >= len(shot_folder_parts) or part_lower != shot_folder_parts[i]:
+            # Usar colores por nivel
+            text_color = get_color_for_level(i)
+            debug_print(f"    → Color por nivel {i}: {text_color}")
+        else:
+            # Si esta parte coincide con la ruta del shot, usar color violeta
+            text_color = "#c56cf0"  # Color violeta para partes del shot
+            debug_print(f"    → Color violeta (coincide con shot): {text_color}")
+
+        # Usar el part ORIGINAL (con capitalización) para mostrar
+        colored_parts.append(f"<span style='color: {text_color};'>{part}</span>")
+
+    # El nombre del archivo permanece en blanco y negrita (también con capitalización original)
+    if len(parts) > 0:
+        file_name = f"<b style='color: rgb(200, 200, 200);'>{parts[-1]}</b>"
+        colored_parts.append(file_name)
+
+    # Unir con separadores blancos
+    colored_text = '<span style="color: white;">/</span>'.join(colored_parts)
+    debug_print(f"Resultado final: {colored_text}")
+    return colored_text
 
 
 def normalize_path_preserve_case(path):
@@ -76,9 +161,7 @@ def normalize_path_preserve_case(path):
 
 
 class PathInfoWindow(QWidget):
-    def __init__(
-        self, write_file, evaluated_path, normalized_path, script_path, common_prefix
-    ):
+    def __init__(self, write_file, evaluated_path, normalized_path, script_path):
         super().__init__()
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setWindowTitle("LGA Write PathToText")
@@ -86,6 +169,28 @@ class PathInfoWindow(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
+
+        # Calcular la ruta del SHOT (no del script completo)
+        # Subir niveles desde el script para encontrar la carpeta base del shot
+        shot_folder_parts = []
+        if script_path and script_path != "Root":
+            # Por defecto, subir 3 niveles desde el script para encontrar el shot
+            # Ejemplo: script en "T:/VFX-ETDM/101/SHOT/Comp/1_projects/script.nk"
+            # Shot debería ser: "T:/VFX-ETDM/101/SHOT"
+            project_folder_depth = 3  # Niveles a subir desde el script
+
+            shot_folder = script_path
+            for _ in range(project_folder_depth):
+                shot_folder = os.path.dirname(shot_folder)
+
+            debug_print(f"Script path: {script_path}")
+            debug_print(f"Shot folder calculado: {shot_folder}")
+
+            if shot_folder:
+                shot_dir = shot_folder.replace("\\", "/").lower()
+                shot_folder_parts = shot_dir.split("/")
+
+        debug_print(f"Shot folder parts: {shot_folder_parts}")
 
         def add_block(title, value, rich=False):
             block_layout = QVBoxLayout()
@@ -107,18 +212,13 @@ class PathInfoWindow(QWidget):
         add_block(
             "Path evaluado:", evaluated_path if evaluated_path else "(No evaluado)"
         )
-        # Path normalizado con coincidencia en rosa
-        if normalized_path and common_prefix:
-            norm_html = (
-                f"<span style='color:#9354BE;font-weight:bold;'>{common_prefix}</span>"
-                f"<span style='color:#AEAEAE;'>{normalized_path[len(common_prefix):]}</span>"
-            )
-            add_block("Path normalizado:", norm_html, rich=True)
+
+        # Path normalizado con colores por nivel
+        if normalized_path:
+            colored_normalized = apply_path_coloring(normalized_path, shot_folder_parts)
+            add_block("Path normalizado:", colored_normalized, rich=True)
         else:
-            add_block(
-                "Path normalizado:",
-                normalized_path if normalized_path else "(No normalizado)",
-            )
+            add_block("Path normalizado:", "(No normalizado)")
 
         self.setLayout(layout)
         self.adjustSize()
@@ -168,51 +268,15 @@ def main(normalize_path_func=None):
 
         except Exception as e:
             debug_print(f"Error al evaluar el path: {e}")
+
     # Obtener path del script actual
     script_path = nuke.root().name()
     if not script_path or script_path == "Root":
         script_path = None
     debug_print(f"Path del script: {script_path}")
-    # Buscar prefijo comun
-    common_prefix = ""
-    if script_path and normalized_path:
-        # Normalizar el path del script a barras delanteras para la comparacion
-        script_dir_for_comparison = os.path.dirname(
-            os.path.normpath(script_path)
-        ).replace(os.sep, "/")
-        # Asegurarse de que script_dir_for_comparison termine con '/' si es un directorio base
-        if script_dir_for_comparison and not script_dir_for_comparison.endswith("/"):
-            script_dir_for_comparison += "/"
-
-        debug_print(f"Script dir para comparación: {script_dir_for_comparison}")
-        debug_print(f"Normalized path para comparación: {normalized_path}")
-
-        # Convertir ambas rutas a minusculas para la comparacion case-insensitive
-        script_dir_lower = script_dir_for_comparison.lower()
-        normalized_path_lower = (
-            normalized_path.lower() if normalized_path else ""
-        )  # Asegurar que normalized_path_lower no sea None
-
-        debug_print(f"Script dir (lower): {script_dir_lower}")
-        debug_print(f"Normalized path (lower): {normalized_path_lower}")
-
-        common_length = 0
-        for a, b in zip(script_dir_lower, normalized_path_lower):
-            if a != b:
-                break
-            common_length += 1
-
-        if common_length > 0:
-            # Obtener el prefijo comun del normalized_path original (con su casing original)
-            common_prefix = normalized_path[:common_length]
-            debug_print(f"Prefijo comun (con casing original): {common_prefix}")
-        else:
-            debug_print("No se encontró prefijo común")
 
     app = QApplication.instance() or QApplication([])
-    window = PathInfoWindow(
-        write_file, evaluated_path, normalized_path, script_path, common_prefix
-    )
+    window = PathInfoWindow(write_file, evaluated_path, normalized_path, script_path)
     window.show()
 
 
