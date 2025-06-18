@@ -1,0 +1,5 @@
+snapshot_gallery/
+*.psd
+*.pyc
++exclude.lst
+*.log
