@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.01 | Lega
+  LGA_Write_Presets v2.02 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -873,8 +873,7 @@ class SelectedNodeInfo(QWidget):
             spec.loader.exec_module(module)
             if hasattr(module, "main"):
                 # Pasar la función de normalización al módulo
-                module.normalize_path = normalize_path
-                module.main()
+                module.main(normalize_path_func=normalize_path)
 
 
 # El resto del código se mantiene igual
