@@ -156,7 +156,7 @@ class NameInputDialog(QDialog):
         layout.addLayout(input_layout)
 
         help_label = QLabel(
-            '<span style="font-size:7pt; color:#AAAAAA;">Ctrl+Enter to confirm</span>',
+            '<span style="font-size:7pt; color:#AAAAAA;">Enter to confirm</span>',
             self,
         )
         help_label.setAlignment(Qt.AlignCenter)
@@ -182,7 +182,10 @@ class NameInputDialog(QDialog):
     def eventFilter(self, widget, event):
         if isinstance(event, QKeyEvent):
             if event.key() in [Qt.Key_Return, Qt.Key_Enter]:
-                if event.modifiers() == Qt.ControlModifier:
+                if (
+                    event.modifiers() == Qt.ControlModifier
+                    or event.modifiers() == Qt.NoModifier
+                ):
                     self.accept()
                 return True
             elif event.key() == Qt.Key_Escape:
