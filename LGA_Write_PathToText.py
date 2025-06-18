@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_PathToText v1.2 | Lega
+  LGA_Write_PathToText v1.21 | Lega
   Script para mostrar el path de un Write seleccionado, su evaluación y su versión normalizada en una ventana personalizada.
 _______________________________________________________________________________________________________________________________
 """
@@ -163,7 +163,7 @@ def normalize_path_preserve_case(path):
 class PathInfoWindow(QWidget):
     def __init__(self, write_file, evaluated_path, normalized_path, script_path):
         super().__init__()
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setWindowFlags(Qt.Window)
         self.setWindowTitle("LGA Write PathToText")
         self.setStyleSheet("background-color: #232323; border-radius: 10px;")
         layout = QVBoxLayout(self)
