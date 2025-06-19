@@ -20,7 +20,7 @@ import binascii
 import platform
 
 # Variable global para controlar el debug
-debug = False  # Poner en False para desactivar los mensajes de debug
+DEBUG = False  # Poner en False para desactivar los mensajes de debug
 
 
 # Funcion debug_print
