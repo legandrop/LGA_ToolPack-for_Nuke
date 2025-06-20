@@ -341,18 +341,6 @@ n.addCommand(
 n.addCommand("KNOBS", lambda: None)
 
 
-# Importar el LGA_channelsCycle
-import LGA_channelsCycle
-
-n.addCommand(
-    "  Channels Cycle",
-    "LGA_channelsCycle.main()",
-    "ctrl+alt+shift+a",
-    shortcutContext=2,
-    icon=icon_Knobs,
-)
-
-
 # Importar el LGA_disable_A_B
 import LGA_disable_A_B
 
@@ -365,10 +353,27 @@ n.addCommand(
 )
 
 
+# Importar el LGA_channelsCycle
+import LGA_channelsCycle
+
+n.addCommand(
+    "  Channels Cycle",
+    "LGA_channelsCycle.main()",
+    "ctrl+alt+shift+a",
+    shortcutContext=2,
+    icon=icon_Knobs,
+)
+
+
 # Channel_HotBox
 import channel_hotbox
 
-n.addCommand("  Channel &HotBox", "channel_hotbox.start()", "shift+H", icon=icon_Knobs)
+n.addCommand(
+    "  Channel HotBox",
+    "channel_hotbox.start()",
+    "shift+H",
+    icon=icon_Knobs,
+)
 
 
 # -----------------------------------------------------------------------------
