@@ -298,7 +298,7 @@ n.addCommand(
 import LGA_build_Roto
 
 n.addCommand(
-    "  Build Roto in mask input",
+    "  Build Roto + Blur in input mask",
     "LGA_build_Roto.main()",
     "shift+o",
     shortcutContext=2,
@@ -310,7 +310,7 @@ n.addCommand(
 import LGA_build_Merge
 
 n.addCommand(
-    "  Build Merge | Switch ops",
+    "  Build Merge (mask) | Switch ops",
     "LGA_build_Merge.main()",
     "shift+m",
     shortcutContext=2,
@@ -503,4 +503,4 @@ import nuke
 TP_script_dir = os.path.dirname(os.path.realpath(__file__))
 TP_pdf_path = os.path.join(TP_script_dir, "LGA_ToolPack.pdf")
 
-n.addCommand("v2.37", lambda: webbrowser.open("file://" + TP_pdf_path))
+n.addCommand("v2.38", lambda: webbrowser.open("file://" + TP_pdf_path))
