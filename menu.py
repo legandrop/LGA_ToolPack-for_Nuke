@@ -508,4 +508,4 @@ import nuke
 TP_script_dir = os.path.dirname(os.path.realpath(__file__))
 TP_pdf_path = os.path.join(TP_script_dir, "LGA_ToolPack.pdf")
 
-n.addCommand("v2.38", lambda: webbrowser.open("file://" + TP_pdf_path))
+n.addCommand("Documentation v2.38", lambda: webbrowser.open("file://" + TP_pdf_path))
