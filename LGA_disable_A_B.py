@@ -1,7 +1,7 @@
 """
 ________________________________________________________________________________
 
-  LGA_disable_A_B v1.6 | Lega
+  LGA_disable_A_B v1.7 | Lega
   Tool for creating A/B comparisons between selected nodes.
   Links the disable knob of nodes to a central Disable_A_B node for easy switching.
 ________________________________________________________________________________
@@ -569,14 +569,32 @@ def main():
                     initial_connections.append("B")
                     debug_print(f"Node {node_name} is connected as B")  # Depuracion
 
-            # Check if there's already an instance of QApplication
-            app = QApplication.instance() or QApplication([])
-            window = SelectedNodeInfo(
-                connected_nodes,
-                initial_connections=initial_connections,
-                disable_ab_node=single_node,
-            )
-            window.show()
+            # Desconectar directamente sin abrir la ventana
+            # Abrir un UNDO
+            nuke.Undo.begin("Disconnect nodes and delete Disable_A_B")
+
+            try:
+                # Restaurar el estado inicial del knob disable y eliminar las expresiones
+                initial_states = (
+                    single_node["initial_disable_states"].value().split(",")
+                )
+                for state in initial_states:
+                    node_name, initial_value = state.split(":")
+                    node = nuke.toNode(node_name)
+                    if node:
+                        node["disable"].clearAnimated()
+                        node["disable"].setValue(int(initial_value))
+                        debug_print(
+                            f"Node {node_name} restore disable state to {initial_value}"
+                        )
+
+                # Eliminar el nodo Disable_A_B
+                nuke.delete(single_node)
+
+            finally:
+                # Cerrar el UNDO
+                nuke.Undo.end()
+
             return
         else:
             debug_print("El nodo seleccionado no es un Disable_A_B")
