@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________________________
 
-  LGA_Write_Focus v1.52 | Lega
+  LGA_Write_Focus v1.60 | Lega
   Script para buscar, enfocar, centrar y hacer zoom a un nodo con nombre definido
   en el archivo de configuracion. Por defecto es Write_Pub.
 ____________________________________________________________________________________
@@ -21,6 +21,71 @@ DEBUG = False  # Cambiar a True para ver los mensajes detallados
 def debug_print(*message):
     if DEBUG:
         print(*message)
+
+
+def normalize_name(name):
+    """
+    Normaliza un nombre reemplazando espacios por guiones bajos.
+    """
+    return name.replace(" ", "_") if name else ""
+
+
+def find_write_node_flexible(target_name):
+    """
+    Busca un nodo Write de forma flexible:
+    1. Busqueda exacta con nombre normalizado
+    2. Busqueda parcial si no hay match exacto
+    Excluye nodos Write que esten actualmente seleccionados.
+    Devuelve el primer nodo encontrado o None.
+    """
+    if not target_name:
+        return None
+
+    normalized_target = normalize_name(target_name)
+    debug_print(f"Buscando nodo: '{target_name}' (normalizado: '{normalized_target}')")
+
+    # Obtener nodos Write actualmente seleccionados para excluirlos
+    selected_writes = [n for n in nuke.selectedNodes() if n.Class() == "Write"]
+    debug_print(
+        f"Nodos Write seleccionados a excluir: {[n.name() for n in selected_writes]}"
+    )
+
+    # Obtener todos los nodos Write del script (excluyendo los seleccionados)
+    all_writes = [
+        n for n in nuke.allNodes() if n.Class() == "Write" and n not in selected_writes
+    ]
+    debug_print(
+        f"Total nodos Write encontrados (excluyendo seleccionados): {len(all_writes)}"
+    )
+
+    # 1. Busqueda exacta con nombres normalizados
+    for node in all_writes:
+        normalized_node_name = normalize_name(node.name())
+        if normalized_node_name == normalized_target:
+            debug_print(
+                f"Match exacto encontrado: '{node.name()}' -> '{normalized_node_name}'"
+            )
+            return node
+
+    # 2. Busqueda parcial: el nombre del nodo contiene el target normalizado
+    partial_matches = []
+    for node in all_writes:
+        normalized_node_name = normalize_name(node.name())
+        if normalized_target in normalized_node_name:
+            partial_matches.append(node)
+            debug_print(
+                f"Match parcial encontrado: '{node.name()}' -> '{normalized_node_name}'"
+            )
+
+    # Devolver el primer match parcial si existe
+    if partial_matches:
+        debug_print(f"Usando match parcial: '{partial_matches[0].name()}'")
+        return partial_matches[0]
+
+    debug_print(
+        f"No se encontro ningun nodo Write que coincida con '{target_name}' (excluyendo seleccionados)"
+    )
+    return None
 
 
 def get_user_config_dir():
@@ -58,7 +123,7 @@ CONFIG_SECONDARY_NODE_NAME_KEY = "secondary_node_name"
 # Valor por defecto para el nombre del nodo principal
 DEFAULT_NODE_NAME = "Write_Pub"
 # Valor por defecto para el nombre del nodo secundario
-DEFAULT_SECONDARY_NODE_NAME = "Write_EXR Publish DWAA"
+DEFAULT_SECONDARY_NODE_NAME = "Write_EXR_Publish_DWAA"
 
 
 def get_config_path():
@@ -113,13 +178,17 @@ def get_node_names_from_config():
     """
     Lee los nombres de los nodos desde el archivo de configuracion .ini.
     Devuelve una tupla (primario, secundario) con los valores leidos o los valores por defecto si hay errores.
+    Los nombres se normalizan al leerlos.
     """
     config_file_path = get_config_path()
     if not config_file_path or not os.path.exists(config_file_path):
         debug_print(
             "Archivo de configuración no encontrado, usando valores por defecto."
         )
-        return (DEFAULT_NODE_NAME, DEFAULT_SECONDARY_NODE_NAME)
+        return (
+            normalize_name(DEFAULT_NODE_NAME),
+            normalize_name(DEFAULT_SECONDARY_NODE_NAME),
+        )
     try:
         config = configparser.ConfigParser()
         config.read(config_file_path)
@@ -133,28 +202,41 @@ def get_node_names_from_config():
                 fallback=DEFAULT_SECONDARY_NODE_NAME,
             )
             return (
-                node_name.strip() if node_name else DEFAULT_NODE_NAME,
                 (
-                    secondary_node_name.strip()
+                    normalize_name(node_name.strip())
+                    if node_name
+                    else normalize_name(DEFAULT_NODE_NAME)
+                ),
+                (
+                    normalize_name(secondary_node_name.strip())
                     if secondary_node_name
-                    else DEFAULT_SECONDARY_NODE_NAME
+                    else normalize_name(DEFAULT_SECONDARY_NODE_NAME)
                 ),
             )
         else:
             debug_print(
                 f"Sección [{CONFIG_SECTION}] no encontrada en {config_file_path}. Usando valores por defecto."
             )
-            return (DEFAULT_NODE_NAME, DEFAULT_SECONDARY_NODE_NAME)
+            return (
+                normalize_name(DEFAULT_NODE_NAME),
+                normalize_name(DEFAULT_SECONDARY_NODE_NAME),
+            )
     except configparser.Error as e:
         debug_print(
             f"Error al leer el archivo de configuración {config_file_path}: {e}. Usando valores por defecto."
         )
-        return (DEFAULT_NODE_NAME, DEFAULT_SECONDARY_NODE_NAME)
+        return (
+            normalize_name(DEFAULT_NODE_NAME),
+            normalize_name(DEFAULT_SECONDARY_NODE_NAME),
+        )
     except Exception as e:
         debug_print(
             f"Error inesperado al leer la configuración: {e}. Usando valores por defecto."
         )
-        return (DEFAULT_NODE_NAME, DEFAULT_SECONDARY_NODE_NAME)
+        return (
+            normalize_name(DEFAULT_NODE_NAME),
+            normalize_name(DEFAULT_SECONDARY_NODE_NAME),
+        )
 
 
 # Asegurarse de que el archivo de configuracion existe al iniciar
@@ -178,21 +260,21 @@ def main():
     debug_print(
         f"Configuración leída ('{node_to_find}', '{secondary_node_to_find}') - Tiempo: {(tiempo_fin_config - tiempo_inicio_total) * 1000:.2f} ms"
     )
-    # --- Buscar nodo principal por nombre ---
+    # --- Buscar nodo principal por nombre usando busqueda flexible ---
     tiempo_inicio_busqueda = time.time()
-    write_node = nuke.toNode(node_to_find)
+    write_node = find_write_node_flexible(node_to_find)
     # Si no encuentra el principal, busca el secundario
     if not write_node:
         debug_print(
             f"No se encontró el nodo principal '{node_to_find}', buscando secundario '{secondary_node_to_find}'"
         )
-        write_node = nuke.toNode(secondary_node_to_find)
+        write_node = find_write_node_flexible(secondary_node_to_find)
     tiempo_fin_busqueda = time.time()
     debug_print(
         f"Búsqueda de nodo finalizada - Tiempo: {(tiempo_fin_busqueda - tiempo_inicio_total) * 1000:.2f} ms"
     )
     debug_print(
-        f"  Tiempo específico de búsqueda (nuke.toNode): {(tiempo_fin_busqueda - tiempo_inicio_busqueda) * 1000:.2f} ms"
+        f"  Tiempo específico de búsqueda (find_write_node_flexible): {(tiempo_fin_busqueda - tiempo_inicio_busqueda) * 1000:.2f} ms"
     )
     if write_node:
         if write_node.Class() != "Write":
@@ -246,7 +328,7 @@ def main():
             f"Error: Nodo no encontrado. Tiempo total: {(tiempo_fin_total - tiempo_inicio_total) * 1000:.2f} ms"
         )
         nuke.message(
-            f"No se encontró ningún nodo llamado '{node_to_find}' ni '{secondary_node_to_find}' en el script actual."
+            f"No se encontró ningún nodo Write que coincida con '{node_to_find}' ni '{secondary_node_to_find}' en el script actual."
         )
 
 
