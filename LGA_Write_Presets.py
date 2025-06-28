@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.02 | Lega
+  LGA_Write_Presets v2.10 Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -33,6 +33,8 @@ import os
 import configparser
 import ntpath
 import posixpath
+import unicodedata
+import re
 
 # Intentar importar el modulo LGA_oz_backdropReplacer
 script_dir = os.path.dirname(__file__)
@@ -247,10 +249,14 @@ def get_write_name_from_read(current_node, default_name):
                     "_".join(base_parts[:-1]) if len(base_parts) > 1 else base_parts[0]
                 )
 
-        base_name = "Write_" + file_name
+        # Normalizar el nombre del archivo
+        normalized_file_name = normalize_node_name(file_name)
+        base_name = "Write_" + normalized_file_name
         return get_unique_write_name(base_name)
     else:
-        return "Write_" + default_name
+        # Normalizar el nombre por defecto
+        normalized_default = normalize_node_name(default_name)
+        return "Write_" + normalized_default
 
 
 def get_unique_write_name(base_name):
@@ -450,10 +456,9 @@ def create_write_from_preset(preset, user_text=None):
         write_node["name"].setValue(get_write_name_from_read(current_node, "Denoised"))
     else:
         # Normalizar el texto del usuario para el nombre del nodo
-        normalized_user_text = (
-            user_text.replace("-", "_") if user_text else preset["button_name"]
-        )
-        base_write_name = "Write_" + normalized_user_text
+        text_to_normalize = user_text if user_text else preset["button_name"]
+        normalized_text = normalize_node_name(text_to_normalize)
+        base_write_name = "Write_" + normalized_text
         write_node["name"].setValue(get_unique_node_name(base_write_name))
 
     # Añadir knobs personalizados
@@ -879,6 +884,69 @@ class SelectedNodeInfo(QWidget):
                 module.main(normalize_path_func=normalize_path)
 
 
+def normalize_node_name(name):
+    """
+    Normaliza el nombre de un nodo para cumplir con las reglas de Nuke:
+    - Reemplaza espacios y guiones medios con guiones bajos
+    - Elimina acentos y caracteres especiales
+    - Solo permite letras, numeros y guiones bajos
+    - Asegura que empiece con letra o guion bajo
+    - Elimina guiones bajos consecutivos
+    """
+    if not name:
+        return "Write"
+
+    # Convertir a string si no lo es
+    name = str(name)
+
+    # Normalizar unicode y eliminar acentos
+    normalized = unicodedata.normalize("NFD", name)
+    # Filtrar solo caracteres ASCII
+    ascii_name = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+
+    # Reemplazar espacios y guiones medios con guiones bajos
+    ascii_name = ascii_name.replace(" ", "_").replace("-", "_")
+
+    # Eliminar cualquier caracter que no sea letra, numero o guion bajo
+    clean_name = re.sub(r"[^a-zA-Z0-9_]", "", ascii_name)
+
+    # Eliminar guiones bajos consecutivos
+    clean_name = re.sub(r"_+", "_", clean_name)
+
+    # Eliminar guiones bajos al inicio y final
+    clean_name = clean_name.strip("_")
+
+    # Asegurar que empiece con letra o guion bajo si empieza con numero
+    if clean_name and clean_name[0].isdigit():
+        clean_name = "_" + clean_name
+
+    # Si el nombre queda vacio, usar un nombre por defecto
+    if not clean_name:
+        clean_name = "Write"
+
+    return clean_name
+
+
+def check_and_fix_selected_write():
+    """
+    Verifica si el nodo seleccionado es un Write y corrige su nombre si tiene caracteres ilegales
+    """
+    selected_node = get_selected_node()
+    if selected_node and selected_node.Class() == "Write":
+        current_name = selected_node.name()
+        normalized_name = normalize_node_name(current_name)
+
+        if current_name != normalized_name:
+            # Verificar que el nombre normalizado sea unico
+            unique_name = get_unique_node_name(normalized_name)
+            selected_node.setName(unique_name)
+            nuke.tprint(
+                f"Nombre del Write corregido: '{current_name}' -> '{unique_name}'"
+            )
+            return True
+    return False
+
+
 # El resto del código se mantiene igual
 app = None
 window = None
@@ -886,6 +954,11 @@ window = None
 
 def main():
     global app, window
+
+    # Verificar y corregir Write seleccionado antes de mostrar la interfaz
+    # Si se corrigio un Write, se mostrara un mensaje en la consola de Nuke.
+    check_and_fix_selected_write()
+
     app = QApplication.instance() or QApplication([])
     window = SelectedNodeInfo()
     window.show()
