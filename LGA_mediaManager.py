@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_mediaManager v1.6 | Lega
+  LGA_mediaManager v1.61 | Lega
 _______________________________________
 
 """
@@ -480,91 +480,6 @@ class SettingsWindow(QWidget):
 
     def remove_path(self, index):
         # Print de depuracion antes de modificar el ini
-        debug_print(f"\n INI antes de remover el path {index + 1}:")
-        debug_print(self.format_ini_output())
-
-        # Imprimir la cantidad y tipos de layouts/widgets antes de eliminar
-        self.print_layout_widget_info()
-
-        # Intentar eliminar el path del ini en memoria, manejando el caso en que no exista
-        button_text_key = f"copy_{index + 1}_button_text"
-        path_key = f"copy_{index + 1}_subdirectory"
-
-        if button_text_key in self.settings_data:
-            del self.settings_data[button_text_key]
-        if path_key in self.settings_data:
-            del self.settings_data[path_key]
-
-        # Remover el layout correspondiente de la UI
-        layout_to_remove = self.path_layouts[index]
-        self.clear_layout(layout_to_remove)
-
-        # Remover el layout del layout principal
-        for i in range(self.layout.count()):
-            item = self.layout.itemAt(i)
-            if item.layout() == layout_to_remove:
-                self.layout.takeAt(i)
-                break
-
-        layout_to_remove.deleteLater()  # Asegurar que se elimina correctamente
-
-        # Eliminar el layout del path de la lista path_layouts
-        del self.path_layouts[index]
-
-        # Renumerar los paths restantes en la interfaz
-        for i, path_layout in enumerate(self.path_layouts):
-            # Actualizar el numero en la etiqueta y en el objectName
-            button_name_label = path_layout.itemAt(0).layout().itemAt(0).widget()
-            button_name_label.setText(f"Name {i + 1}:")
-            button_name_label.setObjectName(f"Button name {i + 1} label")
-
-            # Actualizar el QLineEdit objectName
-            button_name_line_edit = path_layout.itemAt(0).layout().itemAt(1).widget()
-            button_name_line_edit.setObjectName(f"Button name {i + 1} line edit")
-
-            # Actualizar el QLabel del path
-            path_label = path_layout.itemAt(1).layout().itemAt(0).widget()
-            path_label.setText(f"Path {i + 1}:")
-            path_label.setObjectName(f"Path {i + 1} label")
-
-            # Actualizar el QPushButton del remove
-            minus_button = path_layout.itemAt(1).layout().itemAt(2).widget()
-            minus_button.setObjectName(f"Path {i + 1} minus button")
-            minus_button.clicked.disconnect()
-            minus_button.clicked.connect(self.create_remove_path_callback(i))
-
-            # Actualizar el objectName del layout
-            path_layout.setObjectName(f"Path {i + 1} layout")
-
-        # Renumerar los paths en settings_data
-        new_settings_data = {
-            "Folder scan depth": self.settings_data["Folder scan depth"]
-        }
-        for i, path_layout in enumerate(self.path_layouts):
-            # Usar i + 1 porque estamos reindexando los paths
-            new_settings_data[f"copy_{i + 1}_button_text"] = self.settings_data.get(
-                f"copy_{i + 2}_button_text", ""
-            )
-            new_settings_data[f"copy_{i + 1}_subdirectory"] = self.settings_data.get(
-                f"copy_{i + 2}_subdirectory", ""
-            )
-
-        self.settings_data = new_settings_data
-
-        # Imprimir la cantidad y tipos de layouts/widgets despues de eliminar
-        debug_print("\nLayouts despues de eliminar el path:")
-        self.print_layout_widget_info()
-
-        # Ajustar solo la altura de la ventana, manteniendo el ancho predeterminado
-        self.adjustSize()
-        self.setFixedWidth(400)  # Ancho predeterminado
-
-        # Print de depuracion despues de modificar el ini
-        debug_print(f"\nINI Despues de remover el path {index + 1}:")
-        debug_print(self.format_ini_output())
-
-    def remove_path(self, index):
-        # Print de depuracion antes de modificar el ini
         debug_print(f"INI Antes de remover el path {index + 1}:")
         debug_print(self.format_ini_output())
 
@@ -763,6 +678,9 @@ class FileScanner(QWidget):
         self.font_size = 10
         self.sequence_extensions = [".exr", ".tif", ".png", ".jpg"]
         self.non_sequence_extensions = [".mov", ".psd", ".avi", ".mp4"]
+
+        # Configurar logger
+        self.logger = configure_logger()
 
         # Cargar configuración
         self.settings_data = (
@@ -1532,7 +1450,7 @@ class FileScanner(QWidget):
             file_name_only = os.path.basename(file_name).lower()
 
         nuke.executeInMainThread(
-            lambda: logger.debug(
+            lambda: self.logger.debug(
                 f"\nBuscando el archivo: {file_name_only} en {directory}"
             )
         )
@@ -1542,14 +1460,16 @@ class FileScanner(QWidget):
                 os.path.basename(dir)
                 for dir in os.path.normpath(root).split(os.path.sep)
             ]:
-                nuke.executeInMainThread(lambda: logger.debug(f"Skipping {root}"))
+                nuke.executeInMainThread(lambda: self.logger.debug(f"Skipping {root}"))
                 continue
 
             for file in files:
                 if file.lower() == file_name_only:
                     new_file_path = os.path.join(root, file)
                     nuke.executeInMainThread(
-                        lambda: logger.debug(f"Archivo encontrado: {new_file_path}")
+                        lambda: self.logger.debug(
+                            f"Archivo encontrado: {new_file_path}"
+                        )
                     )
                     self.update_read_node(file_name, new_file_path, first_frame)
                     self.loading_window.close()
@@ -1679,12 +1599,12 @@ class FileScanner(QWidget):
                             is_sequence = False
                             hashes = ""
 
-                        frame_numbers = [
-                            int(m.group(1))
-                            for filename in os.listdir(directory)
-                            for m in [file_pattern.match(filename)]
-                            if m
-                        ]
+                        frame_numbers = []
+                        if file_pattern:
+                            for filename in os.listdir(directory):
+                                m = file_pattern.match(filename)
+                                if m:
+                                    frame_numbers.append(int(m.group(1)))
                         # logging.info(f"frame_numbers: {frame_numbers}")
 
                         if frame_numbers:
@@ -2455,14 +2375,14 @@ class FileScanner(QWidget):
             if read_node_name != "-":
                 self.current_read_node_name = read_node_name
                 nuke.executeInMainThread(
-                    lambda: logger.debug(
+                    lambda: self.logger.debug(
                         f"\n  El footage pertenece al nodo Read: {self.current_read_node_name}"
                     )
                 )
             else:
                 self.current_read_node_name = None
                 nuke.executeInMainThread(
-                    lambda: logger.debug(
+                    lambda: self.logger.debug(
                         "\n  El footage no pertenece a ningun nodo Read."
                     )
                 )
@@ -2608,7 +2528,7 @@ class FileScanner(QWidget):
 
     def show_simple_message(self, message):
         QMessageBox.information(self, "Error", message)
-        self.on_copy_finished()
+        self.on_copy_finished("")
 
     def show_confirmation_dialog_unico(self, message, dest_path, source_path):
         # Dialogo de confirmacion para la sobreescritura de secuencias de cuadros
@@ -2638,7 +2558,7 @@ class FileScanner(QWidget):
             )  # Emite una senal para empezar la copia
         else:
             nuke.executeInMainThread(
-                lambda: logger.debug("  Copy operation cancelled.")
+                lambda: self.logger.debug("  Copy operation cancelled.")
             )
             self.copy_thread.copyCancelledUnico.emit()  # Emite la senal de cancelacion especifica para archivos unicos
 
@@ -2649,8 +2569,10 @@ class FileScanner(QWidget):
         # Obtener el directorio base de la secuencia de origen
         source_dir = os.path.dirname(source_path)
         dest_dir = os.path.dirname(dest_path)
-        nuke.executeInMainThread(lambda: logger.debug(f"    source_dir {source_dir}"))
-        nuke.executeInMainThread(lambda: logger.debug(f"    dest_dir {dest_dir}"))
+        nuke.executeInMainThread(
+            lambda: self.logger.debug(f"    source_dir {source_dir}")
+        )
+        nuke.executeInMainThread(lambda: self.logger.debug(f"    dest_dir {dest_dir}"))
 
         # Comparar los directorios normalizados
         if os.path.normpath(source_dir) == os.path.normpath(dest_dir):
@@ -2722,6 +2644,8 @@ class CopyThread(QThread):
         self.frame_padding = None
         self.extension = None
         self.specific_dest_folder = None
+        # Configurar logger
+        self.logger = configure_logger()
 
     def copy_sequence(
         self,
@@ -2739,14 +2663,14 @@ class CopyThread(QThread):
             )
             try:
                 nuke.executeInMainThread(
-                    lambda: logger.debug(
+                    lambda: self.logger.debug(
                         f"      Copied seq sobreescribir: {frame_file} to {dest_file_path}"
                     )
                 )
                 shutil.copy(frame_file, dest_file_path)
             except Exception as e:
                 nuke.executeInMainThread(
-                    lambda: logger.debug(f"      ++++Error copying: {e}")
+                    lambda: self.logger.debug(f"      ++++Error copying: {e}")
                 )
 
     def copy_single_file(self, source_path, dest_path):
@@ -2762,12 +2686,14 @@ class CopyThread(QThread):
     def run(self):
         start_copy_time = time.time()
         nuke.executeInMainThread(
-            lambda: logger.debug(
+            lambda: self.logger.debug(
                 f"  copy execution time start: {start_copy_time} seconds"
             )
         )
 
-        nuke.executeInMainThread(lambda: logger.debug("  Copying in background thread"))
+        nuke.executeInMainThread(
+            lambda: self.logger.debug("  Copying in background thread")
+        )
         # Normalizar las rutas de origen y destino
         normalized_source_path = os.path.normpath(self.source_file_path)
         normalized_dest_folder = os.path.normpath(self.dest_folder)
@@ -2788,7 +2714,9 @@ class CopyThread(QThread):
             if not os.path.exists(specific_dest_folder):
                 os.makedirs(specific_dest_folder)
                 nuke.executeInMainThread(
-                    lambda: logger.debug(f"    Creating folder {specific_dest_folder}")
+                    lambda: self.logger.debug(
+                        f"    Creating folder {specific_dest_folder}"
+                    )
                 )
 
             # Copiar los archivos de la secuencia
@@ -2797,7 +2725,8 @@ class CopyThread(QThread):
                 start_frame, end_frame = map(int, frame_range_match.groups())
                 file_base = normalized_source_path.split("[")[0]
                 extension = normalized_source_path.split("]")[1]
-                frame_padding = len(re.search(r"#+", file_base).group())
+                hash_match = re.search(r"#+", file_base)
+                frame_padding = len(hash_match.group()) if hash_match else 1
                 # Almacenar los detalles de la secuencia
                 self.start_frame = start_frame
                 self.end_frame = end_frame
@@ -2840,7 +2769,7 @@ class CopyThread(QThread):
                         specific_dest_folder, os.path.basename(frame_file)
                     )
                     nuke.executeInMainThread(
-                        lambda: logger.debug(
+                        lambda: self.logger.debug(
                             f"      Copied seq unico: {frame_file} to {dest_file_path}"
                         )
                     )
@@ -2861,7 +2790,7 @@ class CopyThread(QThread):
                     self.dest_folder
                 )  # Esto deberia ser solo el directorio
                 nuke.executeInMainThread(
-                    lambda: logger.debug(
+                    lambda: self.logger.debug(
                         f"        normalized_source_path: {normalized_source_path}"
                     )
                 )
@@ -2869,7 +2798,7 @@ class CopyThread(QThread):
                     self.specific_dest_folder, os.path.basename(normalized_source_path)
                 )
                 nuke.executeInMainThread(
-                    lambda: logger.debug(
+                    lambda: self.logger.debug(
                         f"        Checking if FILE dest_file_path {dest_file_path} exists in destination..."
                     )
                 )
@@ -2897,7 +2826,7 @@ class CopyThread(QThread):
 
         end_time = time.time()
         nuke.executeInMainThread(
-            lambda: logger.debug(
+            lambda: self.logger.debug(
                 f"      Copied {copied_files_count} files in {end_time - start_copy_time} seconds."
             )
         )
@@ -2940,7 +2869,8 @@ class DeleteThread(QThread):
                         start_frame, end_frame = map(int, frame_range_match.groups())
                         file_base = table_file_path.split("[")[0]
                         extension = table_file_path.split("]")[1]
-                        frame_padding = len(re.search(r"#+", file_base).group())
+                        hash_match = re.search(r"#+", file_base)
+                        frame_padding = len(hash_match.group()) if hash_match else 1
 
                         all_frame_files = [
                             f"{file_base.replace('#' * frame_padding, str(frame).zfill(frame_padding))}{extension}"
@@ -3369,9 +3299,9 @@ class ScannerWorker(QRunnable):
                                 # logging.info(f"Frames {frame_num1} and {frame_num2} are consecutive")
                                 sequence_base = os.path.join(
                                     root,
-                                    left_part_file1
-                                    + "#" * len(frame_num1)
-                                    + right_part_file1,
+                                    str(left_part_file1)
+                                    + "#" * len(str(frame_num1))
+                                    + str(right_part_file1),
                                 )
                                 if sequence_base not in sequences:
                                     sequences[sequence_base] = []
