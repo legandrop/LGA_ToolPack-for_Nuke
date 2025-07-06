@@ -1,9 +1,9 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Roto v1.1 | Lega
+  LGA_build_Roto v1.12 | Lega
 
-  Crea nodos Roto, Blur y Dot conectados al input mask del nodo Merge2 o al input 1 de cualquier otro nodo.
+  Crea nodos Roto, Blur y Dot conectados al input mask del nodo Merge (llamado Merge2 en Nuke) o al input 1 de cualquier otro nodo.
   Requiere que haya un nodo seleccionado para funcionar.
   Diseñado para añadir rápidamente máscaras a nodos existentes.
 _____________________________________________________________________________
@@ -62,6 +62,8 @@ def get_mask_input_and_prepare(node):
             node.setInput(1, temp_a)
             temp_nodes.append((1, temp_a))
         return 2, temp_nodes
+    elif node.Class() == "Keymix":
+        return 2, []
     else:
         return 1, []
 
