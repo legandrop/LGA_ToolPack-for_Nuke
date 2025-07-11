@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.10 Lega
+  LGA_Write_Presets v2.11 Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -36,6 +36,15 @@ import posixpath
 import unicodedata
 import re
 
+# Variable global para activar o desactivar los debug_prints
+DEBUG = False
+
+
+def debug_print(*message):
+    if DEBUG:
+        print(*message)
+
+
 # Intentar importar el modulo LGA_oz_backdropReplacer
 script_dir = os.path.dirname(__file__)
 sys.path.append(script_dir)
@@ -46,7 +55,7 @@ try:
     oz_backdrop_available = True
 except ImportError:
     oz_backdrop_available = False
-    nuke.tprint(
+    debug_print(
         "El modulo LGA_oz_backdropReplacer no esta disponible. Continuando sin reemplazar el backdrop."
     )
 
@@ -293,7 +302,7 @@ def create_write_from_preset(preset, user_text=None):
         dot_width = int(dot_scale * 12)
     else:
         # Si el nodo 'preferences' no existe, usar un valor por defecto
-        nuke.tprint(
+        debug_print(
             "Advertencia: No se encontro el nodo 'preferences'. Usando tamaño de Dot por defecto."
         )
         dot_width = 12  # O el valor por defecto que consideres apropiado
@@ -354,19 +363,19 @@ def create_write_from_preset(preset, user_text=None):
 
     else:
         # Crear solo Write
-        print(
+        debug_print(
             "[DEBUG] Nodo seleccionado:",
             selected_node.name() if selected_node else None,
         )
-        print(
+        debug_print(
             "[DEBUG] Tipo de nodo seleccionado:",
             selected_node.Class() if selected_node else None,
         )
-        print(
+        debug_print(
             "[DEBUG] Posicion X nodo seleccionado:",
             selected_node.xpos() if selected_node else None,
         )
-        print(
+        debug_print(
             "[DEBUG] screenWidth nodo seleccionado:",
             selected_node.screenWidth() if selected_node else None,
         )
@@ -378,10 +387,12 @@ def create_write_from_preset(preset, user_text=None):
             + (current_node.screenWidth() // 2)
             - (write_node.screenWidth() // 2)
         )
-        print("[DEBUG] Posicion X a setear para Write:", write_x)
+        debug_print("[DEBUG] Posicion X a setear para Write:", write_x)
         write_node.setXpos(write_x)
         write_node.setYpos(current_node.ypos() + 100)
-        print("[DEBUG] Posicion X real del Write luego de crearlo:", write_node.xpos())
+        debug_print(
+            "[DEBUG] Posicion X real del Write luego de crearlo:", write_node.xpos()
+        )
 
         # Reconectar nodos descendentes al Write
         if selected_node:
@@ -940,7 +951,7 @@ def check_and_fix_selected_write():
             # Verificar que el nombre normalizado sea unico
             unique_name = get_unique_node_name(normalized_name)
             selected_node.setName(unique_name)
-            nuke.tprint(
+            debug_print(
                 f"Nombre del Write corregido: '{current_name}' -> '{unique_name}'"
             )
             return True
