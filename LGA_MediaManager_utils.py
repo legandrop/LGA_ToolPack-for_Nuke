@@ -1857,13 +1857,51 @@ class FileScanner(QWidget):
         self.add_file_to_table(unmatched_reads_data)
 
     def add_file_to_table(self, files_data):
+        # NUEVA SOLUCION QUIRURGICA: Deduplicación inteligente al inicio de add_file_to_table
+        import time
+
+        # Crear un registro de archivos ya procesados en esta sesión
+        if not hasattr(self, "_processed_files_session"):
+            self._processed_files_session = set()
+
+        # Filtrar duplicados antes de procesar
+        original_count = len(files_data)
+        unique_files_data = []
+        duplicates_removed = 0
+
+        for file_data in files_data:
+            file_path = file_data[0]  # El primer elemento es el path
+            normalized_path = normalize_path_for_comparison(file_path)
+
+            if normalized_path not in self._processed_files_session:
+                self._processed_files_session.add(normalized_path)
+                unique_files_data.append(file_data)
+
+                # Log para EditRef cuando se agrega
+                if "EditRef_v01.mov" in file_path:
+                    self.logger.debug(f"[FIX!!!] EditRef ACEPTADO: {file_path}")
+            else:
+                duplicates_removed += 1
+                # Log para EditRef cuando se rechaza por duplicado
+                if "EditRef_v01.mov" in file_path:
+                    self.logger.debug(
+                        f"[FIX!!!] EditRef RECHAZADO (duplicado): {file_path}"
+                    )
+
+        # Usar los archivos únicos para el procesamiento
+        files_data = unique_files_data
+
+        self.logger.debug(
+            f"\n[FIX!!!] DEDUPLICACION: {original_count} → {len(files_data)} archivos (eliminados: {duplicates_removed})"
+        )
+
         # Agrega los archivos a la tabla y determina su estado en relacion con los nodos Read
         end_time = time.time()
         # logging.info("")
         # logging.info("add_file_to_table execution time start: ", end_time - start_time, "seconds")
 
         self.logger.debug(
-            f"\n>> add_file_to_table: Procesando {len(files_data)} archivos"
+            f"\n>> add_file_to_table: Procesando {len(files_data)} archivos únicos"
         )
 
         for i, file_data in enumerate(files_data):
