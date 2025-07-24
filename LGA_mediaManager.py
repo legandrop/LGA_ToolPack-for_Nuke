@@ -93,6 +93,24 @@ def debug_print(*message):
         print(*message)
 
 
+def normalize_path_for_comparison(file_path):
+    """
+    Normaliza una ruta de archivo para comparaciones consistentes.
+    Convierte barras a forward slashes y pone todo en minusculas.
+    """
+    if not file_path:
+        return ""
+
+    # Primero normalizar con os.path.normpath para manejar ./ ../ etc
+    normalized = os.path.normpath(file_path)
+    # Convertir todas las barras a forward slashes
+    normalized = normalized.replace("\\", "/")
+    # Convertir a minusculas para comparacion case-insensitive
+    normalized = normalized.lower()
+
+    return normalized
+
+
 # Agrega el directorio send2trash a sys.path
 script_dir = os.path.dirname(
     __file__
@@ -1556,9 +1574,18 @@ class FileScanner(QWidget):
         to_add = []  # Lista para acumular los datos
         secuencia = False
 
+        # Obtener el logger configurado
+        logger = configure_logger()
+        logger.debug(f"\n=== INICIO search_unmatched_reads ===")
+        logger.debug(f"Total read files a procesar: {len(all_read_files)}")
+        logger.debug(f"Nodos ya matched: {self.matched_reads}")
+
         for read_path, nodes in all_read_files.items():
             read_path = os.path.normpath(read_path)
             unmatched_nodes = [node for node in nodes if node not in self.matched_reads]
+            logger.debug(f"\nProcesando read_path: {read_path}")
+            logger.debug(f"  - Nodos del read: {nodes}")
+            logger.debug(f"  - Nodos unmatched: {unmatched_nodes}")
             if unmatched_nodes:
                 is_sequence = (
                     "%" in read_path or "#" in read_path
@@ -1687,6 +1714,12 @@ class FileScanner(QWidget):
 
                 # Para archivos no secuenciales, agregarlos directamente con is_sequence=False
                 for node in unmatched_nodes:
+                    logger.debug(
+                        f"  --> AGREGANDO nodo {node} al to_add como unmatched"
+                    )
+                    logger.debug(f"      Ruta: {read_path}")
+                    logger.debug(f"      Is sequence: {is_sequence}")
+                    logger.debug(f"      Frame range: {frame_range}")
                     to_add.append(
                         (
                             read_path,
@@ -1701,6 +1734,22 @@ class FileScanner(QWidget):
 
         end_time = time.time()
         # logging.info("unmatched_reads execution time end: ", end_time - start_time, "seconds")
+
+        logger.debug(f"\n=== FIN search_unmatched_reads ===")
+        logger.debug(f"Total archivos para agregar: {len(to_add)}")
+        for i, (
+            file_path,
+            read_files_dict,
+            is_seq,
+            frame_range,
+            is_unmatched,
+            is_deletable,
+            seq_state,
+        ) in enumerate(to_add):
+            logger.debug(
+                f"[{i+1}/{len(to_add)}] {file_path} - Is_seq: {is_seq} - Range: {frame_range}"
+            )
+
         return to_add  # En lugar de llamar a add_file_to_table, devuelve los datos
         self.adjust_window_size()
 
@@ -1751,7 +1800,13 @@ class FileScanner(QWidget):
 
     def on_files_found(self, data):
         files_data, unmatched_reads_data = data
+        self.logger.debug(
+            f"\n=== on_files_found: Agregando {len(files_data)} archivos de find_files ==="
+        )
         self.add_file_to_table(files_data)
+        self.logger.debug(
+            f"\n=== on_files_found: Agregando {len(unmatched_reads_data)} archivos de unmatched_reads ==="
+        )
         self.add_file_to_table(unmatched_reads_data)
 
     def add_file_to_table(self, files_data):
@@ -1760,7 +1815,11 @@ class FileScanner(QWidget):
         # logging.info("")
         # logging.info("add_file_to_table execution time start: ", end_time - start_time, "seconds")
 
-        for file_data in files_data:
+        self.logger.debug(
+            f"\n>> add_file_to_table: Procesando {len(files_data)} archivos"
+        )
+
+        for i, file_data in enumerate(files_data):
             (
                 file_path,
                 read_files,
@@ -1772,6 +1831,14 @@ class FileScanner(QWidget):
             ) = file_data
             read_node_name = next(iter(read_files.values()))[0]
             row_position = self.table.rowCount()
+
+            self.logger.debug(f"\n[ARCHIVO {i+1}/{len(files_data)}] Agregando a tabla:")
+            self.logger.debug(f"  - File path: {file_path}")
+            self.logger.debug(f"  - Is sequence: {is_sequence}")
+            self.logger.debug(f"  - Frame range: {frame_range}")
+            self.logger.debug(f"  - Is unmatched read: {is_unmatched_read}")
+            self.logger.debug(f"  - Is folder deletable: {is_folder_deletable}")
+            self.logger.debug(f"  - Row position: {row_position}")
 
             debug_print("")
             debug_print(f"File path: {file_path}")
@@ -1788,14 +1855,17 @@ class FileScanner(QWidget):
                 if match:
                     digits = int(match.group(1))
                     file_path = re.sub(r"%0\d+d", "#" * digits, file_path)
-                # Convertir %0Xd a # en las claves de read_files
+                # Convertir %0Xd a # en las claves de read_files y normalizar para comparacion
                 normalized_read_files = {}
                 for path, nodes in read_files.items():
                     new_key = re.sub(r"%0(\d+)d", lambda m: "#" * int(m.group(1)), path)
+                    # Usar la funcion de normalizacion centralizada
+                    new_key = normalize_path_for_comparison(new_key)
                     normalized_read_files[new_key] = nodes
 
             row_position = self.table.rowCount()
             self.table.insertRow(row_position)
+            self.logger.debug(f"  *** FILA INSERTADA EN POSICION {row_position} ***")
 
             # Normalizacion del path y adicion a la tabla
             normalized_file_path = file_path.replace("\\", "/").lower()
@@ -1835,16 +1905,22 @@ class FileScanner(QWidget):
                 # Manejo de los archivos del find_files
                 status = "-"
                 state = "Unused"
+                # Usar la funcion de normalizacion centralizada
                 normalized_read_files = {
-                    path.replace("\\", "/").lower(): nodes
+                    normalize_path_for_comparison(path): nodes
                     for path, nodes in read_files.items()
                 }
                 status_color = "#32311e"
 
+                # Normalizar el file_path encontrado para comparacion
+                normalized_file_path_for_comparison = normalize_path_for_comparison(
+                    file_path
+                )
+
                 if is_sequence:
                     for read_path, nodes in normalized_read_files.items():
                         if self.is_sequence_match(
-                            normalized_file_path, read_path, frame_range
+                            normalized_file_path_for_comparison, read_path, frame_range
                         ):
                             status = ", ".join(nodes)
                             state = "OK"
@@ -1853,7 +1929,7 @@ class FileScanner(QWidget):
                             break
                 else:
                     for read_path, nodes in normalized_read_files.items():
-                        if normalized_file_path == read_path:
+                        if normalized_file_path_for_comparison == read_path:
                             status = ", ".join(nodes)
                             state = "OK"
                             status_color = "#25321e"
@@ -1877,8 +1953,12 @@ class FileScanner(QWidget):
                 # print(f"file_path: {file_path}")
                 # print(f"normalized_read_files: {normalized_read_files}")
 
+                # Normalizar el file_path para la comparacion
+                normalized_file_path_for_unmatched = normalize_path_for_comparison(
+                    file_path
+                )
                 if (
-                    file_path in normalized_read_files
+                    normalized_file_path_for_unmatched in normalized_read_files
                 ):  # esta al pedo, deberia dar siempre verdadero
                     # print(f"normalized_read_files[file_path]: {normalized_read_files[file_path]}")
 
@@ -1906,7 +1986,11 @@ class FileScanner(QWidget):
 
                     if is_offline:
                         read_item = QTableWidgetItem(
-                            ", ".join(normalized_read_files[file_path])
+                            ", ".join(
+                                normalized_read_files[
+                                    normalized_file_path_for_unmatched
+                                ]
+                            )
                         )
                         read_item.setTextAlignment(Qt.AlignCenter)
                         self.table.setItem(row_position, 1, read_item)
@@ -1945,7 +2029,11 @@ class FileScanner(QWidget):
                                 .replace("/", "\\")
                             )
                             read_item = QTableWidgetItem(
-                                ", ".join(normalized_read_files[file_path])
+                                ", ".join(
+                                    normalized_read_files[
+                                        normalized_file_path_for_unmatched
+                                    ]
+                                )
                             )
                             read_item.setTextAlignment(Qt.AlignCenter)
                             self.table.setItem(row_position, 1, read_item)
@@ -1958,7 +2046,11 @@ class FileScanner(QWidget):
                             # read_item = QTableWidgetItem(', '.join(read_files.get(file_path, [])))
                             # print(f"file_path no esta en read_files: {file_path}")
                             read_item = QTableWidgetItem(
-                                ", ".join(normalized_read_files[file_path])
+                                ", ".join(
+                                    normalized_read_files[
+                                        normalized_file_path_for_unmatched
+                                    ]
+                                )
                             )
                             read_item.setTextAlignment(Qt.AlignCenter)
                             self.table.setItem(row_position, 1, read_item)
@@ -2008,8 +2100,10 @@ class FileScanner(QWidget):
         for row in range(self.table.rowCount()):
             item = self.table.item(row, 0)
             if item is not None:
-                file_path = self.table.item(row, 0).text().lower().replace("/", "\\")
-                file_path = os.path.normpath(file_path)
+                # Usar la funcion de normalizacion centralizada
+                file_path = normalize_path_for_comparison(
+                    self.table.item(row, 0).text()
+                )
                 status = self.table.item(row, 2).text()
                 if file_path in paths and status != "OK":
                     # Si el path esta duplicado y el estado actual no es "OK", eliminar la fila
@@ -2033,8 +2127,10 @@ class FileScanner(QWidget):
         # Ajustamos el proceso de coincidencia para secuencias
         sequence_base_path = re.sub(r"#+", "", sequence_path.split("[")[0])
         read_base_path = re.sub(r"%\d+d", "", read_path)
-        # Se compara sin tener en cuenta mayusculas o minusculas y los separadores de ruta
-        return sequence_base_path.lower() == read_base_path.lower()
+        # Usar la funcion de normalizacion centralizada para la comparacion
+        return normalize_path_for_comparison(
+            sequence_base_path
+        ) == normalize_path_for_comparison(read_base_path)
 
     def normalize_sequence_path(self, file_path):
         # Normaliza la ruta del archivo para secuencias, reemplazando los digitos al final por '#'
@@ -2042,7 +2138,9 @@ class FileScanner(QWidget):
         base, ext = os.path.splitext(filename)
         if any(ext.lower() == e for e in self.sequence_extensions):
             base = re.sub(r"\d+$", lambda m: "#" * len(m.group()), base)
-        return os.path.join(directory, base + ext).replace("\\", "/").lower()
+        normalized_path = os.path.join(directory, base + ext)
+        # Usar la funcion de normalizacion centralizada
+        return normalize_path_for_comparison(normalized_path)
 
     def normalize_sequence_path_for_comparison(self, file_path):
         # Normalizar el file_path, quitando el rango de cuadros si esta presente
@@ -3384,30 +3482,20 @@ class ScannerWorker(QRunnable):
 
             # logging.info(f"Secuencia identificada: {base} con frames {sequences[base]}")
 
-            # Normalizar la base para la comparacion
-            normalized_base = os.path.normpath(base).replace("\\\\", "\\").lower()
-            normalized_base = normalized_base.replace("\\", "/")
+            # Normalizar la base para la comparacion usando la funcion centralizada
+            normalized_base = normalize_path_for_comparison(base)
             # logging.info("")
             # logging.info (f"base {base}")
             # logging.info (f"normalized_base {normalized_base}")
 
-            # Normalizar y resolver las rutas de los reads
-            normalized_read_files = {
-                os.path.abspath(os.path.normpath(path))
-                .replace("\\\\", "\\")
-                .lower(): nodes
-                for path, nodes in all_read_files.items()
-            }
-
-            # Reemplazar %0Xd por la cantidad correspondiente de #
-            for path, nodes in list(normalized_read_files.items()):
+            # Normalizar y resolver las rutas de los reads usando la funcion centralizada
+            normalized_read_files = {}
+            for path, nodes in all_read_files.items():
+                # Reemplazar %0Xd por la cantidad correspondiente de #
                 new_key = re.sub(r"%0(\d+)d", lambda m: "#" * int(m.group(1)), path)
-                normalized_read_files[new_key] = normalized_read_files.pop(path)
-
-            normalized_read_files = {
-                path.replace("\\", "/"): nodes
-                for path, nodes in normalized_read_files.items()
-            }
+                # Usar la funcion de normalizacion centralizada
+                new_key = normalize_path_for_comparison(new_key)
+                normalized_read_files[new_key] = nodes
 
             # logging.info(f"normalized_base: {normalized_base}")
             # logging.info(f"normalized_read_files: {normalized_read_files}")
