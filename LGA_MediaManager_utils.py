@@ -849,6 +849,14 @@ class ScannerWorker(QRunnable):
                                     match2.groups()
                                 )
 
+                            # EXCEPCION: Excluir numeros de version que empiezan con 'v'
+                            # Ejemplo: ETDM_3015_0010_DeAging_Cama_aPlate_Matte_r709_COPYCAT_1124_v02.tif
+                            if left_part_file1.endswith(
+                                "v"
+                            ) or left_part_file2.endswith("v"):
+                                # logging.info(f"Skipping version numbers: {frame_num1} and {frame_num2}")
+                                continue
+
                             # logging.info(f"Frame numbers extracted: {frame_num1} and {frame_num2}")
 
                             # Verifica si los numeros de frame son consecutivos
@@ -880,6 +888,12 @@ class ScannerWorker(QRunnable):
                                     left_part, left_numbers = left_part_match.groups()
                                     frame_num1 = left_numbers + frame_num1
                                     frame_num2 = left_numbers + frame_num2
+
+                                # EXCEPCION: Excluir numeros de version que empiezan con 'v'
+                                # (segunda verificacion de consecutividad)
+                                if left_part.endswith("v"):
+                                    # logging.info(f"Skipping version numbers in second check: {frame_num1} and {frame_num2}")
+                                    continue
 
                                 if int(frame_num1) + 1 == int(frame_num2):
                                     # logging.info(f"Frames {frame_num1} and {frame_num2} are consecutive")
