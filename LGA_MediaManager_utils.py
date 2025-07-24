@@ -44,44 +44,41 @@ import configparser
 import logging
 from PySide2.QtCore import QThreadPool
 
+# Importar el tiempo de inicio global del archivo principal
+try:
+    from LGA_mediaManager import _start_time
+except ImportError:
+    _start_time = time.time()
 
 start_time = time.time()
 
 
+def get_log_prefix(caller_class=None, caller_method=None):
+    """
+    Genera el prefijo para logs con formato [tiempo] [clase::metodo]
+    """
+    elapsed = time.time() - _start_time
+    timestamp = f"[{elapsed:.3f}s]"
+
+    if caller_class and caller_method:
+        location = f"[{caller_class}::{caller_method}]"
+        return f"{timestamp} {location}"
+    else:
+        return timestamp
+
+
 def configure_logger():
-    # Si ya existe un logger configurado, lo retornamos sin crear uno nuevo
-    if hasattr(configure_logger, "logger"):
-        return configure_logger.logger
+    # Importar la configuracion centralizada del archivo principal
+    try:
+        from LGA_mediaManager import configure_logger as main_configure_logger
 
-    log_file_path = os.path.join(os.path.dirname(__file__), "LGA_mediaManager.log")
+        return main_configure_logger()
+    except ImportError:
+        # Fallback en caso de problemas de importacion
+        import logging
 
-    # Abrir el archivo de log en modo 'w' para limpiarlo cada vez que se ejecuta el script
-    with open(log_file_path, "w") as f:
-        f.write("")  # Sobrescribe el contenido del archivo, limpiandolo
-
-    logger = logging.getLogger("LGA_MediaManager")
-    logger.setLevel(logging.DEBUG)
-
-    # Eliminar cualquier manejador que ya este configurado en el logger
-    if logger.hasHandlers():
-        logger.handlers.clear()
-
-    # Evitar que los mensajes se propaguen al logger raiz
-    logger.propagate = False
-
-    # Crear manejador de archivo
-    file_handler = logging.FileHandler(log_file_path)
-    file_handler.setLevel(logging.DEBUG)
-
-    # Crear formateador y anadirlo al manejador
-    formatter = logging.Formatter("%(message)s")
-    file_handler.setFormatter(formatter)
-
-    # Anadir el manejador al logger
-    logger.addHandler(file_handler)
-
-    configure_logger.logger = logger
-    return logger
+        logger = logging.getLogger("LGA_MediaManager")
+        return logger
 
 
 # Variable global para activar o desactivar los prints
@@ -3152,8 +3149,8 @@ class ScannerWorker(QRunnable):
         self.logger = configure_logger()
 
     def get_timestamp(self):
-        elapsed = time.time() - self.start_time
-        return f"[{elapsed:.3f}s]"
+        # Usar el nuevo formato centralizado
+        return get_log_prefix(self.__class__.__name__, "ScannerWorker")
 
     @Slot()
     def run(self):

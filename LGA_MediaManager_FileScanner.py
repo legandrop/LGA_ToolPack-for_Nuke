@@ -50,34 +50,17 @@ DEBUG = False
 
 
 def configure_logger():
-    # Si ya existe un logger configurado, lo retornamos sin crear uno nuevo
-    if hasattr(configure_logger, "logger"):
-        return configure_logger.logger
+    # Importar la configuracion centralizada del archivo principal
+    try:
+        from LGA_mediaManager import configure_logger as main_configure_logger
 
-    # Crear un logger personalizado
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
+        return main_configure_logger()
+    except ImportError:
+        # Fallback en caso de problemas de importacion
+        import logging
 
-    # Verificar si ya tiene handlers para evitar duplicados
-    if not logger.handlers:
-        # Crear un handler para escribir en archivo
-        log_dir = os.path.dirname(os.path.realpath(__file__))
-        log_file = os.path.join(log_dir, "LGA_mediaManager_log.txt")
-        file_handler = logging.FileHandler(log_file, mode="w")
-        file_handler.setLevel(logging.DEBUG)
-
-        # Crear un formatter para el output
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        file_handler.setFormatter(formatter)
-
-        # Agregar el handler al logger
-        logger.addHandler(file_handler)
-
-    # Guardar una referencia al logger para no duplicarlo
-    configure_logger.logger = logger
-    return logger
+        logger = logging.getLogger("LGA_MediaManager")
+        return logger
 
 
 def debug_print(*message):
