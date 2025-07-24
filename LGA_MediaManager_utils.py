@@ -1577,12 +1577,36 @@ class FileScanner(QWidget):
         logger.debug(f"Total read files a procesar: {len(all_read_files)}")
         logger.debug(f"Nodos ya matched: {self.matched_reads}")
 
+        # LOG ESPECIFICO: Buscar el archivo EditRef en los read files
+        editref_found = False
+        for read_path, nodes in all_read_files.items():
+            if "EditRef_v01.mov" in read_path:
+                editref_found = True
+                logger.debug(f"EDITREF DETECTADO en search_unmatched_reads:")
+                logger.debug(f"  - Path: {read_path}")
+                logger.debug(f"  - Nodos: {nodes}")
+                logger.debug(f"  - Matched reads actuales: {self.matched_reads}")
+                break
+        if not editref_found:
+            logger.debug("EDITREF NO ENCONTRADO en search_unmatched_reads")
+
         for read_path, nodes in all_read_files.items():
             read_path = os.path.normpath(read_path)
             unmatched_nodes = [node for node in nodes if node not in self.matched_reads]
-            logger.debug(f"\nProcesando read_path: {read_path}")
-            logger.debug(f"  - Nodos del read: {nodes}")
-            logger.debug(f"  - Nodos unmatched: {unmatched_nodes}")
+
+            # LOG ESPECIFICO: Detectar cuando procesamos EditRef
+            if "EditRef_v01.mov" in read_path:
+                logger.debug(f"\n*** PROCESANDO EDITREF ***")
+                logger.debug(f"Read path: {read_path}")
+                logger.debug(f"Nodos del read: {nodes}")
+                logger.debug(f"Matched reads actuales: {self.matched_reads}")
+                logger.debug(f"Nodos unmatched: {unmatched_nodes}")
+                logger.debug(f"¿Tiene nodos unmatched?: {bool(unmatched_nodes)}")
+            else:
+                logger.debug(f"\nProcesando read_path: {read_path}")
+                logger.debug(f"  - Nodos del read: {nodes}")
+                logger.debug(f"  - Nodos unmatched: {unmatched_nodes}")
+
             if unmatched_nodes:
                 is_sequence = (
                     "%" in read_path or "#" in read_path
@@ -1781,6 +1805,16 @@ class FileScanner(QWidget):
         # El escaneo real se realizará en el worker
         scanner_worker = ScannerWorker(self)  # Solo pasamos la instancia de FileScanner
 
+        # LOG DE TRAZABILIDAD: Identificar desde scan_project
+        self.logger.debug(
+            f"\n[FIX!!!] ========== CREANDO SCANNER WORKER EN SCAN_PROJECT =========="
+        )
+        self.logger.debug(f"[FIX!!!] Worker ID: {id(scanner_worker)}")
+        self.logger.debug(f"[FIX!!!] Creado en: scan_project()")
+        self.logger.debug(
+            f"[FIX!!!] =========================================================="
+        )
+
         # Conectar señales
         scanner_worker.signals.files_found.connect(self.on_files_found)
         scanner_worker.signals.finished.connect(
@@ -1793,10 +1827,26 @@ class FileScanner(QWidget):
         )
 
         # Iniciar el escaneo en segundo plano
+        self.logger.debug(
+            f"[FIX!!!] INICIANDO worker {id(scanner_worker)} desde scan_project()"
+        )
         QThreadPool.globalInstance().start(scanner_worker)
 
     def on_files_found(self, data):
         files_data, unmatched_reads_data = data
+
+        # LOG ESPECIFICO: Verificar si EditRef está en alguno de los dos conjuntos
+        editref_in_files_data = any(
+            "EditRef_v01.mov" in str(file_data[0]) for file_data in files_data
+        )
+        editref_in_unmatched = any(
+            "EditRef_v01.mov" in str(file_data[0]) for file_data in unmatched_reads_data
+        )
+
+        self.logger.debug(f"\n=== on_files_found: Análisis de EditRef ===")
+        self.logger.debug(f"EditRef en files_data: {editref_in_files_data}")
+        self.logger.debug(f"EditRef en unmatched_reads_data: {editref_in_unmatched}")
+
         self.logger.debug(
             f"\n=== on_files_found: Agregando {len(files_data)} archivos de find_files ==="
         )
@@ -1829,13 +1879,30 @@ class FileScanner(QWidget):
             read_node_name = next(iter(read_files.values()))[0]
             row_position = self.table.rowCount()
 
-            self.logger.debug(f"\n[ARCHIVO {i+1}/{len(files_data)}] Agregando a tabla:")
-            self.logger.debug(f"  - File path: {file_path}")
-            self.logger.debug(f"  - Is sequence: {is_sequence}")
-            self.logger.debug(f"  - Frame range: {frame_range}")
-            self.logger.debug(f"  - Is unmatched read: {is_unmatched_read}")
-            self.logger.debug(f"  - Is folder deletable: {is_folder_deletable}")
-            self.logger.debug(f"  - Row position: {row_position}")
+            # LOG ESPECIFICO: Detectar cuando agregamos EditRef a la tabla
+            if "EditRef_v01.mov" in file_path:
+                self.logger.debug(f"\n*** ADD_FILE_TO_TABLE: Procesando EDITREF ***")
+                self.logger.debug(
+                    f"[ARCHIVO {i+1}/{len(files_data)}] Agregando EditRef a tabla:"
+                )
+                self.logger.debug(f"  - File path: {file_path}")
+                self.logger.debug(f"  - Is sequence: {is_sequence}")
+                self.logger.debug(f"  - Frame range: {frame_range}")
+                self.logger.debug(f"  - Is unmatched read: {is_unmatched_read}")
+                self.logger.debug(f"  - Is folder deletable: {is_folder_deletable}")
+                self.logger.debug(f"  - Row position: {row_position}")
+                self.logger.debug(f"  - read_files keys: {list(read_files.keys())}")
+                self.logger.debug(f"  - Matched reads actuales: {self.matched_reads}")
+            else:
+                self.logger.debug(
+                    f"\n[ARCHIVO {i+1}/{len(files_data)}] Agregando a tabla:"
+                )
+                self.logger.debug(f"  - File path: {file_path}")
+                self.logger.debug(f"  - Is sequence: {is_sequence}")
+                self.logger.debug(f"  - Frame range: {frame_range}")
+                self.logger.debug(f"  - Is unmatched read: {is_unmatched_read}")
+                self.logger.debug(f"  - Is folder deletable: {is_folder_deletable}")
+                self.logger.debug(f"  - Row position: {row_position}")
 
             debug_print("")
             debug_print(f"File path: {file_path}")
@@ -1914,24 +1981,73 @@ class FileScanner(QWidget):
                     file_path
                 )
 
+                # LOG ESPECIFICO: Debug del flujo de decisión
+                if "EditRef_v01.mov" in file_path:
+                    self.logger.debug(
+                        f"\n*** DECISION SEQUENCE/NO-SEQUENCE EDITREF ***"
+                    )
+                    self.logger.debug(f"is_sequence: {is_sequence}")
+                    self.logger.debug(f"file_path: {file_path}")
+                    self.logger.debug(
+                        f"normalized_file_path_for_comparison: '{normalized_file_path_for_comparison}'"
+                    )
+
                 if is_sequence:
+                    if "EditRef_v01.mov" in file_path:
+                        self.logger.debug(f"*** EDITREF PROCESADO COMO SECUENCIA ***")
+                        self.logger.debug(f"frame_range: {frame_range}")
                     for read_path, nodes in normalized_read_files.items():
                         if self.is_sequence_match(
                             normalized_file_path_for_comparison, read_path, frame_range
                         ):
+                            if "EditRef_v01.mov" in file_path:
+                                self.logger.debug(
+                                    f"*** SEQUENCE MATCH ENCONTRADO PARA EDITREF ***"
+                                )
                             status = ", ".join(nodes)
                             state = "OK"
                             status_color = "#25321e"
                             self.matched_reads.extend(nodes)
                             break
                 else:
+                    # LOG ESPECIFICO: Debug de comparación de paths
+                    if "EditRef_v01.mov" in file_path:
+                        self.logger.debug(
+                            f"\n*** EDITREF PROCESADO COMO NO-SECUENCIA ***"
+                        )
+                        self.logger.debug(f"\n*** COMPARACION DE PATHS EDITREF ***")
+                        self.logger.debug(
+                            f"normalized_file_path_for_comparison: '{normalized_file_path_for_comparison}'"
+                        )
+                        self.logger.debug(f"normalized_read_files keys:")
+                        for i, (rp, rn) in enumerate(normalized_read_files.items()):
+                            self.logger.debug(f"  [{i}] '{rp}' -> {rn}")
+
                     for read_path, nodes in normalized_read_files.items():
                         if normalized_file_path_for_comparison == read_path:
+                            if "EditRef_v01.mov" in file_path:
+                                self.logger.debug(f"*** MATCH ENCONTRADO! ***")
+                                self.logger.debug(
+                                    f"Agregando nodos a matched_reads: {nodes}"
+                                )
+                                self.logger.debug(
+                                    f"matched_reads antes: {self.matched_reads}"
+                                )
                             status = ", ".join(nodes)
                             state = "OK"
                             status_color = "#25321e"
                             self.matched_reads.extend(nodes)
+                            if "EditRef_v01.mov" in file_path:
+                                self.logger.debug(
+                                    f"matched_reads después: {self.matched_reads}"
+                                )
                             break
+
+                    # LOG ESPECIFICO: Si no hay match para EditRef
+                    if "EditRef_v01.mov" in file_path and state == "Unused":
+                        self.logger.debug(f"*** NO SE ENCONTRO MATCH PARA EDITREF ***")
+                        self.logger.debug(f"Estado final: {state}")
+                        self.logger.debug(f"matched_reads final: {self.matched_reads}")
 
                 # Ajustar y establecer el valor para la columna "Read"
                 read_item = QTableWidgetItem(status)
@@ -2094,6 +2210,23 @@ class FileScanner(QWidget):
 
     def remove_duplicates(self):
         paths = {}  # Diccionario para almacenar los paths y sus indices de fila
+        editref_rows = []  # Para rastrear filas de EditRef
+
+        # LOG ESPECIFICO: Detectar filas de EditRef antes de procesar
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is not None and "EditRef_v01.mov" in item.text():
+                status_item = self.table.item(row, 2)
+                status = status_item.text() if status_item else "Unknown"
+                editref_rows.append((row, status))
+
+        if editref_rows:
+            self.logger.debug(
+                f"\n*** REMOVE_DUPLICATES: EditRef encontrado en {len(editref_rows)} filas ***"
+            )
+            for row, status in editref_rows:
+                self.logger.debug(f"  - Fila {row}: Status '{status}'")
+
         for row in range(self.table.rowCount()):
             item = self.table.item(row, 0)
             if item is not None:
@@ -2102,15 +2235,44 @@ class FileScanner(QWidget):
                     self.table.item(row, 0).text()
                 )
                 status = self.table.item(row, 2).text()
+
+                # LOG ESPECIFICO: Detectar cuando procesamos EditRef en remove_duplicates
+                if "editref_v01.mov" in file_path:
+                    self.logger.debug(
+                        f"\n*** REMOVE_DUPLICATES: Procesando EditRef en fila {row} ***"
+                    )
+                    self.logger.debug(f"  - File path normalizado: {file_path}")
+                    self.logger.debug(f"  - Status: {status}")
+                    self.logger.debug(f"  - ¿Ya existe en paths?: {file_path in paths}")
+                    if file_path in paths:
+                        prev_row = paths[file_path]
+                        prev_status = (
+                            self.table.item(prev_row, 2).text()
+                            if self.table.item(prev_row, 2)
+                            else "Unknown"
+                        )
+                        self.logger.debug(
+                            f"  - Fila previa: {prev_row} con status '{prev_status}'"
+                        )
+
                 if file_path in paths and status != "OK":
                     # Si el path esta duplicado y el estado actual no es "OK", eliminar la fila
+                    if "editref_v01.mov" in file_path:
+                        self.logger.debug(
+                            f"*** ELIMINANDO fila {row} (status no OK y duplicado) ***"
+                        )
                     self.table.removeRow(row)
                 elif (
                     file_path in paths
                     and self.table.item(paths[file_path], 2).text() != "OK"
                 ):
                     # Si el path esta duplicado y el estado del path previamente almacenado no es "OK", eliminar la fila previa
-                    self.table.removeRow(paths[file_path])
+                    prev_row = paths[file_path]
+                    if "editref_v01.mov" in file_path:
+                        self.logger.debug(
+                            f"*** ELIMINANDO fila previa {prev_row} (status no OK y duplicado) ***"
+                        )
+                    self.table.removeRow(prev_row)
                     paths[file_path] = (
                         row  # Actualizar el indice con la fila actual porque la anterior fue eliminada
                     )
@@ -3128,6 +3290,15 @@ class ScannerSignals(QObject):
 class ScannerWorker(QRunnable):
     def __init__(self, file_scanner):
         super(ScannerWorker, self).__init__()
+
+        # LOG DE TRAZABILIDAD EN CONSTRUCTOR: Identificar dónde se crea cada worker
+        import traceback
+
+        stack = traceback.extract_stack()
+        caller_info = []
+        for frame in stack[-15:]:  # Últimas 15 llamadas para más contexto
+            caller_info.append(f"{frame.filename}:{frame.lineno} in {frame.name}")
+
         self.file_scanner = file_scanner
         self.signals = ScannerSignals()
         self.signals.moveToThread(QApplication.instance().thread())
@@ -3148,6 +3319,19 @@ class ScannerWorker(QRunnable):
         # Obtener el logger configurado
         self.logger = configure_logger()
 
+        # LOG DE CREACIÓN DEL WORKER
+        self.logger.debug(
+            f"\n[FIX!!!] ========== CONSTRUCTOR SCANNER WORKER =========="
+        )
+        self.logger.debug(f"[FIX!!!] Worker ID: {id(self)}")
+        self.logger.debug(f"[FIX!!!] Creado desde:")
+        for i, call in enumerate(caller_info):
+            self.logger.debug(f"[FIX!!!]   {i}: {call}")
+        self.logger.debug(f"[FIX!!!] =============================================")
+
+        # Guardar información para debugging
+        self.creation_stack = caller_info
+
     def get_timestamp(self):
         # Usar el nuevo formato centralizado
         return get_log_prefix(self.__class__.__name__, "ScannerWorker")
@@ -3155,6 +3339,26 @@ class ScannerWorker(QRunnable):
     @Slot()
     def run(self):
         try:
+            # LOG DE TRAZABILIDAD: Identificar quién llamó a este worker
+            import traceback
+            import inspect
+
+            stack = traceback.extract_stack()
+            caller_info = []
+            for frame in stack[-10:]:  # Últimas 10 llamadas
+                caller_info.append(f"{frame.filename}:{frame.lineno} in {frame.name}")
+
+            self.logger.debug(
+                f"\n[FIX!!!] ========== SCANNER WORKER INICIADO =========="
+            )
+            self.logger.debug(f"[FIX!!!] Worker ID: {id(self)}")
+            self.logger.debug(f"[FIX!!!] Llamado desde:")
+            for i, call in enumerate(caller_info):
+                self.logger.debug(f"[FIX!!!]   {i}: {call}")
+            self.logger.debug(
+                f"[FIX!!!] ==============================================="
+            )
+
             self.start_time = time.time()
             total_items = 0
             processed_items = 0
@@ -3305,6 +3509,7 @@ class ScannerWorker(QRunnable):
         sequences = {}
         all_read_files = self.get_read_files()
         to_add = []
+        processed_files = set()  # Para evitar duplicados causados por os.walk()
 
         # Contador para el progreso
         total_processed = 0
@@ -3322,6 +3527,14 @@ class ScannerWorker(QRunnable):
                 )
             ]
             total_files += len(filtered_files)
+
+            # LOG ESPECIFICO: Detectar cuántas veces aparece EditRef en las carpetas
+            editref_files = [f for f in filtered_files if "EditRef_v01.mov" in f]
+            if editref_files:
+                self.logger.debug(
+                    f"\n[FIX!!!] FIND_FILES COUNT: EditRef encontrado en root: {root}"
+                )
+                self.logger.debug(f"[FIX!!!] Archivos EditRef: {editref_files}")
 
         def update_find_progress(description=""):
             nonlocal processed_items
@@ -3357,6 +3570,14 @@ class ScannerWorker(QRunnable):
                 )
             ]
             filtered_files.sort(key=lambda x: x.lower())
+
+            # LOG ESPECIFICO: Detectar cuántas veces aparece EditRef en la segunda pasada
+            editref_files = [f for f in filtered_files if "EditRef_v01.mov" in f]
+            if editref_files:
+                self.logger.debug(
+                    f"\n[FIX!!!] FIND_FILES SEGUNDA PASADA: EditRef en root: {root}"
+                )
+                self.logger.debug(f"[FIX!!!] Archivos EditRef: {editref_files}")
 
             for i in range(len(filtered_files) - 1):
                 file1, file2 = filtered_files[i], filtered_files[i + 1]
@@ -3462,10 +3683,56 @@ class ScannerWorker(QRunnable):
                             in_sequence = True
                             break
                     if not in_sequence:
-                        # logging.info(f"Agregando archivo no secuencial: {file_path}")
-                        to_add.append(
-                            (file_path, all_read_files, False, "", False, False, False)
-                        )
+                        # SOLUCION QUIRURGICA: Verificar si ya fue procesado para evitar duplicados
+                        normalized_file_path = normalize_path_for_comparison(file_path)
+
+                        # LOG ESPECIFICO: Debug del estado antes de verificar
+                        if "EditRef_v01.mov" in file_path:
+                            self.logger.debug(
+                                f"\n*** FIND_FILES: Evaluando EDITREF ***"
+                            )
+                            self.logger.debug(f"File path: {file_path}")
+                            self.logger.debug(
+                                f"Normalized path: {normalized_file_path}"
+                            )
+                            self.logger.debug(
+                                f"¿Ya estaba en processed_files?: {normalized_file_path in processed_files}"
+                            )
+                            self.logger.debug(
+                                f"Tamaño de processed_files: {len(processed_files)}"
+                            )
+
+                        if normalized_file_path not in processed_files:
+                            processed_files.add(normalized_file_path)
+
+                            # LOG ESPECIFICO: Detectar cuando agregamos EditRef en find_files
+                            if "EditRef_v01.mov" in file_path:
+                                self.logger.debug(
+                                    f"*** FIND_FILES: Agregando EDITREF como no secuencial ***"
+                                )
+                                self.logger.debug(f"In sequence: {in_sequence}")
+                            # logging.info(f"Agregando archivo no secuencial: {file_path}")
+                            to_add.append(
+                                (
+                                    file_path,
+                                    all_read_files,
+                                    False,
+                                    "",
+                                    False,
+                                    False,
+                                    False,
+                                )
+                            )
+                        else:
+                            # LOG ESPECIFICO: Detectar duplicados evitados
+                            if "EditRef_v01.mov" in file_path:
+                                self.logger.debug(
+                                    f"\n*** FIND_FILES: DUPLICADO EVITADO - EditRef ya procesado ***"
+                                )
+                                self.logger.debug(f"File path: {file_path}")
+                                self.logger.debug(
+                                    f"Normalized path: {normalized_file_path}"
+                                )
 
         ##############################################
 
@@ -3525,17 +3792,78 @@ class ScannerWorker(QRunnable):
             is_folder_deletable = all_files_in_directory == sequence_files_set
             # logging.info (f"is_folder_deletable {is_folder_deletable}")
 
-            to_add.append(
-                (
-                    base,
-                    all_read_files,
-                    True,
-                    frame_range,
-                    False,
-                    is_folder_deletable,
-                    True,
+            # SOLUCION QUIRURGICA: Verificar duplicados en secuencias también
+            normalized_base = normalize_path_for_comparison(base)
+            if normalized_base not in processed_files:
+                processed_files.add(normalized_base)
+                to_add.append(
+                    (
+                        base,
+                        all_read_files,
+                        True,
+                        frame_range,
+                        False,
+                        is_folder_deletable,
+                        True,
+                    )
                 )
-            )
+            else:
+                self.logger.debug(f"\n*** FIND_FILES: SECUENCIA DUPLICADA EVITADA ***")
+                self.logger.debug(f"Base: {base}")
+                self.logger.debug(f"Normalized base: {normalized_base}")
+
+        # SOLUCION QUIRURGICA FINAL: Eliminar duplicados de to_add antes de devolver
+        self.logger.debug(
+            f"\n[FIX!!!] FIND_FILES: Eliminando duplicados de {len(to_add)} archivos ***"
+        )
+
+        # Usar un diccionario para rastrear archivos únicos por path normalizado
+        unique_files = {}
+        duplicates_found = 0
+        editref_count = 0
+
+        for i, item in enumerate(to_add):
+            (
+                file_path,
+                read_files,
+                is_sequence,
+                frame_range,
+                is_unmatched_read,
+                is_folder_deletable,
+                sequence_state,
+            ) = item
+            normalized_path = normalize_path_for_comparison(file_path)
+
+            # Contar EditRef para debugging
+            if "EditRef_v01.mov" in file_path:
+                editref_count += 1
+                self.logger.debug(
+                    f"[FIX!!!] EditRef #{editref_count} encontrado en posición {i}"
+                )
+                self.logger.debug(f"[FIX!!!] Path original: {file_path}")
+                self.logger.debug(f"[FIX!!!] Path normalizado: {normalized_path}")
+
+            if normalized_path not in unique_files:
+                unique_files[normalized_path] = item
+                if "EditRef_v01.mov" in file_path:
+                    self.logger.debug(
+                        f"[FIX!!!] EditRef #{editref_count} AGREGADO como único"
+                    )
+            else:
+                duplicates_found += 1
+                if "EditRef_v01.mov" in file_path:
+                    self.logger.debug(
+                        f"[FIX!!!] DUPLICADO ENCONTRADO Y ELIMINADO: EditRef #{editref_count}"
+                    )
+                    self.logger.debug(f"[FIX!!!] Path original: {file_path}")
+                    self.logger.debug(f"[FIX!!!] Path normalizado: {normalized_path}")
+
+        # Convertir de vuelta a lista
+        to_add = list(unique_files.values())
+
+        self.logger.debug(f"[FIX!!!] Duplicados eliminados: {duplicates_found} ***")
+        self.logger.debug(f"[FIX!!!] Archivos únicos restantes: {len(to_add)} ***")
+        self.logger.debug(f"[FIX!!!] EditRef total encontrados: {editref_count} ***")
 
         # Ordenar to_add por "Status" y luego por "Footage" antes de Agregar a la tabla
         to_add.sort(
@@ -3591,12 +3919,38 @@ def main():
             # Usar QTimer para retrasar la visualización
             QTimer.singleShot(100, delayed_show)  # 100ms de retraso
 
-        # Usar el scanner_worker de window.scan_project()
-        window.scanner_worker.signals.progress.connect(startup_window.updateProgress)
-        window.scanner_worker.signals.finished.connect(on_scan_complete)
+        # LOG DE TRAZABILIDAD: Verificar si window ya tiene scanner_worker
+        logger = configure_logger()
+        logger.debug(f"\n[FIX!!!] ========== MAIN FUNCTION ==========")
+        logger.debug(f"[FIX!!!] Window creada: {id(window)}")
+        logger.debug(
+            f"[FIX!!!] ¿Window tiene scanner_worker?: {hasattr(window, 'scanner_worker')}"
+        )
+        if hasattr(window, "scanner_worker"):
+            logger.debug(
+                f"[FIX!!!] Scanner_worker ID: {id(window.scanner_worker) if window.scanner_worker else 'None'}"
+            )
+        logger.debug(f"[FIX!!!] =====================================")
 
-        # Iniciar el escaneo en segundo plano usando el worker existente
-        QThreadPool.globalInstance().start(window.scanner_worker)
+        # SOLUCION QUIRURGICA: El worker ya se inicia en scan_project(), no iniciarlo de nuevo
+        # Conectar las señales al worker que ya está corriendo
+        def connect_signals_when_ready():
+            if hasattr(window, "scanner_worker") and window.scanner_worker:
+                window.scanner_worker.signals.progress.connect(
+                    startup_window.updateProgress
+                )
+                window.scanner_worker.signals.finished.connect(on_scan_complete)
+                logger.debug("[FIX!!!] MAIN: Señales conectadas al worker existente")
+            else:
+                # Si no hay worker, crear uno (fallback)
+                logger.debug("[FIX!!!] MAIN: No hay worker, llamando scan_project()")
+                window.scan_project()
+                connect_signals_when_ready()
+
+        connect_signals_when_ready()
+
+        # NO iniciar worker adicional - ya se inicia en scan_project()
+        # QThreadPool.globalInstance().start(window.scanner_worker)  # COMENTADO - CAUSABA DUPLICACION
 
 
 if __name__ == "__main__":
