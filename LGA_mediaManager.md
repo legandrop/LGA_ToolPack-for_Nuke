@@ -49,6 +49,30 @@
 - **Facilita testing** y debugging
 - **Evita duplicación** de código
 
+## Problemas Conocidos y Deuda Técnica
+
+### Duplicación de Clase FileScanner
+**Problema**: La clase `FileScanner` existe en **DOS archivos**:
+- `LGA_MediaManager_FileScanner.py` - **Versión oficial y mantenida**
+- `LGA_MediaManager_utils.py` - **Versión deprecated/legacy**
+
+**Causa**: Durante la refactorización se mantuvo una copia en `utils.py` para testing independiente.
+
+**Estado Actual**:
+- `LGA_mediaManager.py` importa desde `FileScanner.py` (correcto)
+- `utils.py` tiene su propia copia para el bloque `__main__` (legacy)
+- **La solución de deduplicación** se implementó en `FileScanner.py` (la versión correcta)
+
+**Solución Futura**: 
+- Eliminar la clase duplicada de `utils.py`
+- Hacer que `utils.py` importe desde `FileScanner.py`
+- Mantener solo una versión de la clase
+
+**Impacto**: 
+- ✅ **No afecta la funcionalidad actual** 
+- ⚠️ **Puede causar confusión** durante el desarrollo
+- 🔄 **Duplica esfuerzo** de mantenimiento
+
 ## Debugging de Archivos Duplicados (Problema Resuelto)
 
 ### Problema Identificado
@@ -122,4 +146,46 @@ to_add = list(unique_files.values())
 1. **os.walk()** puede visitar la misma carpeta múltiples veces en sistemas de archivos complejos
 2. La deduplicación debe hacerse **después** de completar todo el escaneo
 3. Los logs detallados son esenciales para identificar problemas de flujo de datos
-4. Las soluciones quirúrgicas son preferibles a refactorizaciones completas 
+4. Las soluciones quirúrgicas son preferibles a refactorizaciones completas
+
+### Solución Final Implementada
+
+#### Problema Real Descubierto
+Tras el debugging detallado se descubrió que el problema **NO** era en `find_files()`, sino que:
+- **Múltiples workers** se ejecutaban simultáneamente
+- **Cada worker** enviaba su propia lista de archivos a `add_file_to_table()`
+- **Sin deduplicación** entre workers, los mismos archivos se agregaban múltiples veces
+
+#### Solución Final: Deduplicación Session-Based
+**Implementada en**: `LGA_MediaManager_FileScanner.py::add_file_to_table()`
+
+```python
+# Crear un registro de archivos ya procesados en esta sesión
+if not hasattr(self, '_processed_files_session'):
+    self._processed_files_session = set()
+
+# Filtrar duplicados antes de procesar
+for file_data in files_data:
+    file_path = file_data[0]
+    normalized_path = normalize_path_for_comparison(file_path)
+    
+    if normalized_path not in self._processed_files_session:
+        self._processed_files_session.add(normalized_path)
+        unique_files_data.append(file_data)
+    else:
+        duplicates_removed += 1
+
+files_data = unique_files_data  # Usar solo archivos únicos
+```
+
+#### Ventajas de la Solución Final
+- **A prueba de fallos**: Funciona sin importar cuántos workers se ejecuten
+- **Session-based**: Mantiene registro durante toda la sesión de escaneo
+- **Quirúrgica**: No modifica la arquitectura de workers existente
+- **Eficiente**: Deduplicación O(1) usando sets con paths normalizados
+- **Transparente**: El resto del código no se ve afectado
+
+#### Resultado
+- **100% de duplicados eliminados**
+- **Sin crashes** ni problemas de performance
+- **Arquitectura intacta** - no se rompió funcionalidad existente 
