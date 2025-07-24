@@ -1,0 +1,573 @@
+2025-07-23 23:24:56,672 - LGA_MediaManager_FileScanner - DEBUG - 
+=== INICIO search_unmatched_reads ===
+2025-07-23 23:24:56,672 - LGA_MediaManager_FileScanner - DEBUG - 
+=== INICIO search_unmatched_reads ===
+2025-07-23 23:24:56,679 - LGA_MediaManager_FileScanner - DEBUG - Total read files a procesar: 12
+2025-07-23 23:24:56,679 - LGA_MediaManager_FileScanner - DEBUG - Total read files a procesar: 12
+2025-07-23 23:24:56,680 - LGA_MediaManager_FileScanner - DEBUG - Nodos ya matched: []
+2025-07-23 23:24:56,680 - LGA_MediaManager_FileScanner - DEBUG - Nodos ya matched: []
+2025-07-23 23:24:56,680 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v05\ETDM_1000_0120_DeAging_Atropella_comp_v05_%04d.exr
+2025-07-23 23:24:56,680 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v05\ETDM_1000_0120_DeAging_Atropella_comp_v05_%04d.exr
+2025-07-23 23:24:56,681 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read8']
+2025-07-23 23:24:56,681 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read8']
+2025-07-23 23:24:56,681 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read8']
+2025-07-23 23:24:56,681 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read8']
+2025-07-23 23:24:56,682 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read8 al to_add como unmatched
+2025-07-23 23:24:56,682 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read8 al to_add como unmatched
+2025-07-23 23:24:56,683 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v05\ETDM_1000_0120_DeAging_Atropella_comp_v05_####.exr
+2025-07-23 23:24:56,683 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v05\ETDM_1000_0120_DeAging_Atropella_comp_v05_####.exr
+2025-07-23 23:24:56,683 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,687 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,690 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,690 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,692 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,692 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,692 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read9', 'Read15', 'Read13']
+2025-07-23 23:24:56,692 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read9', 'Read15', 'Read13']
+2025-07-23 23:24:56,692 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read9', 'Read15', 'Read13']
+2025-07-23 23:24:56,692 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read9', 'Read15', 'Read13']
+2025-07-23 23:24:56,693 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read9 al to_add como unmatched
+2025-07-23 23:24:56,693 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read9 al to_add como unmatched
+2025-07-23 23:24:56,693 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,693 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,693 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,693 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,694 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,694 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,695 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read15 al to_add como unmatched
+2025-07-23 23:24:56,695 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read15 al to_add como unmatched
+2025-07-23 23:24:56,695 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,695 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,695 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,696 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,696 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,696 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read13 al to_add como unmatched
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read13 al to_add como unmatched
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1016_v01.psd
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1016_v01.psd
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read10']
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read10']
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read10']
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read10']
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read10 al to_add como unmatched
+2025-07-23 23:24:56,697 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read10 al to_add como unmatched
+2025-07-23 23:24:56,699 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1016_v01.psd
+2025-07-23 23:24:56,699 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1016_v01.psd
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v02.psd
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v02.psd
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read11']
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read11']
+2025-07-23 23:24:56,702 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read11']
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read11']
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read11 al to_add como unmatched
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read11 al to_add como unmatched
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v02.psd
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v02.psd
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1041_v01.psd
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1041_v01.psd
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read14']
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read14']
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read14']
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read14']
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read14 al to_add como unmatched
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read14 al to_add como unmatched
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1041_v01.psd
+2025-07-23 23:24:56,703 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1041_v01.psd
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_Pre_v01\ETDM_1000_0120_DeAging_Atropella_Pre_v01_%04d.exr
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_Pre_v01\ETDM_1000_0120_DeAging_Atropella_Pre_v01_%04d.exr
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read7']
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read7']
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read7']
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read7']
+2025-07-23 23:24:56,704 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read7 al to_add como unmatched
+2025-07-23 23:24:56,705 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read7 al to_add como unmatched
+2025-07-23 23:24:56,705 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_Pre_v01\ETDM_1000_0120_DeAging_Atropella_Pre_v01_####.exr
+2025-07-23 23:24:56,705 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,705 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_Pre_v01\ETDM_1000_0120_DeAging_Atropella_Pre_v01_####.exr
+2025-07-23 23:24:56,705 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,705 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,706 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_aPlate_v01\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_%04d.exr
+2025-07-23 23:24:56,706 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,706 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read1']
+2025-07-23 23:24:56,706 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_aPlate_v01\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_%04d.exr
+2025-07-23 23:24:56,706 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read1']
+2025-07-23 23:24:56,707 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read1']
+2025-07-23 23:24:56,707 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read1']
+2025-07-23 23:24:56,707 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read1 al to_add como unmatched
+2025-07-23 23:24:56,707 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_aPlate_v01\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_####.exr
+2025-07-23 23:24:56,707 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read1 al to_add como unmatched
+2025-07-23 23:24:56,707 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,707 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_aPlate_v01\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_####.exr
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v03\ETDM_1000_0120_DeAging_Atropella_comp_v03_%04d.exr
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read12']
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v03\ETDM_1000_0120_DeAging_Atropella_comp_v03_%04d.exr
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read12']
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read12']
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read12']
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read12 al to_add como unmatched
+2025-07-23 23:24:56,708 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v03\ETDM_1000_0120_DeAging_Atropella_comp_v03_####.exr
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read12 al to_add como unmatched
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v03\ETDM_1000_0120_DeAging_Atropella_comp_v03_####.exr
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4\88bc2fbe_1.%03d.png
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read6']
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4\88bc2fbe_1.%03d.png
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read6']
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read6']
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read6']
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read6 al to_add como unmatched
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4\88bc2fbe_1.###.png
+2025-07-23 23:24:56,709 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read6 al to_add como unmatched
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4\88bc2fbe_1.###.png
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [400-452]
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised_%04d.exr
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [400-452]
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read3']
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised_%04d.exr
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read3']
+2025-07-23 23:24:56,710 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read3']
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read3']
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read3 al to_add como unmatched
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read3 al to_add como unmatched
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised_####.exr
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised_####.exr
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [1001-1053]
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3\7165b23d_1.%03d.png
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3\7165b23d_1.%03d.png
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read5']
+2025-07-23 23:24:56,711 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read5']
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read5']
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read5']
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read5 al to_add como unmatched
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3\7165b23d_1.###.png
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read5 al to_add como unmatched
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3\7165b23d_1.###.png
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [300-352]
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: True
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_EditRef_v01.mov
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: [300-352]
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read2']
+2025-07-23 23:24:56,712 - LGA_MediaManager_FileScanner - DEBUG - 
+Procesando read_path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_EditRef_v01.mov
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read2']
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos del read: ['Read2']
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read2 al to_add como unmatched
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -   - Nodos unmatched: ['Read2']
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_EditRef_v01.mov
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -   --> AGREGANDO nodo Read2 al to_add como unmatched
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -       Ruta: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_EditRef_v01.mov
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -       Is sequence: False
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - 
+=== FIN search_unmatched_reads ===
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG -       Frame range: 
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - Total archivos para agregar: 14
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - 
+=== FIN search_unmatched_reads ===
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - [1/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v05\ETDM_1000_0120_DeAging_Atropella_comp_v05_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - Total archivos para agregar: 14
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - [2/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - [1/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v05\ETDM_1000_0120_DeAging_Atropella_comp_v05_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - [3/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - [2/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,713 - LGA_MediaManager_FileScanner - DEBUG - [4/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [3/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [5/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1016_v01.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [4/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [6/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v02.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [5/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1016_v01.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [7/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1041_v01.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [6/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v02.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [8/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_Pre_v01\ETDM_1000_0120_DeAging_Atropella_Pre_v01_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [7/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1041_v01.psd - Is_seq: False - Range: 
+2025-07-23 23:24:56,714 - LGA_MediaManager_FileScanner - DEBUG - [9/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_aPlate_v01\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [8/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_Pre_v01\ETDM_1000_0120_DeAging_Atropella_Pre_v01_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [10/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v03\ETDM_1000_0120_DeAging_Atropella_comp_v03_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [9/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_aPlate_v01\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [11/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4\88bc2fbe_1.###.png - Is_seq: True - Range: [400-452]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [10/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v03\ETDM_1000_0120_DeAging_Atropella_comp_v03_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [12/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [11/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4\88bc2fbe_1.###.png - Is_seq: True - Range: [400-452]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [13/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3\7165b23d_1.###.png - Is_seq: True - Range: [300-352]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [12/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised_####.exr - Is_seq: True - Range: [1001-1053]
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [14/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_EditRef_v01.mov - Is_seq: False - Range: 
+2025-07-23 23:24:56,715 - LGA_MediaManager_FileScanner - DEBUG - [13/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3\7165b23d_1.###.png - Is_seq: True - Range: [300-352]
+2025-07-23 23:24:56,716 - LGA_MediaManager_FileScanner - DEBUG - [14/14] T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_EditRef_v01.mov - Is_seq: False - Range: 
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG - 
+=== on_files_found: Agregando 21 archivos de find_files ===
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG - 
+>> add_file_to_table: Procesando 21 archivos
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 1/21] Agregando a tabla:
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_EditRef_v01.mov
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 0
+2025-07-23 23:24:56,743 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 0 ***
+2025-07-23 23:24:56,746 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 2/21] Agregando a tabla:
+2025-07-23 23:24:56,746 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_aPlate_v01\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_####.exr
+2025-07-23 23:24:56,746 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,746 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,746 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,746 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,746 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 1
+2025-07-23 23:24:56,747 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 1 ***
+2025-07-23 23:24:56,748 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 3/21] Agregando a tabla:
+2025-07-23 23:24:56,748 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3.mov
+2025-07-23 23:24:56,748 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,748 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,748 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,748 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,748 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 2
+2025-07-23 23:24:56,748 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 2 ***
+2025-07-23 23:24:56,749 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 4/21] Agregando a tabla:
+2025-07-23 23:24:56,749 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3\7165b23d_1.###.png
+2025-07-23 23:24:56,749 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,749 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [300-352]
+2025-07-23 23:24:56,749 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,749 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,749 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 3
+2025-07-23 23:24:56,749 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 3 ***
+2025-07-23 23:24:56,750 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 5/21] Agregando a tabla:
+2025-07-23 23:24:56,750 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4.mov
+2025-07-23 23:24:56,750 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,750 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,750 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,750 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,750 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 4
+2025-07-23 23:24:56,750 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 4 ***
+2025-07-23 23:24:56,751 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 6/21] Agregando a tabla:
+2025-07-23 23:24:56,751 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4\88bc2fbe_1.###.png
+2025-07-23 23:24:56,751 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,751 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [400-452]
+2025-07-23 23:24:56,751 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,752 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,752 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 5
+2025-07-23 23:24:56,752 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 5 ***
+2025-07-23 23:24:56,752 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 7/21] Agregando a tabla:
+2025-07-23 23:24:56,753 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_Pre_v01\ETDM_1000_0120_DeAging_Atropella_Pre_v01_####.exr
+2025-07-23 23:24:56,753 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,753 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,753 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,753 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,753 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 6
+2025-07-23 23:24:56,753 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 6 ***
+2025-07-23 23:24:56,754 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 8/21] Agregando a tabla:
+2025-07-23 23:24:56,754 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v01.psd
+2025-07-23 23:24:56,754 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,754 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,754 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,754 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,755 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 7
+2025-07-23 23:24:56,755 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 7 ***
+2025-07-23 23:24:56,756 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 9/21] Agregando a tabla:
+2025-07-23 23:24:56,756 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,756 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,756 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,756 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,756 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,756 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 8
+2025-07-23 23:24:56,756 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 8 ***
+2025-07-23 23:24:56,757 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 10/21] Agregando a tabla:
+2025-07-23 23:24:56,757 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1016_v01.psd
+2025-07-23 23:24:56,757 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,757 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,757 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,757 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,759 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 9
+2025-07-23 23:24:56,759 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 9 ***
+2025-07-23 23:24:56,761 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 11/21] Agregando a tabla:
+2025-07-23 23:24:56,761 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v01.psd
+2025-07-23 23:24:56,761 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,761 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,761 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,761 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,761 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 10
+2025-07-23 23:24:56,761 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 10 ***
+2025-07-23 23:24:56,762 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 12/21] Agregando a tabla:
+2025-07-23 23:24:56,762 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v02.psd
+2025-07-23 23:24:56,762 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,762 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,762 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,762 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,762 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 11
+2025-07-23 23:24:56,762 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 11 ***
+2025-07-23 23:24:56,763 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 13/21] Agregando a tabla:
+2025-07-23 23:24:56,763 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1041_v01.psd
+2025-07-23 23:24:56,763 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,763 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,763 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,763 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,763 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 12
+2025-07-23 23:24:56,763 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 12 ***
+2025-07-23 23:24:56,764 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 14/21] Agregando a tabla:
+2025-07-23 23:24:56,764 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1050_v01.tif
+2025-07-23 23:24:56,765 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,765 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,765 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,765 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,765 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 13
+2025-07-23 23:24:56,765 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 13 ***
+2025-07-23 23:24:56,766 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 15/21] Agregando a tabla:
+2025-07-23 23:24:56,766 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised.mov
+2025-07-23 23:24:56,766 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,766 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,766 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,766 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,766 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 14
+2025-07-23 23:24:56,766 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 14 ***
+2025-07-23 23:24:56,767 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 16/21] Agregando a tabla:
+2025-07-23 23:24:56,767 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised_####.exr
+2025-07-23 23:24:56,767 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,767 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,767 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,767 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,767 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 15
+2025-07-23 23:24:56,767 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 15 ***
+2025-07-23 23:24:56,769 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 17/21] Agregando a tabla:
+2025-07-23 23:24:56,769 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v00\ETDM_1000_0120_DeAging_Atropella_comp_v00_####.exr
+2025-07-23 23:24:56,769 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,769 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,769 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,770 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,770 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 16
+2025-07-23 23:24:56,770 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 16 ***
+2025-07-23 23:24:56,771 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 18/21] Agregando a tabla:
+2025-07-23 23:24:56,771 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v02\ETDM_1000_0120_DeAging_Atropella_comp_v02_####.exr
+2025-07-23 23:24:56,771 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,771 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,771 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,771 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,771 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 17
+2025-07-23 23:24:56,771 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 17 ***
+2025-07-23 23:24:56,772 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 19/21] Agregando a tabla:
+2025-07-23 23:24:56,772 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v03\ETDM_1000_0120_DeAging_Atropella_comp_v03_####.exr
+2025-07-23 23:24:56,772 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,772 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,772 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,772 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,772 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 18
+2025-07-23 23:24:56,772 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 18 ***
+2025-07-23 23:24:56,773 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 20/21] Agregando a tabla:
+2025-07-23 23:24:56,773 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v04\ETDM_1000_0120_DeAging_Atropella_comp_v04_####.exr
+2025-07-23 23:24:56,773 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,773 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,773 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,773 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,773 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 19
+2025-07-23 23:24:56,774 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 19 ***
+2025-07-23 23:24:56,775 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 21/21] Agregando a tabla:
+2025-07-23 23:24:56,775 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:/VFX-ETDM/101/ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v05\ETDM_1000_0120_DeAging_Atropella_comp_v05_####.exr
+2025-07-23 23:24:56,775 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,775 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,775 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: False
+2025-07-23 23:24:56,775 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,775 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 20
+2025-07-23 23:24:56,775 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 20 ***
+2025-07-23 23:24:56,776 - LGA_MediaManager_FileScanner - DEBUG - 
+=== on_files_found: Agregando 14 archivos de unmatched_reads ===
+2025-07-23 23:24:56,776 - LGA_MediaManager_FileScanner - DEBUG - 
+>> add_file_to_table: Procesando 14 archivos
+2025-07-23 23:24:56,776 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 1/14] Agregando a tabla:
+2025-07-23 23:24:56,776 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v05\ETDM_1000_0120_DeAging_Atropella_comp_v05_####.exr
+2025-07-23 23:24:56,777 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,777 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,777 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,777 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,777 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 21
+2025-07-23 23:24:56,777 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 21 ***
+2025-07-23 23:24:56,777 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 2/14] Agregando a tabla:
+2025-07-23 23:24:56,777 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,779 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,779 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,779 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,779 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,779 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 22
+2025-07-23 23:24:56,779 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 22 ***
+2025-07-23 23:24:56,780 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 3/14] Agregando a tabla:
+2025-07-23 23:24:56,780 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,780 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,780 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,780 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,780 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,780 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 23
+2025-07-23 23:24:56,780 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 23 ***
+2025-07-23 23:24:56,781 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 4/14] Agregando a tabla:
+2025-07-23 23:24:56,781 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1009_v02.psd
+2025-07-23 23:24:56,781 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,781 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,781 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,782 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,782 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 24
+2025-07-23 23:24:56,782 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 24 ***
+2025-07-23 23:24:56,782 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 5/14] Agregando a tabla:
+2025-07-23 23:24:56,783 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1016_v01.psd
+2025-07-23 23:24:56,783 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,783 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,783 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,783 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,783 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 25
+2025-07-23 23:24:56,783 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 25 ***
+2025-07-23 23:24:56,784 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 6/14] Agregando a tabla:
+2025-07-23 23:24:56,784 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1030_v02.psd
+2025-07-23 23:24:56,784 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,784 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,784 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,784 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,784 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 26
+2025-07-23 23:24:56,784 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 26 ***
+2025-07-23 23:24:56,785 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 7/14] Agregando a tabla:
+2025-07-23 23:24:56,785 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_Matte_1041_v01.psd
+2025-07-23 23:24:56,786 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,786 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,786 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,786 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,786 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 27
+2025-07-23 23:24:56,786 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 27 ***
+2025-07-23 23:24:56,787 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 8/14] Agregando a tabla:
+2025-07-23 23:24:56,787 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_Pre_v01\ETDM_1000_0120_DeAging_Atropella_Pre_v01_####.exr
+2025-07-23 23:24:56,787 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,787 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,787 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,787 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,787 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 28
+2025-07-23 23:24:56,788 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 28 ***
+2025-07-23 23:24:56,789 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 9/14] Agregando a tabla:
+2025-07-23 23:24:56,789 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_aPlate_v01\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_####.exr
+2025-07-23 23:24:56,789 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,789 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,789 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,789 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,789 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 29
+2025-07-23 23:24:56,789 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 29 ***
+2025-07-23 23:24:56,790 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 10/14] Agregando a tabla:
+2025-07-23 23:24:56,790 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\4_publish\ETDM_1000_0120_DeAging_Atropella_comp_v03\ETDM_1000_0120_DeAging_Atropella_comp_v03_####.exr
+2025-07-23 23:24:56,790 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,790 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,791 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,791 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,791 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 30
+2025-07-23 23:24:56,791 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 30 ***
+2025-07-23 23:24:56,792 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 11/14] Agregando a tabla:
+2025-07-23 23:24:56,792 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\88bc2fbe_1.4\88bc2fbe_1.###.png
+2025-07-23 23:24:56,792 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,792 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [400-452]
+2025-07-23 23:24:56,792 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,792 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,792 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 31
+2025-07-23 23:24:56,792 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 31 ***
+2025-07-23 23:24:56,793 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 12/14] Agregando a tabla:
+2025-07-23 23:24:56,793 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised\ETDM_1000_0120_DeAging_Atropella_aPlate_v01_Denoised_####.exr
+2025-07-23 23:24:56,793 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,793 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [1001-1053]
+2025-07-23 23:24:56,793 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,793 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,793 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 32
+2025-07-23 23:24:56,793 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 32 ***
+2025-07-23 23:24:56,794 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 13/14] Agregando a tabla:
+2025-07-23 23:24:56,794 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\Comp\2_prerenders\7165b23d_1.3\7165b23d_1.###.png
+2025-07-23 23:24:56,794 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: True
+2025-07-23 23:24:56,794 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: [300-352]
+2025-07-23 23:24:56,794 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,794 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: True
+2025-07-23 23:24:56,795 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 33
+2025-07-23 23:24:56,795 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 33 ***
+2025-07-23 23:24:56,796 - LGA_MediaManager_FileScanner - DEBUG - 
+[ARCHIVO 14/14] Agregando a tabla:
+2025-07-23 23:24:56,796 - LGA_MediaManager_FileScanner - DEBUG -   - File path: T:\VFX-ETDM\101\ETDM_1000_0120_DeAging_Atropella\_input\ETDM_1000_0120_DeAging_Atropella_EditRef_v01.mov
+2025-07-23 23:24:56,796 - LGA_MediaManager_FileScanner - DEBUG -   - Is sequence: False
+2025-07-23 23:24:56,797 - LGA_MediaManager_FileScanner - DEBUG -   - Frame range: 
+2025-07-23 23:24:56,797 - LGA_MediaManager_FileScanner - DEBUG -   - Is unmatched read: True
+2025-07-23 23:24:56,797 - LGA_MediaManager_FileScanner - DEBUG -   - Is folder deletable: False
+2025-07-23 23:24:56,797 - LGA_MediaManager_FileScanner - DEBUG -   - Row position: 34
+2025-07-23 23:24:56,797 - LGA_MediaManager_FileScanner - DEBUG -   *** FILA INSERTADA EN POSICION 34 ***
