@@ -3267,9 +3267,6 @@ class ScannerWorker(QRunnable):
                 file1, file2 = filtered_files[i], filtered_files[i + 1]
                 # logging.info(f"Comparing: {file1} and {file2}")
 
-                # Actualizar progreso mientras procesamos
-                update_find_progress(f"Analizando {file1}")
-
                 # Solo procesar archivos de secuencia para comparar diferencias
                 if file1.lower().endswith(
                     tuple(self.sequence_extensions)
@@ -3356,6 +3353,9 @@ class ScannerWorker(QRunnable):
             # Agregar archivos no secuenciales despues de procesar todas las secuencias
             for file in filtered_files:
                 file_path = os.path.join(root, file)
+                # Actualizar progreso una sola vez por archivo
+                update_find_progress(f"Procesando {file}")
+
                 if file.lower().endswith(
                     tuple(self.sequence_extensions + self.non_sequence_extensions)
                 ):
@@ -3371,8 +3371,6 @@ class ScannerWorker(QRunnable):
                         to_add.append(
                             (file_path, all_read_files, False, "", False, False, False)
                         )
-
-                update_find_progress(f"Procesando {file}")
 
         ##############################################
 
