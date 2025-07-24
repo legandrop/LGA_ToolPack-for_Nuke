@@ -76,6 +76,34 @@ archivo_003.exr
 - **Gaps en numeración**: Secuencias con frames faltantes se detectan correctamente
 - **Padding inconsistente**: Solo se agrupan archivos con mismo padding de dígitos
 
+#### Secuencias Especiales Training_ (CopyCat/Nuke)
+
+**Problema y solución**
+Las secuencias generadas por Nuke con CopyCat tienen un patrón especial que va de 100 en 100 (ej: 1, 100, 200, 300... 40000) en lugar de ser consecutivas. El algoritmo estándar las dividía en múltiples grupos pequeños.
+
+**Implementación**
+Se agregó detección especial para archivos que empiezan con `Training_` en la función `find_files()`:
+
+- **Función clave**: `parse_training_sequence_filename()` - Detecta archivos con patrón `Training_YYMMDD_HHMMSS.FRAME.ext`
+- **Extensiones soportadas**: `.png` y `.cat` (cada extensión forma secuencias separadas)
+- **Agrupación**: Todos los archivos Training_ con el mismo baseName+extensión se agrupan en una sola secuencia
+- **Requisito mínimo**: Al menos 4 archivos para formar una secuencia
+
+**Ejemplo de Detección Válida**
+```
+Training_250715_215458.110000.png   →  Training_250715_215458.#.png [110000-150000]
+Training_250715_215458.114000.png
+Training_250715_215458.118000.png
+...
+Training_250715_215458.150000.png
+```
+
+**Separación por extensión**
+```
+Training_250715_215458.110000.png   →  Training_250715_215458.#.png [110000-150000]
+Training_250715_215458.110000.cat   →  Training_250715_215458.#.cat [110000-150000]
+```
+
 ## Ventajas de la Refactorización
 
 - **Separación clara** de responsabilidades

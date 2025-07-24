@@ -572,6 +572,35 @@ class ScannerWorker(QRunnable):
         # Guardar información para debugging
         self.creation_stack = caller_info
 
+    def parse_training_sequence_filename(self, filename):
+        """
+        Detecta si un archivo pertenece a una secuencia especial de Cattery/Nuke (Training_)
+
+        Args:
+            filename: Nombre del archivo a evaluar
+
+        Returns:
+            tuple: (base_name, frame, extension) si es secuencia Training_, (None, None, None) si no
+        """
+        import re
+
+        # Patron especifico para secuencias Training_: Training_YYMMDD_HHMMSS.FRAME.png o Training_YYMMDD_HHMMSS.FRAME.cat
+        pattern = r"^(Training_\d{6}_\d{6}\.)([0-9]+)\.(png|cat)$"
+        match = re.match(pattern, filename)
+
+        if match:
+            base_name = match.group(1)  # Training_YYYYMMDD_HHMMSS.
+            frame_str = match.group(2)  # numero de frame
+            extension = "." + match.group(3)  # .png o .cat
+
+            try:
+                frame = int(frame_str)
+                return base_name, frame, extension
+            except ValueError:
+                pass
+
+        return None, None, None
+
     def get_timestamp(self):
         # Usar el nuevo formato centralizado
         return get_log_prefix(self.__class__.__name__, "ScannerWorker")
@@ -819,9 +848,107 @@ class ScannerWorker(QRunnable):
                 )
                 self.logger.debug(f"[FIX!!!] Archivos EditRef: {editref_files}")
 
+            # NUEVA LOGICA: Pre-procesar TODAS las secuencias Training_ del directorio
+            processed_training_indices = set()
+            all_training_groups = (
+                {}
+            )  # groupKey (baseName + extension) -> lista de (frame, filename)
+
+            self.logger.debug(f"[COPYCAT] Procesando directorio: {root}")
+            self.logger.debug(
+                f"[COPYCAT] Archivos filtrados en directorio: {len(filtered_files)}"
+            )
+            training_files_found = [
+                f for f in filtered_files if f.startswith("Training_")
+            ]
+            self.logger.debug(
+                f"[COPYCAT] Archivos que empiezan con 'Training_': {len(training_files_found)}"
+            )
+            if training_files_found:
+                self.logger.debug(
+                    f"[COPYCAT] Lista de archivos Training_ encontrados: {training_files_found[:10]}{'...' if len(training_files_found) > 10 else ''}"
+                )
+
+            # Primer paso: Identificar TODOS los archivos Training_ del directorio
+            for idx, filename in enumerate(filtered_files):
+                if filename.startswith("Training_"):
+                    self.logger.debug(
+                        f"[COPYCAT] Analizando archivo Training_: '{filename}'"
+                    )
+
+                base_name, frame, extension = self.parse_training_sequence_filename(
+                    filename
+                )
+
+                if filename.startswith("Training_"):
+                    self.logger.debug(
+                        f"[COPYCAT] Resultado parsing: base_name='{base_name}', frame={frame}, extension='{extension}'"
+                    )
+
+                if (
+                    base_name is not None
+                    and extension is not None
+                    and frame is not None
+                ):
+                    # CLAVE: Usar baseName + extension para separar PNG y CAT
+                    group_key = base_name + extension
+                    if group_key not in all_training_groups:
+                        all_training_groups[group_key] = []
+                    all_training_groups[group_key].append((frame, filename))
+                    processed_training_indices.add(idx)
+                    self.logger.debug(
+                        f"[COPYCAT] Pre-procesado Training_: '{filename}' -> groupKey='{group_key}', frame={frame}"
+                    )
+
+            # Segundo paso: Crear grupos para todas las secuencias Training_ encontradas
+            self.logger.debug(
+                f"[COPYCAT] Grupos Training_ encontrados: {len(all_training_groups)}"
+            )
+            for group_key, frame_filename_pairs in all_training_groups.items():
+                self.logger.debug(
+                    f"[COPYCAT] Grupo '{group_key}' tiene {len(frame_filename_pairs)} archivos"
+                )
+                # Solo crear grupo si tiene al menos 4 archivos
+                if len(frame_filename_pairs) >= 4:
+                    # Ordenar por frame para obtener el rango correcto
+                    frame_filename_pairs.sort(key=lambda x: x[0])
+
+                    frames = [pair[0] for pair in frame_filename_pairs]
+                    first_frame = min(frames)
+                    last_frame = max(frames)
+
+                    # Extraer baseName y extension del groupKey
+                    base_name = (
+                        group_key.rsplit(".", 1)[0] + "."
+                    )  # Training_YYYYMMDD_HHMMSS.
+                    extension = "." + group_key.rsplit(".", 1)[1]  # .png o .cat
+
+                    # Crear la clave de secuencia usando # para el padding variable
+                    sequence_base = os.path.join(root, base_name + "#" + extension)
+
+                    # Agregar al diccionario de secuencias
+                    if sequence_base not in sequences:
+                        sequences[sequence_base] = []
+                    sequences[sequence_base] = sorted(set(frames))
+
+                    self.logger.debug(
+                        f"[COPYCAT] Creado grupo UNICO de secuencia: {base_name} | archivos: {len(frame_filename_pairs)} | rango: [{first_frame}-{last_frame}]"
+                    )
+                else:
+                    self.logger.debug(
+                        f"[COPYCAT] Grupo '{group_key}' descartado: solo tiene {len(frame_filename_pairs)} archivos (mínimo requerido: 4)"
+                    )
+
             for i in range(len(filtered_files) - 1):
                 file1, file2 = filtered_files[i], filtered_files[i + 1]
                 # logging.info(f"Comparing: {file1} and {file2}")
+
+                # Saltar archivos Training_ que ya fueron procesados
+                if (
+                    i in processed_training_indices
+                    or (i + 1) in processed_training_indices
+                ):
+                    continue
 
                 # Solo procesar archivos de secuencia para comparar diferencias
                 if file1.lower().endswith(
@@ -921,10 +1048,14 @@ class ScannerWorker(QRunnable):
                             continue
 
             # Agregar archivos no secuenciales despues de procesar todas las secuencias
-            for file in filtered_files:
+            for idx, file in enumerate(filtered_files):
                 file_path = os.path.join(root, file)
                 # Actualizar progreso una sola vez por archivo
                 update_find_progress(f"Procesando {file}")
+
+                # Saltar archivos Training_ que ya fueron procesados
+                if idx in processed_training_indices:
+                    continue
 
                 if file.lower().endswith(
                     tuple(self.sequence_extensions + self.non_sequence_extensions)
