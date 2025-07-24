@@ -49,6 +49,7 @@ start_time = time.time()
 
 
 def configure_logger():
+    # Si ya existe un logger configurado, lo retornamos sin crear uno nuevo
     if hasattr(configure_logger, "logger"):
         return configure_logger.logger
 
@@ -64,6 +65,9 @@ def configure_logger():
     # Eliminar cualquier manejador que ya este configurado en el logger
     if logger.hasHandlers():
         logger.handlers.clear()
+
+    # Evitar que los mensajes se propaguen al logger raiz
+    logger.propagate = False
 
     # Crear manejador de archivo
     file_handler = logging.FileHandler(log_file_path)
@@ -3047,7 +3051,7 @@ class ScannerWorker(QRunnable):
         self.non_sequence_extensions = self.file_scanner.non_sequence_extensions
 
         # Obtener el logger configurado
-        self.logger = logging.getLogger("LGA_MediaManager")
+        self.logger = configure_logger()
 
     def get_timestamp(self):
         elapsed = time.time() - self.start_time
