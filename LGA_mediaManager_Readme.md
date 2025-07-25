@@ -41,6 +41,33 @@
 4. **Configuración**: Usuario puede abrir `SettingsWindow` para ajustes
 5. **Operaciones**: Copiar/borrar archivos usando `CopyThread`/`DeleteThread`
 
+## Escaneo de Nodos Read y CopyCat
+
+### Nodos Soportados
+
+El sistema escanea automáticamente los siguientes tipos de nodos en el proyecto de Nuke:
+
+#### Nodos Read (Matching exacto de archivos)
+- **Read, AudioRead, ReadGeo, DeepRead**: Utilizan el knob `file`
+- **Matching**: Coincidencia exacta del path del archivo o secuencia
+- **Función**: `get_read_files()` en `LGA_MediaManager_FileScanner.py`
+
+#### Nodos CopyCat (Matching por carpeta)
+- **CopyCat**: Utiliza los knobs `dataDirectory` y `checkpointFile`
+- **Matching**: Coincidencia de carpeta - cualquier archivo dentro del directorio del CopyCat se considera asociado
+- **Función**: `get_read_files()` y lógica de matching en `add_file_to_table()` en `LGA_MediaManager_FileScanner.py`
+
+### Lógica de Matching
+
+#### Para Nodos Read
+- **Archivos individuales**: Comparación directa del path completo
+- **Secuencias**: Verificación usando `is_sequence_match()` con patrones de frame
+
+#### Para Nodos CopyCat
+- **Matching por directorio**: Si un archivo está dentro del `dataDirectory` del CopyCat, se considera asociado
+- **Ejemplo**: CopyCat con `dataDirectory = "T:/project/copycat/"` → todos los archivos en esa carpeta y subcarpetas se marcan como "OK"
+- **Columna Read**: Muestra el nombre del nodo CopyCat asociado
+
 ## Detección de Secuencias de Archivos
 
 ### Reglas de Detección

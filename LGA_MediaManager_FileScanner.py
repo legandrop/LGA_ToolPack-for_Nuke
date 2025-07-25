@@ -1001,6 +1001,15 @@ class FileScanner(QWidget):
             logger.debug(f"\nProcesando read_path: {read_path}")
             logger.debug(f"  - Nodos del read: {nodes}")
             logger.debug(f"  - Nodos unmatched: {unmatched_nodes}")
+
+            # FILTRO PARA COPYCAT: Si el read_path es una carpeta (dataDirectory) y no existe como archivo,
+            # no lo agregamos a unmatched_reads porque es solo para matching, no para mostrar en tabla
+            if os.path.isdir(read_path) and not os.path.isfile(read_path):
+                logger.debug(
+                    f"[READ_COPYCAT] Saltando carpeta dataDirectory (no es archivo): {read_path}"
+                )
+                continue
+
             if unmatched_nodes:
                 is_sequence = (
                     "%" in read_path or "#" in read_path
@@ -1172,6 +1181,7 @@ class FileScanner(QWidget):
         read_files = {}
         node_types = ["Read", "AudioRead", "ReadGeo", "DeepRead"]
 
+        # Procesar nodos Read y similares (usando knob 'file')
         for node_type in node_types:
             nodes = nuke.executeInMainThreadWithResult(lambda: nuke.allNodes(node_type))
             for node in nodes:
@@ -1179,6 +1189,46 @@ class FileScanner(QWidget):
                 if file_path not in read_files:
                     read_files[file_path] = []
                 read_files[file_path].append(node.name())
+
+        # Procesar nodos CopyCat (usando knobs 'dataDirectory' y 'checkpointFile')
+        copycat_nodes = nuke.executeInMainThreadWithResult(
+            lambda: nuke.allNodes("CopyCat")
+        )
+        logger = configure_logger()
+        logger.debug(
+            f"[READ_COPYCAT] Encontrados {len(copycat_nodes)} nodos CopyCat en el proyecto"
+        )
+
+        for node in copycat_nodes:
+            logger.debug(f"[READ_COPYCAT] Procesando nodo CopyCat: {node.name()}")
+
+            # Obtener dataDirectory si existe
+            if node.knob("dataDirectory"):
+                data_dir = node["dataDirectory"].getValue().replace("\\", "/")
+                logger.debug(f"[READ_COPYCAT]   - dataDirectory: '{data_dir}'")
+                if data_dir and data_dir not in read_files:
+                    read_files[data_dir] = []
+                if data_dir:
+                    read_files[data_dir].append(node.name())
+                    logger.debug(
+                        f"[READ_COPYCAT]   - Agregado dataDirectory al read_files: {data_dir} -> {node.name()}"
+                    )
+            else:
+                logger.debug(f"[READ_COPYCAT]   - Sin knob dataDirectory")
+
+            # Obtener checkpointFile si existe
+            if node.knob("checkpointFile"):
+                checkpoint_file = node["checkpointFile"].getValue().replace("\\", "/")
+                logger.debug(f"[READ_COPYCAT]   - checkpointFile: '{checkpoint_file}'")
+                if checkpoint_file and checkpoint_file not in read_files:
+                    read_files[checkpoint_file] = []
+                if checkpoint_file:
+                    read_files[checkpoint_file].append(node.name())
+                    logger.debug(
+                        f"[READ_COPYCAT]   - Agregado checkpointFile al read_files: {checkpoint_file} -> {node.name()}"
+                    )
+            else:
+                logger.debug(f"[READ_COPYCAT]   - Sin knob checkpointFile")
 
         return read_files
 
@@ -1399,6 +1449,51 @@ class FileScanner(QWidget):
                             status_color = "#25321e"
                             self.matched_reads.extend(nodes)
                             break
+
+                # Si no se encontro match exacto, verificar matching por carpeta para CopyCat
+                if state == "Unused":
+                    file_directory = normalize_path_for_comparison(
+                        os.path.dirname(file_path)
+                    )
+                    self.logger.debug(
+                        f"[READ_COPYCAT] Verificando matching por carpeta para archivo: {file_path}"
+                    )
+                    self.logger.debug(
+                        f"[READ_COPYCAT]   - Directorio del archivo: {file_directory}"
+                    )
+
+                    for read_path, nodes in normalized_read_files.items():
+                        # Verificar si read_path es una carpeta (para CopyCat dataDirectory)
+                        read_path_normalized = normalize_path_for_comparison(read_path)
+                        self.logger.debug(
+                            f"[READ_COPYCAT]   - Comparando con read_path: {read_path_normalized}"
+                        )
+
+                        # Normalizar ambas rutas eliminando barras finales para comparacion consistente
+                        file_dir_clean = file_directory.rstrip("/")
+                        read_path_clean = read_path_normalized.rstrip("/")
+
+                        self.logger.debug(
+                            f"[READ_COPYCAT]   - Comparacion normalizada: '{file_dir_clean}' vs '{read_path_clean}'"
+                        )
+
+                        if (
+                            file_dir_clean == read_path_clean
+                            or file_dir_clean.startswith(read_path_clean + "/")
+                        ):
+                            status = ", ".join(nodes)
+                            state = "OK"
+                            status_color = "#25321e"
+                            self.matched_reads.extend(nodes)
+                            self.logger.debug(
+                                f"[READ_COPYCAT]   - ¡MATCH ENCONTRADO! Archivo {file_path} asociado a nodo(s): {nodes}"
+                            )
+                            break
+
+                    if state == "Unused":
+                        self.logger.debug(
+                            f"[READ_COPYCAT]   - Sin match por carpeta para: {file_path}"
+                        )
 
                 # Ajustar y establecer el valor para la columna "Read"
                 read_item = QTableWidgetItem(status)
