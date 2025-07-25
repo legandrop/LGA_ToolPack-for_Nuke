@@ -55,7 +55,9 @@ El sistema escanea automáticamente los siguientes tipos de nodos en el proyecto
 #### Nodos CopyCat (Matching por carpeta)
 - **CopyCat**: Utiliza los knobs `dataDirectory` y `checkpointFile`
 - **Matching**: Coincidencia de carpeta - cualquier archivo dentro del directorio del CopyCat se considera asociado
-- **Función**: `get_read_files()` y lógica de matching en `add_file_to_table()` en `LGA_MediaManager_FileScanner.py`
+- **Archivos relacionados**:
+  - `LGA_ToolPack/LGA_MediaManager_FileScanner.py` - funciones `get_read_files()` líneas 1170-1210 y `add_file_to_table()` líneas 1440-1480
+  - `LGA_ToolPack/LGA_MediaManager_FileScanner.py` - función `search_unmatched_reads()` líneas 990-1000 (filtro para evitar mostrar carpetas vacías)
 
 ### Lógica de Matching
 
@@ -64,9 +66,11 @@ El sistema escanea automáticamente los siguientes tipos de nodos en el proyecto
 - **Secuencias**: Verificación usando `is_sequence_match()` con patrones de frame
 
 #### Para Nodos CopyCat
-- **Matching por directorio**: Si un archivo está dentro del `dataDirectory` del CopyCat, se considera asociado
-- **Ejemplo**: CopyCat con `dataDirectory = "T:/project/copycat/"` → todos los archivos en esa carpeta y subcarpetas se marcan como "OK"
-- **Columna Read**: Muestra el nombre del nodo CopyCat asociado
+- **Matching por directorio**: Comparación normalizada de rutas usando `normalize_path_for_comparison()`
+- **Implementación**: Después del matching exacto fallido, se compara el directorio del archivo con los paths de CopyCat
+- **Filtrado**: Las carpetas `dataDirectory` no se muestran en la tabla como archivos faltantes
+- **Ejemplo**: CopyCat con `dataDirectory = "T:/project/copycat/"` → archivos en esa carpeta se marcan como "OK"
+- **Logs de debug**: Prefijo `[READ_COPYCAT]` para rastrear el proceso de matching
 
 ## Detección de Secuencias de Archivos
 

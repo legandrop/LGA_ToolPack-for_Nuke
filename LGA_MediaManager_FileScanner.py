@@ -792,9 +792,12 @@ class FileScanner(QWidget):
             )  # Divide los nombres de los nodos Read
             read_node_names = [name.strip() for name in read_node_names]
 
-            # Obtener los nodos Read actualmente seleccionados en Nuke
+            # Obtener los nodos Read y CopyCat actualmente seleccionados en Nuke
             selected_reads = [
-                node.name() for node in nuke.selectedNodes() if node.Class() == "Read"
+                node.name()
+                for node in nuke.selectedNodes()
+                if node.Class()
+                in ["Read", "CopyCat", "AudioRead", "ReadGeo", "DeepRead"]
             ]
 
             # Encuentra el indice del nodo Read seleccionado que esta en la lista, si existe
