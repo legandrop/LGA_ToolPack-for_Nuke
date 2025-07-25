@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_mediaManager v2.00| Lega
+  LGA_mediaManager v2.10 | Lega
 _______________________________________
 
 """
@@ -998,6 +998,21 @@ class FileScanner(QWidget):
         logger.debug(f"Total read files a procesar: {len(all_read_files)}")
         logger.debug(f"Nodos ya matched: {self.matched_reads}")
 
+        # FILTRO PARA COPYCAT: Crear lista de checkpointFile paths para filtrarlos
+        copycat_checkpoint_files = set()
+        copycat_nodes = nuke.executeInMainThreadWithResult(
+            lambda: nuke.allNodes("CopyCat")
+        )
+        for node in copycat_nodes:
+            if node.knob("checkpointFile"):
+                checkpoint_file = node["checkpointFile"].getValue().replace("\\", "/")
+                if checkpoint_file:
+                    copycat_checkpoint_files.add(os.path.normpath(checkpoint_file))
+
+        logger.debug(
+            f"[READ_COPYCAT] CheckpointFiles encontrados para filtrar: {copycat_checkpoint_files}"
+        )
+
         for read_path, nodes in all_read_files.items():
             read_path = os.path.normpath(read_path)
             unmatched_nodes = [node for node in nodes if node not in self.matched_reads]
@@ -1010,6 +1025,13 @@ class FileScanner(QWidget):
             if os.path.isdir(read_path) and not os.path.isfile(read_path):
                 logger.debug(
                     f"[READ_COPYCAT] Saltando carpeta dataDirectory (no es archivo): {read_path}"
+                )
+                continue
+
+            # FILTRO PARA COPYCAT: Si el read_path es un checkpointFile, no lo mostramos en tabla
+            if read_path in copycat_checkpoint_files:
+                logger.debug(
+                    f"[READ_COPYCAT] Saltando checkpointFile (solo para referencia): {read_path}"
                 )
                 continue
 
