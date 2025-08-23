@@ -1,7 +1,7 @@
 """
 _____________________________________
 
-  LGA_ToolPack v2.37 | Lega
+  LGA_ToolPack v2.39 | Lega
   Colección de herramientas de Nuke
 _____________________________________
 
@@ -53,6 +53,15 @@ n.addCommand(
     "LGA_mediaPathReplacer.show_search_replace_widget()",
     "ctrl+alt+m",
     shortcutContext=2,
+    icon=icon_RnW,
+)
+
+# Importar el LGA_CopyCat_Cleaner y agregar menu
+import LGA_CopyCat_Cleaner
+
+n.addCommand(
+    "  CopyCat Cleaner",
+    "LGA_CopyCat_Cleaner.run_copycat_cleaner()",
     icon=icon_RnW,
 )
 
@@ -508,4 +517,4 @@ import nuke
 TP_script_dir = os.path.dirname(os.path.realpath(__file__))
 TP_pdf_path = os.path.join(TP_script_dir, "LGA_ToolPack.pdf")
 
-n.addCommand("Documentation v2.38", lambda: webbrowser.open("file://" + TP_pdf_path))
+n.addCommand("Documentation v2.42", lambda: webbrowser.open("file://" + TP_pdf_path))
