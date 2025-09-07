@@ -1,7 +1,7 @@
 """
 _____________________________________
 
-  LGA_ToolPack v2.43 | Lega
+  LGA_ToolPack v2.44 | Lega
   Colección de herramientas de Nuke
 _____________________________________
 
@@ -291,22 +291,10 @@ def _rotate_left_01_runner():
     LGA_rotateShortcuts.increment_rotate(0.1)
 
 
-if is_enabled("Rotate_Left_01"):
-    n.addCommand(
-        "  Rotate - Left (0.1)", _rotate_left_01_runner, "Ctrl+/", icon=icon_RT
-    )
-
-
 def _rotate_left_1_runner():
     import LGA_rotateShortcuts
 
     LGA_rotateShortcuts.increment_rotate(1)
-
-
-if is_enabled("Rotate_Left_1"):
-    n.addCommand(
-        "  Rotate - Left (1)", _rotate_left_1_runner, "Ctrl+Shift+/", icon=icon_RT
-    )
 
 
 def _rotate_right_01_runner():
@@ -315,19 +303,25 @@ def _rotate_right_01_runner():
     LGA_rotateShortcuts.increment_rotate(-0.1)
 
 
-if is_enabled("Rotate_Right_01"):
-    n.addCommand(
-        "  Rotate - Right (-0.1)", _rotate_right_01_runner, "Ctrl+*", icon=icon_RT
-    )
-
-
 def _rotate_right_1_runner():
     import LGA_rotateShortcuts
 
     LGA_rotateShortcuts.increment_rotate(-1)
 
 
-if is_enabled("Rotate_Right_1"):
+if is_enabled("Rotate_Commands"):
+    n.addCommand(
+        "  Rotate - Left (0.1)", _rotate_left_01_runner, "Ctrl+/", icon=icon_RT
+    )
+
+    n.addCommand(
+        "  Rotate - Left (1)", _rotate_left_1_runner, "Ctrl+Shift+/", icon=icon_RT
+    )
+
+    n.addCommand(
+        "  Rotate - Right (-0.1)", _rotate_right_01_runner, "Ctrl+*", icon=icon_RT
+    )
+
     n.addCommand(
         "  Rotate - Right (-1)", _rotate_right_1_runner, "Ctrl+Shift+*", icon=icon_RT
     )
@@ -526,7 +520,7 @@ def _take_snapshot_runner():
     LGA_viewer_SnapShot.take_snapshot(save_to_gallery=True)
 
 
-if is_enabled("Take_Snapshot"):
+if is_enabled("Snapshot_Tools"):
     n.addCommand(
         "  Take Snapshot",
         _take_snapshot_runner,
@@ -547,6 +541,8 @@ def menu_f9_hold():
     if not _f9_menu_pressed:
         # Primera activacion - mostrar snapshot
         print("F9 menu presionado - mostrando snapshot")
+        import LGA_viewer_SnapShot
+
         LGA_viewer_SnapShot.show_snapshot_hold(start=True)
         _f9_menu_pressed = True
 
@@ -573,6 +569,8 @@ def menu_f9_release():
 
     if _f9_menu_pressed:
         print("F9 menu liberado - ocultando snapshot")
+        import LGA_viewer_SnapShot
+
         LGA_viewer_SnapShot.show_snapshot_hold(start=False)
         _f9_menu_pressed = False
 
@@ -580,8 +578,6 @@ def menu_f9_release():
         _f9_menu_timer.stop()
         _f9_menu_timer = None
 
-
-if is_enabled("Show_Snapshot_Hold"):
     n.addCommand(
         "  Show Snapshot (Hold)",
         "menu_f9_hold()",
@@ -651,5 +647,4 @@ def _documentation_runner():
     webbrowser.open("file://" + TP_pdf_path)
 
 
-if is_enabled("Documentation"):
-    n.addCommand("Documentation v2.42", _documentation_runner)
+n.addCommand("Documentation v2.42", _documentation_runner)

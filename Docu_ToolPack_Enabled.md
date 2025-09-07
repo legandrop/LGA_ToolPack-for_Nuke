@@ -68,10 +68,7 @@ Read_From_Write = True
 - **FR_Read_to_Project_Res**: Leer → Proyecto (+Res)
 
 ### ROTATE TRANSFORM SHORTCUTS
-- **Rotate_Left_01**: Rotar izquierda (0.1°)
-- **Rotate_Left_1**: Rotar izquierda (1°)
-- **Rotate_Right_01**: Rotar derecha (-0.1°)
-- **Rotate_Right_1**: Rotar derecha (-1°)
+- **Rotate_Commands**: Todos los comandos de rotación (4 comandos)
 
 ### COPY n PASTE TOOLS
 - **Paste_To_Selected**: Pegar a seleccionado
@@ -91,14 +88,13 @@ Read_From_Write = True
 
 ### VA TOOLS
 - **Viewer_Rec709**: Visor Rec709
-- **Take_Snapshot**: Tomar snapshot
-- **Show_Snapshot_Hold**: Mostrar snapshot (mantener)
+- **Snapshot_Tools**: Herramientas de snapshot (Take + Show Hold)
 - **Reset_Workspace**: Reiniciar workspace
 - **Restart_NukeX**: Reiniciar NukeX
 
 ### HERRAMIENTAS ESPECIALES
 - **Settings**: Configuraciones del ToolPack
-- **Documentation**: Documentación
+- **Documentation**: Siempre disponible (no configurable)
 
 ## 🚀 Cómo Configurar
 
@@ -120,16 +116,21 @@ Edita las líneas cambiando `True` por `False` para deshabilitar herramientas:
 ; Deshabilitar herramientas que no uso
 Media_Manager = False
 Color_Space_Favs = False
+Rotate_Commands = False
+Snapshot_Tools = False
 
 ; Mantener las que sí uso
 CopyCat_Cleaner = True
 Read_From_Write = True
+Viewer_Rec709 = True
 ```
 
 ### Paso 4: Aplicar Cambios
 1. Guarda el archivo
 2. Reinicia Nuke
 3. Las herramientas deshabilitadas no aparecerán en el menú
+
+> **Nota**: La herramienta **Documentation** siempre está disponible en el menú y no se puede deshabilitar.
 
 ## 💡 Ventajas del Sistema
 
@@ -157,10 +158,38 @@ Read_From_Write = True
 [Tools]
 ; Solo herramientas de roto
 Build_Roto_BlurMask = True
+Rotate_Commands = True
 ; Deshabilitar otras herramientas
 Media_Manager = False
 Color_Space_Favs = False
 ; ... etc
+```
+
+### Artista Minimalista
+```ini
+[Tools]
+; Configuración básica
+CopyCat_Cleaner = True
+Read_From_Write = True
+Viewer_Rec709 = True
+; Deshabilitar comandos complejos
+Rotate_Commands = False
+Snapshot_Tools = False
+Select_Nodes = False
+Easy_Navigate = False
+```
+
+### Artista de Revisión
+```ini
+[Tools]
+; Solo herramientas de revisión y comparación
+Viewer_Rec709 = True
+Snapshot_Tools = True
+Color_Space_Favs = True
+; Deshabilitar herramientas de edición compleja
+Build_Iteration = False
+Build_Roto_BlurMask = False
+Select_Nodes = False
 ```
 
 ### Artista de Compositing
