@@ -647,4 +647,4 @@ def _documentation_runner():
     webbrowser.open("file://" + TP_pdf_path)
 
 
-n.addCommand("Documentation v2.42", _documentation_runner)
+n.addCommand("Documentation v2.44", _documentation_runner)
