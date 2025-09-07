@@ -1,7 +1,7 @@
 """
 _____________________________________
 
-  LGA_ToolPack v2.39 | Lega
+  LGA_ToolPack v2.43 | Lega
   Colección de herramientas de Nuke
 _____________________________________
 
@@ -12,6 +12,93 @@ import nukescripts
 
 # Importar iconos de la carpeta icons
 import os
+
+# --- Config loader & helpers -------------------------------------------
+import configparser, importlib
+
+
+def _ini_paths():
+    # user-level
+    home = os.path.expanduser("~")
+    user_ini = os.path.join(home, ".nuke", "_LGA_ToolPack_Enabled.ini")
+    # package-level (junto a este archivo)
+    pkg_ini = os.path.join(os.path.dirname(__file__), "_LGA_ToolPack_Enabled.ini")
+    return user_ini, pkg_ini
+
+
+_TOOL_FLAGS = None  # cache
+
+
+def load_tool_flags():
+    """Lee el INI (user pisa a package). Si falta o hay error => todo True."""
+    global _TOOL_FLAGS
+    if _TOOL_FLAGS is not None:
+        return _TOOL_FLAGS
+
+    cfg = configparser.ConfigParser()
+    cfg.optionxform = str  # respeta mayúsculas en claves
+    user_ini, pkg_ini = _ini_paths()
+
+    read_ok = False
+    for path in [pkg_ini, user_ini]:
+        if os.path.isfile(path):
+            try:
+                cfg.read(path, encoding="utf-8")
+                read_ok = True
+            except Exception:
+                pass
+
+    flags = {}
+    if read_ok and cfg.has_section("Tools"):
+        for key, val in cfg.items("Tools"):
+            v = str(val).strip().lower()
+            flags[key] = v in ("1", "true", "yes", "on")
+    else:
+        # sin archivo/section => defaults vacíos (=> True por defecto)
+        flags = {}
+
+    _TOOL_FLAGS = flags
+    return _TOOL_FLAGS
+
+
+def is_enabled(key: str) -> bool:
+    """Si no está en INI => True (default)."""
+    flags = load_tool_flags()
+    return flags.get(key, True)
+
+
+def add_tool(menu, label, key, module, attr, shortcut=None, icon=None, context=2):
+    """Registra una tool si está habilitada y la importa tarde (lazy)."""
+    if not is_enabled(key):
+        try:
+            import nuke
+
+            nuke.warning(f"Tool disabled: {key}")
+        except Exception:
+            pass
+        return
+
+    def _runner():
+        m = importlib.import_module(module)
+        func = getattr(m, attr)
+        return func()
+
+    kwargs = {}
+    if shortcut:
+        kwargs["shortcut"] = shortcut
+    if icon:
+        kwargs["icon"] = icon
+    if context is not None:
+        kwargs["shortcutContext"] = context
+
+    menu.addCommand(label, _runner, **kwargs)
+
+
+def any_enabled(keys):
+    return any(is_enabled(k) for k in keys)
+
+
+# --- End config helpers ---------------------------------------------------------
 
 
 def _get_icon(name):
@@ -33,126 +120,124 @@ n.addCommand("READ n WRITE", lambda: None)
 icon_RnW = _get_icon("TP_RnW")
 
 
-# Importar el LGA_mediaManager
-import LGA_mediaManager
+add_tool(
+    n,
+    label="  Media Manager",
+    key="Media_Manager",
+    module="LGA_mediaManager",
+    attr="main",
+    shortcut="ctrl+m",
+    icon=icon_RnW,
+    context=2,
+)
 
-n.addCommand(
-    "  Media Manager",
-    "LGA_mediaManager.main()",
-    "ctrl+m",
-    shortcutContext=2,
+
+add_tool(
+    n,
+    label="  Media Path Replacer",
+    key="Media_Path_Replacer",
+    module="LGA_mediaPathReplacer",
+    attr="show_search_replace_widget",
+    shortcut="ctrl+alt+m",
+    icon=icon_RnW,
+    context=2,
+)
+
+add_tool(
+    n,
+    label="  CopyCat Cleaner",
+    key="CopyCat_Cleaner",
+    module="LGA_CopyCat_Cleaner",
+    attr="run_copycat_cleaner",
     icon=icon_RnW,
 )
 
 
-# Importar el LGA_mediaPathReplacer
-import LGA_mediaPathReplacer
-
-n.addCommand(
-    "  Media Path Replacer",
-    "LGA_mediaPathReplacer.show_search_replace_widget()",
-    "ctrl+alt+m",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Read from Write",
+    key="Read_From_Write",
+    module="readFromWrite",
+    attr="ReadFromWrite",
+    shortcut="shift+r",
     icon=icon_RnW,
-)
-
-# Importar el LGA_CopyCat_Cleaner y agregar menu
-import LGA_CopyCat_Cleaner
-
-n.addCommand(
-    "  CopyCat Cleaner",
-    "LGA_CopyCat_Cleaner.run_copycat_cleaner()",
-    icon=icon_RnW,
+    context=2,
 )
 
 
-# Importar el readFromWrite
-import readFromWrite
-
-n.addCommand(
-    "  Read from Write",
-    "readFromWrite.ReadFromWrite()",
-    "shift+r",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Write Presets",
+    key="Write_Presets",
+    module="LGA_Write_Presets",
+    attr="main",
+    shortcut="shift+w",
     icon=icon_RnW,
+    context=2,
 )
 
 
-# Importar el LGA_Write_Presets
-import LGA_Write_Presets
-
-n.addCommand(
-    "  Write Presets",
-    "LGA_Write_Presets.main()",
-    "shift+w",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Write Focus",
+    key="Write_Focus",
+    module="LGA_Write_Focus",
+    attr="main",
+    shortcut="ctrl+alt+shift+w",
     icon=icon_RnW,
+    context=2,
 )
 
 
-# Importar el LGA_Write_Focus
-import LGA_Write_Focus
+def _add_send_mail_runner():
+    import LGA_Write_SendMail
 
-n.addCommand(
-    "  Write Focus",
-    "LGA_Write_Focus.main()",
-    "ctrl+alt+shift+w",
-    shortcutContext=2,
-    icon=icon_RnW,
-)
-
-
-# Importar el LGA_Write_RenderComplete y el LGA_Write_SendMail
-import LGA_Write_RenderComplete
-import LGA_Write_SendMail
-
-
-def add_send_mail_to_all_writes():
     LGA_Write_SendMail.add_send_mail_checkbox()
 
 
-n.addCommand(
-    "  Write - Add Send Mail option",
-    "add_send_mail_to_all_writes()",
-    "ctrl+shift+w",
-    shortcutContext=2,
+if is_enabled("Write_Add_Send_Mail"):
+    n.addCommand(
+        "  Write - Add Send Mail option",
+        _add_send_mail_runner,
+        "ctrl+shift+w",
+        shortcutContext=2,
+        icon=icon_RnW,
+    )
+
+
+add_tool(
+    n,
+    label="  Show in Explorer",
+    key="Show_in_Explorer",
+    module="LGA_showInExplorer",
+    attr="main",
+    shortcut="shift+e",
     icon=icon_RnW,
+    context=2,
 )
 
 
-# Importar el LGA_showInExplorer
-import LGA_showInExplorer
-
-n.addCommand(
-    "  Show in Explorer",
-    "LGA_showInExplorer.main()",
-    "shift+e",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Show in Flow",
+    key="Show_in_Flow",
+    module="LGA_showInlFlow",
+    attr="main",
+    shortcut="ctrl+shift+e",
     icon=icon_RnW,
+    context=2,
 )
 
 
-# Importar el LGA_showInlFlow
-import LGA_showInlFlow
-
-n.addCommand(
-    "  Show in Flow",
-    "LGA_showInlFlow.main()",
-    "ctrl+shift+e",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Color Space Favs",
+    key="Color_Space_Favs",
+    module="LGA_RnW_ColorSpace_Favs",
+    attr="main",
+    shortcut="shift+c",
     icon=icon_RnW,
-)
-
-
-# Importar el LGA_RnW_ColorSpace_Favs
-import LGA_RnW_ColorSpace_Favs
-
-n.addCommand(
-    "  Color Space Favs",
-    "LGA_RnW_ColorSpace_Favs.main()",
-    "shift+c",
-    shortcutContext=2,
-    icon=icon_RnW,
+    context=2,
 )
 
 
@@ -166,27 +251,27 @@ n.addCommand("FRAME RANGE", lambda: None)
 icon_FR = _get_icon("TP_FR")
 
 
-# Importar el LGA_fr_Read_to_Project
-import LGA_fr_Read_to_Project
-
-n.addCommand(
-    "  Read -> Project",
-    "LGA_fr_Read_to_Project.main()",
-    "shift+f",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Read -> Project",
+    key="FR_Read_to_Project",
+    module="LGA_fr_Read_to_Project",
+    attr="main",
+    shortcut="shift+f",
     icon=icon_FR,
+    context=2,
 )
 
 
-# Importar el LGA_fr_Read_to_Project_Res
-import LGA_fr_Read_to_Project_Res
-
-n.addCommand(
-    "  Read -> Project (+Res)",
-    "LGA_fr_Read_to_Project_Res.main()",
-    "ctrl+shift+f",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Read -> Project (+Res)",
+    key="FR_Read_to_Project_Res",
+    module="LGA_fr_Read_to_Project_Res",
+    attr="main",
+    shortcut="ctrl+shift+f",
     icon=icon_FR,
+    context=2,
 )
 
 
@@ -200,33 +285,52 @@ n.addCommand("ROTATE TRANSFORM", lambda: None)
 icon_RT = _get_icon("TP_RotateTransform")
 
 
-# Importar el Lg_Rotate_Shortcut
-import LGA_rotateShortcuts
+def _rotate_left_01_runner():
+    import LGA_rotateShortcuts
 
-n.addCommand(
-    "  Rotate - Left (0.1)",
-    "LGA_rotateShortcuts.increment_rotate(0.1)",
-    "Ctrl+/",
-    icon=icon_RT,
-)
-n.addCommand(
-    "  Rotate - Left (1)",
-    "LGA_rotateShortcuts.increment_rotate(1)",
-    "Ctrl+Shift+/",
-    icon=icon_RT,
-)
-n.addCommand(
-    "  Rotate - Right (-0.1)",
-    "LGA_rotateShortcuts.increment_rotate(-0.1)",
-    "Ctrl+*",
-    icon=icon_RT,
-)
-n.addCommand(
-    "  Rotate - Right (-1)",
-    "LGA_rotateShortcuts.increment_rotate(-1)",
-    "Ctrl+Shift+*",
-    icon=icon_RT,
-)
+    LGA_rotateShortcuts.increment_rotate(0.1)
+
+
+if is_enabled("Rotate_Left_01"):
+    n.addCommand(
+        "  Rotate - Left (0.1)", _rotate_left_01_runner, "Ctrl+/", icon=icon_RT
+    )
+
+
+def _rotate_left_1_runner():
+    import LGA_rotateShortcuts
+
+    LGA_rotateShortcuts.increment_rotate(1)
+
+
+if is_enabled("Rotate_Left_1"):
+    n.addCommand(
+        "  Rotate - Left (1)", _rotate_left_1_runner, "Ctrl+Shift+/", icon=icon_RT
+    )
+
+
+def _rotate_right_01_runner():
+    import LGA_rotateShortcuts
+
+    LGA_rotateShortcuts.increment_rotate(-0.1)
+
+
+if is_enabled("Rotate_Right_01"):
+    n.addCommand(
+        "  Rotate - Right (-0.1)", _rotate_right_01_runner, "Ctrl+*", icon=icon_RT
+    )
+
+
+def _rotate_right_1_runner():
+    import LGA_rotateShortcuts
+
+    LGA_rotateShortcuts.increment_rotate(-1)
+
+
+if is_enabled("Rotate_Right_1"):
+    n.addCommand(
+        "  Rotate - Right (-1)", _rotate_right_1_runner, "Ctrl+Shift+*", icon=icon_RT
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -239,41 +343,47 @@ n.addCommand("COPY n PASTE", lambda: None)
 icon_CnP = _get_icon("TP_CnP")
 
 
-# Importar cargar el PasteToSelected
-import pasteToSelected
-
-n.addCommand(
-    "  Paste To Selected",
-    "pasteToSelected.pasteToSelected()",
-    "ctrl+shift+v",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Paste To Selected",
+    key="Paste_To_Selected",
+    module="pasteToSelected",
+    attr="pasteToSelected",
+    shortcut="ctrl+shift+v",
     icon=icon_CnP,
+    context=2,
 )
 
 
-# Importar cargar el duplicateWithInputs
-import duplicateWithInputs
-
-n.addCommand(
-    "  Copy with inputs",
-    "duplicateWithInputs.copyWithInputs()",
-    "ctrl+alt+c",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Copy with inputs",
+    key="Copy_with_inputs",
+    module="duplicateWithInputs",
+    attr="copyWithInputs",
+    shortcut="ctrl+alt+c",
     icon=icon_CnP,
+    context=2,
 )
-n.addCommand(
-    "  Paste with inputs",
-    "duplicateWithInputs.pasteWithInputs()",
-    "ctrl+alt+v",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Paste with inputs",
+    key="Paste_with_inputs",
+    module="duplicateWithInputs",
+    attr="pasteWithInputs",
+    shortcut="ctrl+alt+v",
     icon=icon_CnP,
+    context=2,
 )
-n.addCommand(
-    "  Duplicate with inputs",
-    "duplicateWithInputs.duplicateWithInputs()",
-    "ctrl+alt+k",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Duplicate with inputs",
+    key="Duplicate_with_inputs",
+    module="duplicateWithInputs",
+    attr="duplicateWithInputs",
+    shortcut="ctrl+alt+k",
     icon=icon_CnP,
+    context=2,
 )
 
 
@@ -291,58 +401,61 @@ icon_Knobs = _get_icon("TP_Knobs")
 n.addCommand("NODE BUILDS", lambda: None)
 
 
-# Importar el LGA_build_iteration
-import LGA_build_iteration
-
-n.addCommand(
-    "  Build Iteration",
-    "LGA_build_iteration.gen_iteration_simple()",
-    "shift+i",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Build Iteration",
+    key="Build_Iteration",
+    module="LGA_build_iteration",
+    attr="gen_iteration_simple",
+    shortcut="shift+i",
     icon=icon_Knobs,
+    context=2,
 )
 
 
-# Importar el LGA_build_Roto
-import LGA_build_Roto
-
-n.addCommand(
-    "  Build Roto + Blur in input mask",
-    "LGA_build_Roto.main()",
-    "shift+o",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Build Roto + Blur in input mask",
+    key="Build_Roto_BlurMask",
+    module="LGA_build_Roto",
+    attr="main",
+    shortcut="shift+o",
     icon=icon_Knobs,
+    context=2,
 )
 
 
-# Importar el LGA_build_Merge
-import LGA_build_Merge
-
-n.addCommand(
-    "  Build Merge (mask) | Switch ops",
-    "LGA_build_Merge.main()",
-    "shift+m",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Build Merge (mask) | Switch ops",
+    key="Build_Merge_SwitchOps",
+    module="LGA_build_Merge",
+    attr="main",
+    shortcut="shift+m",
     icon=icon_Knobs,
+    context=2,
 )
 
 
-# Importar el LGA_build_Grade
-import LGA_build_Grade
-
-n.addCommand(
-    "  Build Grade",
-    "LGA_build_Grade.gradeMask()",
-    "shift+G",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Build Grade",
+    key="Build_Grade",
+    module="LGA_build_Grade",
+    attr="gradeMask",
+    shortcut="shift+G",
     icon=icon_Knobs,
+    context=2,
 )
-n.addCommand(
-    "  Build Grade Highlights",
-    "LGA_build_Grade.gradeHI()",
-    "ctrl+shift+G",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Build Grade Highlights",
+    key="Build_Grade_Highlights",
+    module="LGA_build_Grade",
+    attr="gradeHI",
+    shortcut="ctrl+shift+G",
     icon=icon_Knobs,
+    context=2,
 )
 
 
@@ -350,37 +463,37 @@ n.addCommand(
 n.addCommand("KNOBS", lambda: None)
 
 
-# Importar el LGA_disable_A_B
-import LGA_disable_A_B
-
-n.addCommand(
-    "  Disable A-B",
-    "LGA_disable_A_B.main()",
-    "Shift+D",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Disable A-B",
+    key="Disable_A_B",
+    module="LGA_disable_A_B",
+    attr="main",
+    shortcut="Shift+D",
     icon=icon_Knobs,
+    context=2,
 )
 
 
-# Importar el LGA_channelsCycle
-import LGA_channelsCycle
-
-n.addCommand(
-    "  Channels Cycle",
-    "LGA_channelsCycle.main()",
-    "ctrl+alt+shift+a",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Channels Cycle",
+    key="Channels_Cycle",
+    module="LGA_channelsCycle",
+    attr="main",
+    shortcut="ctrl+alt+shift+a",
     icon=icon_Knobs,
+    context=2,
 )
 
 
-# Channel_HotBox
-import channel_hotbox
-
-n.addCommand(
-    "  Channel HotBox",
-    "channel_hotbox.start()",
-    "shift+H",
+add_tool(
+    n,
+    label="  Channel HotBox",
+    key="Channel_HotBox",
+    module="channel_hotbox",
+    attr="start",
+    shortcut="shift+H",
     icon=icon_Knobs,
 )
 
@@ -395,28 +508,32 @@ n.addCommand("VA", lambda: None)
 icon_VA = _get_icon("TP_VA")
 
 
-# Importar el LGA_viewerRec709
-import LGA_viewerRec709
-
-n.addCommand(
-    "  Viewer Rec709",
-    "LGA_viewerRec709.main()",
-    "shift+v",
-    shortcutContext=2,
+add_tool(
+    n,
+    label="  Viewer Rec709",
+    key="Viewer_Rec709",
+    module="LGA_viewerRec709",
+    attr="main",
+    shortcut="shift+v",
     icon=icon_VA,
+    context=2,
 )
 
 
-# Importar el LGA_viewer_SnapShot para los shortcuts
-import LGA_viewer_SnapShot
+def _take_snapshot_runner():
+    import LGA_viewer_SnapShot
 
-n.addCommand(
-    "  Take Snapshot",
-    "LGA_viewer_SnapShot.take_snapshot(save_to_gallery=True)",
-    "shift+F9",
-    shortcutContext=2,
-    icon=icon_VA,
-)
+    LGA_viewer_SnapShot.take_snapshot(save_to_gallery=True)
+
+
+if is_enabled("Take_Snapshot"):
+    n.addCommand(
+        "  Take Snapshot",
+        _take_snapshot_runner,
+        "shift+F9",
+        shortcutContext=2,
+        icon=icon_VA,
+    )
 
 # Variables para el estado del F9 hold global
 _f9_menu_pressed = False
@@ -464,46 +581,59 @@ def menu_f9_release():
         _f9_menu_timer = None
 
 
-n.addCommand(
-    "  Show Snapshot (Hold)",
-    "menu_f9_hold()",
-    "F9",
-    shortcutContext=2,
-    icon=icon_VA,
-)
+if is_enabled("Show_Snapshot_Hold"):
+    n.addCommand(
+        "  Show Snapshot (Hold)",
+        "menu_f9_hold()",
+        "F9",
+        shortcutContext=2,
+        icon=icon_VA,
+    )
 
 
-# Shortcut para Reset Workspace
-n.addCommand(
-    "  Reset Workspace",
-    "import hiero; hiero.ui.resetCurrentWorkspace()",
-    "ctrl+alt+w",
-    icon=icon_VA,
-)
+def _reset_workspace_runner():
+    import hiero
+
+    hiero.ui.resetCurrentWorkspace()
 
 
-# Importar el LGA_restartNukeX
-import LGA_restartNukeX
+if is_enabled("Reset_Workspace"):
+    n.addCommand(
+        "  Reset Workspace", _reset_workspace_runner, "ctrl+alt+w", icon=icon_VA
+    )
 
-n.addCommand(
-    "  Restart NukeX",
-    "LGA_restartNukeX.check_and_exit(1)",
-    "ctrl+alt+shift+Q",
-    icon=icon_VA,
-)
+
+def _restart_nukex_runner():
+    import LGA_restartNukeX
+
+    LGA_restartNukeX.check_and_exit(1)
+
+
+if is_enabled("Restart_NukeX"):
+    n.addCommand(
+        "  Restart NukeX", _restart_nukex_runner, "ctrl+alt+shift+Q", icon=icon_VA
+    )
 
 
 # -----------------------------------------------------------------------------
 #                                 Settings
 # -----------------------------------------------------------------------------
 n.addSeparator()
-import LGA_ToolPack_settings
+
+
+def _settings_runner():
+    import LGA_ToolPack_settings
+
+    LGA_ToolPack_settings.main()
+
 
 try:
     icon_Settings = _get_icon("TP_Settings")
 except Exception:
     icon_Settings = ""
-n.addCommand("Settings", "LGA_ToolPack_settings.main()", icon=icon_Settings)
+
+if is_enabled("Settings"):
+    n.addCommand("Settings", _settings_runner, icon=icon_Settings)
 
 
 # -----------------------------------------------------------------------------
@@ -511,10 +641,15 @@ n.addCommand("Settings", "LGA_ToolPack_settings.main()", icon=icon_Settings)
 # -----------------------------------------------------------------------------
 # Crea separador y titulo
 n.addSeparator()
-import webbrowser
-import nuke
 
-TP_script_dir = os.path.dirname(os.path.realpath(__file__))
-TP_pdf_path = os.path.join(TP_script_dir, "LGA_ToolPack.pdf")
 
-n.addCommand("Documentation v2.42", lambda: webbrowser.open("file://" + TP_pdf_path))
+def _documentation_runner():
+    import webbrowser
+
+    TP_script_dir = os.path.dirname(os.path.realpath(__file__))
+    TP_pdf_path = os.path.join(TP_script_dir, "LGA_ToolPack.pdf")
+    webbrowser.open("file://" + TP_pdf_path)
+
+
+if is_enabled("Documentation"):
+    n.addCommand("Documentation v2.42", _documentation_runner)
