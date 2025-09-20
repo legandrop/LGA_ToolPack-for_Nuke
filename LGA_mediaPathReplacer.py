@@ -1,7 +1,7 @@
 """
 _______________________________________________
 
-  LGA_mediaPathReplacer v1.6 | Lega
+  LGA_mediaPathReplacer v1.7 | Lega
   Search and replace for Read and Write nodes
 _______________________________________________
 
@@ -267,11 +267,12 @@ class SearchAndReplaceWidget(QWidget):
                     original_path = node["file"].getValue()
                     # Buscar el texto en la version normalizada para encontrar la posicion
                     if find_text in normalized_path:
-                        start = normalized_path.find(find_text)
-                        end = start + len(find_text)
-                        # Reemplazar en la ruta original utilizando la posicion encontrada
-                        new_path = (
-                            original_path[:start] + replace_text + original_path[end:]
+                        # Reemplazar TODAS las ocurrencias - VERSION SEGURA
+                        import re
+
+                        pattern = re.escape(find_text)
+                        new_path = re.sub(
+                            pattern, replace_text, original_path, flags=re.IGNORECASE
                         )
                         node["file"].setValue(new_path)
         finally:
@@ -296,34 +297,42 @@ class SearchAndReplaceWidget(QWidget):
             ):
                 # Realiza el reemplazo independientemente del filtrado
                 if find_text in normalized_path:
-                    start = normalized_path.find(find_text)
-                    end = start + len(find_text)
-                    part_to_replace = original_path[start:end]
-                    new_path = original_path.replace(part_to_replace, replace_text, 1)
+                    # Usar regex para TODAS las ocurrencias - SEGURO
+                    import re
+
+                    pattern = re.escape(find_text)
+                    new_path = re.sub(
+                        pattern, replace_text, original_path, flags=re.IGNORECASE
+                    )
                 else:
                     new_path = (
                         original_path  # Si no hay coincidencia, usar la ruta original
                     )
 
-                # Aplicar el resaltado segun corresponda
-                highlighted_original_path = (
-                    original_path.replace(
-                        part_to_replace,
-                        f'<span style="color: #ff9a8a; font-weight: bold;">{part_to_replace}</span>',
-                        1,
+                # Aplicar el resaltado segun corresponda - VERSION SEGURA SIN LOOPS
+                highlighted_original_path = original_path
+                highlighted_new_path = new_path
+
+                if find_text in normalized_path:
+                    # Resaltar TODAS las ocurrencias en la ruta original - SEGURO
+                    import re
+
+                    pattern = re.escape(find_text)
+                    highlighted_original_path = re.sub(
+                        pattern,
+                        f'<span style="color: #ff9a8a; font-weight: bold;">{find_text}</span>',
+                        original_path,
+                        flags=re.IGNORECASE,
                     )
-                    if find_text in normalized_path
-                    else original_path
-                )
-                highlighted_new_path = (
-                    new_path.replace(
-                        replace_text,
-                        f'<span style="color: #ff9a8a; font-weight: bold;">{replace_text}</span>',
-                        1,
-                    )
-                    if find_text in normalized_path
-                    else new_path
-                )
+
+                    # Resaltar texto de reemplazo - SOLO SI ES DIFERENTE AL TEXTO DE BUSQUEDA
+                    if replace_text and replace_text.lower() != find_text.lower():
+                        pattern_replace = re.escape(replace_text)
+                        highlighted_new_path = re.sub(
+                            pattern_replace,
+                            f'<span style="color: #ff9a8a; font-weight: bold;">{replace_text}</span>',
+                            new_path,
+                        )
 
                 # Agregar a las vistas previas segun el estado del filtrado
                 if (
@@ -542,7 +551,7 @@ class PresetsDialog(QDialog):
 
     def closeEvent(self, event):
         # Revertir los cambios si se presiona "Cancel"
-        if self.applied_preset and not self.selected_preset:
+        if self.applied_preset and not self.selected_preset and self.parent_widget:
             # Restablece los valores originales o los vacia
             self.parent_widget.find_input.setText("")
             self.parent_widget.replace_input.setText("")
