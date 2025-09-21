@@ -1,7 +1,10 @@
 """readFromWrite
-Read node generator v2.3, 2016-06-08
+Read node generator v2.4, 2025-09-20
 
 Changelog:
+- v2.4:
+    - Bug fix (by Lega): Fixed frame number detection when script names contain version numbers with different digit counts (e.g., v001 vs v05)
+    - Improved regex pattern to specifically target 4-digit frame numbers at end of filename instead of any number
 - v2.3:
     - Bug fix: crash when knob "use_limit" isn't available on node
     - Accidentally left ReadFromWrite() at bottom of script in v2.2
@@ -51,21 +54,19 @@ import nuke
 # Settings
 #
 # Knob names to use (from any node) as a base for Read node creation.
-FILEPATH_KNOBS = ['file']
+FILEPATH_KNOBS = ["file"]
 #
 # This scripts needs to know whether to apply padding to a filepath
 # or keep it without padding. Movie files should not have padding,
 # for example. Add such "single file formats" here.
-SINGLE_FILE_FORMATS = ['avi', 'mp4', 'mxf', 'mov', 'mpg', 'mpeg', 'wmv', 'm4v',
-                       'm2v']
+SINGLE_FILE_FORMATS = ["avi", "mp4", "mxf", "mov", "mpg", "mpeg", "wmv", "m4v", "m2v"]
 
 
 class ReadFromWrite(object):
-    """Main class
-    """
+    """Main class"""
+
     def __init__(self):
-        """Main function
-        """
+        """Main function"""
         super(ReadFromWrite, self).__init__()
         nodes = self.get_selected_valid_nodes()
         node_data = self.gather_node_data(nodes)
@@ -99,13 +100,14 @@ class ReadFromWrite(object):
 
     def project_dir(self):
         """Return the project directory"""
-        project_dir = nuke.root().knob('project_directory').getValue()
+        project_dir = nuke.root().knob("project_directory").getValue()
         if not os.path.exists(project_dir):
-            project_dir = nuke.root().knob('project_directory').evaluate()
+            project_dir = nuke.root().knob("project_directory").evaluate()
         return project_dir
 
-    def combined_relative_filepath_exists(self, relative_filepath,
-                                          return_filepath=False):
+    def combined_relative_filepath_exists(
+        self, relative_filepath, return_filepath=False
+    ):
         """Combine the project directory with the filepath to get a
         valid and existing filepath.
         If the option "return_filepath" is given, the combined
@@ -114,14 +116,20 @@ class ReadFromWrite(object):
         relative filepath.
         """
         project_dir = self.project_dir()
-        filepath = os.path.abspath(os.path.join(project_dir,
-                                   relative_filepath))
-        filepath = filepath.replace('\\', '/')
+        filepath = os.path.abspath(os.path.join(project_dir, relative_filepath))
+        filepath = filepath.replace("\\", "/")
 
-        filetype = filepath.split('.')[-1]
-        frame_number = re.findall(r'\d+', filepath)[-1]
-        basename = filepath[: filepath.rfind(frame_number)]
-        filepath_glob = basename + '*' + filetype
+        filetype = filepath.split(".")[-1]
+        # Buscar específicamente el número de frame (4 dígitos al final)
+        frame_match = re.search(r"_(\d{4})\." + filetype + "$", filepath)
+        if frame_match:
+            frame_number = frame_match.group(1)
+            basename = filepath[: filepath.rfind("_" + frame_number)]
+        else:
+            # Fallback al método original si no se encuentra el patrón
+            frame_number = re.findall(r"\d+", filepath)[-1]
+            basename = filepath[: filepath.rfind(frame_number)]
+        filepath_glob = basename + "*" + filetype
         glob_search_results = glob.glob(filepath_glob)
         if len(glob_search_results) > 0:
             if return_filepath:
@@ -141,35 +149,36 @@ class ReadFromWrite(object):
             filepath = knob_value
         elif os.path.exists(knob_eval):
             filepath = knob_eval
-        elif not isinstance(self.project_dir(), type(None)) and \
-                self.combined_relative_filepath_exists(knob_eval):
+        elif not isinstance(
+            self.project_dir(), type(None)
+        ) and self.combined_relative_filepath_exists(knob_eval):
             filepath = self.combined_relative_filepath_exists(
-                            knob_eval,
-                            return_filepath=True)
+                knob_eval, return_filepath=True
+            )
         return filepath
 
     def framerange_from_read(self, node):
         """Return the first and last frame from Read node"""
-        firstframe = int(self.get_knob_value(node, 'first'))
-        lastframe = int(self.get_knob_value(node, 'last'))
+        firstframe = int(self.get_knob_value(node, "first"))
+        lastframe = int(self.get_knob_value(node, "last"))
         return firstframe, lastframe
 
     def get_framerange(self, node, basename, filetype):
-        """ Returns the firstframe and the lastframe"""
-        if nuke.toNode(node).Class() == 'Read':
+        """Returns the firstframe and the lastframe"""
+        if nuke.toNode(node).Class() == "Read":
             # Get framerange from Read
             firstframe, lastframe = self.framerange_from_read(node)
         else:
             # Detect framerange
             frames = []
-            filepath_glob = basename + '*' + filetype
+            filepath_glob = basename + "*" + filetype
             glob_search_results = glob.glob(filepath_glob)
             for f in glob_search_results:
-                frame = re.findall(r'\d+', f)[-1]
+                frame = re.findall(r"\d+", f)[-1]
                 frames.append(frame)
             frames = sorted(frames)
             firstframe = frames[0]
-            lastframe = frames[len(frames)-1]
+            lastframe = frames[len(frames) - 1]
         if nuke.NUKE_VERSION_MAJOR >= 13:
             if int(lastframe) < 0:
                 lastframe = firstframe
@@ -186,7 +195,7 @@ class ReadFromWrite(object):
             filepath_img_determined = filepath
         else:
             # Image sequence
-            filepath_img_determined = basename + '#'*padding + '.' + filetype
+            filepath_img_determined = basename + "#" * padding + "." + filetype
         return filepath_img_determined
 
     def determine_relativity(self, filepath):
@@ -196,17 +205,15 @@ class ReadFromWrite(object):
         filepath_relative = filepath
         project_dir = self.project_dir()
         if not isinstance(project_dir, type(None)):
-            filepath_relative = filepath_relative.replace(project_dir, '.')
+            filepath_relative = filepath_relative.replace(project_dir, ".")
         return filepath_relative
 
-    def process_filepath(self, filepath, filetype, basename, padding,
-                         knob_value):
+    def process_filepath(self, filepath, filetype, basename, padding, knob_value):
         """Generate the final filepath to be entered into the Read"""
         filepath_process = filepath
-        filepath_process = self.determine_image_type(filepath_process,
-                                                     basename,
-                                                     padding,
-                                                     filetype)
+        filepath_process = self.determine_image_type(
+            filepath_process, basename, padding, filetype
+        )
         filepath_process = self.determine_relativity(filepath_process)
         return filepath_process
 
@@ -219,31 +226,33 @@ class ReadFromWrite(object):
 
     def node_options(self, node):
         """Return the values of selected node options"""
-        colorspace = self.get_knob_value(node=node, knob_name='colorspace')
-        premultiplied = self.get_knob_value(node=node,
-                                            knob_name='premultiplied')
-        raw = self.get_knob_value(node=node,
-                                  knob_name='raw')
-        options = {'colorspace': colorspace,
-                   'premultiplied': premultiplied,
-                   'raw': raw
-                   }
+        colorspace = self.get_knob_value(node=node, knob_name="colorspace")
+        premultiplied = self.get_knob_value(node=node, knob_name="premultiplied")
+        raw = self.get_knob_value(node=node, knob_name="raw")
+        options = {"colorspace": colorspace, "premultiplied": premultiplied, "raw": raw}
         return options
 
     def frame_info(self, node, knob_value, knob_eval):
         """Returns all information required to create a Read node"""
         filepath = self.filepath_from_disk(node, knob_value, knob_eval)
         if isinstance(filepath, type(None)):
-            not_found = 'Filepath does not exist and/or cannot be' + \
-                        'translated:\n' + node + ': ' + knob_eval + \
-                        '\n\nCreate Read node anyway and guess framerange?'
+            not_found = (
+                "Filepath does not exist and/or cannot be"
+                + "translated:\n"
+                + node
+                + ": "
+                + knob_eval
+                + "\n\nCreate Read node anyway and guess framerange?"
+            )
             if nuke.ask(not_found):
-                limit_to_range = self.get_knob_value(node, 'use_limit')
-                if (not isinstance(limit_to_range, type(None)) and
-                        int(limit_to_range) == 1):
+                limit_to_range = self.get_knob_value(node, "use_limit")
+                if (
+                    not isinstance(limit_to_range, type(None))
+                    and int(limit_to_range) == 1
+                ):
                     # Use explicit framerange set on Write node
-                    firstframe = int(self.get_knob_value(node, 'first'))
-                    lastframe = int(self.get_knob_value(node, 'last'))
+                    firstframe = int(self.get_knob_value(node, "first"))
+                    lastframe = int(self.get_knob_value(node, "last"))
                 else:
                     # Look at the framerange coming into the Write node
                     firstframe = int(nuke.toNode(node).frameRange().first())
@@ -252,44 +261,38 @@ class ReadFromWrite(object):
                 filepath_processed = self.determine_relativity(knob_eval)
                 node_options = self.node_options(node)
                 frame_data = {
-                            'filepath': filepath_processed,
-                            'firstframe': firstframe,
-                            'lastframe': lastframe,
-                            'node_options': node_options
-                            }
+                    "filepath": filepath_processed,
+                    "firstframe": firstframe,
+                    "lastframe": lastframe,
+                    "node_options": node_options,
+                }
                 return frame_data
 
         else:
             filepath = os.path.abspath(filepath)
-            filepath = filepath.replace('\\', '/')
-            current_frame = re.findall(r'\d+', filepath)[-1]
+            filepath = filepath.replace("\\", "/")
+            current_frame = re.findall(r"\d+", filepath)[-1]
             padding = len(current_frame)
             basename = filepath[: filepath.rfind(current_frame)]
-            filetype = filepath.split('.')[-1]
-            firstframe, lastframe = self.get_framerange(node,
-                                                        basename,
-                                                        filetype)
-            filepath_processed = self.process_filepath(filepath,
-                                                       filetype,
-                                                       basename,
-                                                       padding,
-                                                       knob_value)
+            filetype = filepath.split(".")[-1]
+            firstframe, lastframe = self.get_framerange(node, basename, filetype)
+            filepath_processed = self.process_filepath(
+                filepath, filetype, basename, padding, knob_value
+            )
             node_options = self.node_options(node)
             frame_data = {
-                        'filepath': filepath_processed,
-                        'firstframe': firstframe,
-                        'lastframe': lastframe,
-                        'node_options': node_options
-                        }
+                "filepath": filepath_processed,
+                "firstframe": firstframe,
+                "lastframe": lastframe,
+                "node_options": node_options,
+            }
             return frame_data
 
-    def set_knob_from_data(self, node, data, knob, r, data_key,
-                           is_option=False):
+    def set_knob_from_data(self, node, data, knob, r, data_key, is_option=False):
         """Set data_key to knob of Read node r if not None"""
-        if not isinstance(nuke.toNode(node).knob(data_key),
-                          type(None)):
+        if not isinstance(nuke.toNode(node).knob(data_key), type(None)):
             if is_option:
-                value = data[node][knob]['node_options'][data_key]
+                value = data[node][knob]["node_options"][data_key]
             else:
                 value = data[node][knob][data_key]
             try:
@@ -306,14 +309,14 @@ class ReadFromWrite(object):
                 if isinstance(data[node][knob], type(None)):
                     pass  # Skip Read node generation for this node
                 else:
-                    filepath = data[node][knob]['filepath']
-                    filetype = filepath.split('.')[-1]
-                    firstframe = int(data[node][knob]['firstframe'])
-                    lastframe = int(data[node][knob]['lastframe'])
-                    node_options = data[node][knob]['node_options']
+                    filepath = data[node][knob]["filepath"]
+                    filetype = filepath.split(".")[-1]
+                    firstframe = int(data[node][knob]["firstframe"])
+                    lastframe = int(data[node][knob]["lastframe"])
+                    node_options = data[node][knob]["node_options"]
 
                     # Create Read node
-                    r = nuke.createNode('Read')
+                    r = nuke.createNode("Read")
 
                     # Read node placement
                     height = nuke.toNode(node).screenHeight()
@@ -328,13 +331,13 @@ class ReadFromWrite(object):
                     else:
                         # Image sequence
                         r.knob(knob).setValue(filepath)
-                        r.knob('first').setValue(firstframe)
-                        r.knob('last').setValue(lastframe)
-                        r.knob('origfirst').setValue(firstframe)
-                        r.knob('origlast').setValue(lastframe)
+                        r.knob("first").setValue(firstframe)
+                        r.knob("last").setValue(lastframe)
+                        r.knob("origfirst").setValue(firstframe)
+                        r.knob("origlast").setValue(lastframe)
 
                     # Re-apply remaining knob values
                     for node_option in node_options:
-                        self.set_knob_from_data(node, data, knob, r,
-                                                data_key=node_option,
-                                                is_option=True)
+                        self.set_knob_from_data(
+                            node, data, knob, r, data_key=node_option, is_option=True
+                        )
