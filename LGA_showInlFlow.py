@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________________________________
 
-  LGA_showInFlow v2.42 | Lega
+  LGA_showInFlow v2.51 | Lega
   Abre la URL de la task Comp del shot, tomando la informacion del nombre del script
 _____________________________________________________________________________________________________
 """
@@ -18,7 +18,7 @@ import base64  # Importar base64
 import binascii  # Importar binascii para la excepcion
 
 # Variable global para controlar el debug
-DEBUG = False  # Poner en False para desactivar los mensajes de debug
+DEBUG = True  # Poner en False para desactivar los mensajes de debug
 
 
 # Funcion debug_print
@@ -276,7 +276,9 @@ class NukeOperations:
         self.sg_manager = shotgrid_manager
 
     def parse_nuke_script_name(self, file_name):
-        base_name = re.sub(r"_%04d\.nk$", "", file_name)
+        # Eliminar extension .nk y secuencias de frames _%04d.nk
+        base_name = re.sub(r"_%04d\.nk$", "", file_name)  # Secuencias de frames
+        base_name = re.sub(r"\.nk$", "", base_name)  # Extension simple .nk
         version_match = re.search(r"_v(\d+)", base_name)
         version_number = version_match.group(1) if version_match else "Unknown"
         return base_name, version_number
@@ -295,7 +297,37 @@ class NukeOperations:
             )
             project_name = base_name.split("_")[0]
             parts = base_name.split("_")
-            shot_code = "_".join(parts[:5])
+
+            # Deteccion inteligente de formato de shotname
+            # Si el campo 5 (indice 4) empieza con 'v' seguido de numeros, es una version
+            # Esto significa que es formato simplificado (3 campos: proyecto_seq_shot)
+            # Si no, es formato con descripcion (5 campos: proyecto_seq_shot_desc1_desc2)
+            is_simplified_format = False
+            if len(parts) >= 5:
+                field_5 = parts[4]  # Campo 5 (indice 4)
+                # Verificar si empieza con 'v' y los siguientes caracteres son numeros
+                if (
+                    field_5.startswith("v")
+                    and len(field_5) > 1
+                    and field_5[1:].isdigit()
+                ):
+                    is_simplified_format = True
+                    debug_print(
+                        f"Formato simplificado detectado: campo 5 '{field_5}' es version"
+                    )
+                else:
+                    debug_print(
+                        f"Formato con descripcion detectado: campo 5 '{field_5}' no es version"
+                    )
+
+            # Generar shot_code segun el formato detectado
+            if is_simplified_format:
+                shot_code = "_".join(parts[:3])  # proyecto_seq_shot
+                debug_print(f"Shot code (formato simplificado): {shot_code}")
+            else:
+                shot_code = "_".join(parts[:5])  # proyecto_seq_shot_desc1_desc2
+                debug_print(f"Shot code (formato con descripcion): {shot_code}")
+
             debug_print(f"Project name: {project_name}, shot code: {shot_code}")
 
             shot, tasks = self.sg_manager.find_shot_and_tasks(project_name, shot_code)

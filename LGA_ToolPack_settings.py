@@ -338,22 +338,10 @@ class SettingsWindow(QWidget):
             debug_print(f"Error al cargar credenciales de Show in Flow: {e}")
         show_flow_layout.addLayout(show_flow_form_layout)
 
-        # --- Boton para configurar nomenclatura --- NUEVO
-        self.configure_shot_naming_button = QPushButton("Configure Shot Naming")
-        self.configure_shot_naming_button.clicked.connect(self.open_shot_name_settings)
-        # Anadirlo al layout horizontal para que este junto al Save
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.configure_shot_naming_button)
-        button_layout.addStretch()  # Empuja el boton Save a la derecha
+        # Boton Save para configuracion de Show/Flow
         self.save_show_flow_button = QPushButton("Save")
         self.save_show_flow_button.clicked.connect(self.save_show_flow_settings)
-        # Eliminar la adicion anterior del boton Save solo
-        # show_flow_layout.addWidget(self.save_show_flow_button, 0, Qt.AlignRight)
-        button_layout.addWidget(
-            self.save_show_flow_button
-        )  # Anadir Save al layout horizontal
-        show_flow_layout.addLayout(button_layout)  # Anadir el layout de botones
-        # --- Fin Boton ---
+        show_flow_layout.addWidget(self.save_show_flow_button, 0, Qt.AlignRight)
 
         main_layout.addLayout(show_flow_layout)
 
@@ -657,35 +645,6 @@ class SettingsWindow(QWidget):
             super().keyPressEvent(event)
 
     # --- Metodo para abrir la ventana de configuracion de nomenclatura --- NUEVO
-    def open_shot_name_settings(self):
-        debug_print("[Settings] open_shot_name_settings: llamado")
-        try:
-            import LGA_ToolPack_settings_ShotName
-
-            debug_print(
-                f"[Settings] importado LGA_ToolPack_settings_ShotName: {LGA_ToolPack_settings_ShotName}"
-            )
-            debug_print(
-                f"[Settings] dir(modulo): {dir(LGA_ToolPack_settings_ShotName)}"
-            )
-            # Llamar a la funcion main del modulo, SIN pasar self como parent
-            LGA_ToolPack_settings_ShotName.main()
-            debug_print("[Settings] Llamado a main() de ShotName")
-        except ImportError as e:
-            debug_print(f"Error al importar LGA_ToolPack_settings_ShotName.py: {e}")
-            QMessageBox.critical(
-                self,
-                "Error",
-                "Could not load the Shot Naming settings window.\n"
-                f"Make sure 'LGA_ToolPack_settings_ShotName.py' is in the same directory.\nError: {e}",
-            )
-        except Exception as e:
-            debug_print(f"Error inesperado al abrir la ventana de Shot Naming: {e}")
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"An unexpected error occurred while opening the Shot Naming settings window:\n{e}",
-            )
 
     # --- Fin Metodo ---
 
