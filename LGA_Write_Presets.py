@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.11 Lega
+  LGA_Write_Presets v2.50 Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -37,7 +37,7 @@ import unicodedata
 import re
 
 # Variable global para activar o desactivar los debug_prints
-DEBUG = False
+DEBUG = True
 
 
 def debug_print(*message):
@@ -276,6 +276,99 @@ def get_unique_write_name(base_name):
         node_name = f"{base_name}_{index}"
         index += 1
     return node_name
+
+
+def detect_shotname_format():
+    """
+    Detecta el formato del shotname basado en el script actual de Nuke.
+    Retorna True si es formato con descripcion (5 bloques), False si es simplificado (3 bloques).
+    Si no hay script guardado, asume formato simplificado.
+    """
+    try:
+        script_path = nuke.root().name()
+        if not script_path or script_path == "Root":
+            debug_print(
+                "[Write_Presets] No hay script guardado, asumiendo formato simplificado (3 bloques)"
+            )
+            return False
+
+        script_name = os.path.basename(script_path)
+        # Eliminar extension .nk
+        base_name = re.sub(r"\.nk$", "", script_name)
+        parts = base_name.split("_")
+
+        debug_print(f"[Write_Presets] Analizando script: {script_name}")
+        debug_print(f"[Write_Presets] Base name: {base_name}")
+        debug_print(f"[Write_Presets] Partes: {parts}")
+
+        # Verificar si el campo 5 (indice 4) es una version
+        if len(parts) >= 5:
+            field_5 = parts[4]
+            if field_5.startswith("v") and len(field_5) > 1 and field_5[1:].isdigit():
+                debug_print(
+                    f"[Write_Presets] Campo 5 '{field_5}' es version -> Formato SIMPLIFICADO (3 bloques)"
+                )
+                return False
+            else:
+                debug_print(
+                    f"[Write_Presets] Campo 5 '{field_5}' no es version -> Formato CON DESCRIPCION (5 bloques)"
+                )
+                return True
+        else:
+            debug_print(
+                f"[Write_Presets] Menos de 5 campos -> Formato SIMPLIFICADO (3 bloques)"
+            )
+            return False
+
+    except Exception as e:
+        debug_print(
+            f"[Write_Presets] Error detectando formato: {e}, asumiendo formato simplificado"
+        )
+        return False
+
+
+def adjust_tcl_formulas(presets, has_description):
+    """
+    Ajusta las formulas TCL en los presets segun el formato detectado.
+    Si has_description=True, suma 2 a todos los indices TCL.
+    Si has_description=False, usa los indices del .ini tal como estan (ya ajustados para 3 bloques).
+    """
+    if not has_description:
+        debug_print(
+            "[Write_Presets] Usando formulas TCL tal como estan en .ini (formato simplificado)"
+        )
+        return presets
+
+    debug_print(
+        "[Write_Presets] Ajustando formulas TCL para formato con descripcion (+2 bloques)"
+    )
+    adjusted_presets = {}
+
+    for section_name, preset in presets.items():
+        adjusted_preset = preset.copy()
+
+        # Buscar y ajustar formulas TCL en file_pattern
+        if "file_pattern" in adjusted_preset:
+            original_pattern = adjusted_preset["file_pattern"]
+
+            # Buscar patrones como "] 0 X]" y sumarles 2
+            def adjust_index(match):
+                current_index = int(match.group(1))
+                new_index = current_index + 2
+                debug_print(
+                    f"[Write_Presets] Ajustando indice TCL: {current_index} -> {new_index}"
+                )
+                return f"] 0 {new_index}]"
+
+            adjusted_pattern = re.sub(r"\] 0 (\d+)\]", adjust_index, original_pattern)
+            adjusted_preset["file_pattern"] = adjusted_pattern
+
+            if original_pattern != adjusted_pattern:
+                debug_print(f"[Write_Presets] Formula ajustada en {section_name}")
+
+        adjusted_presets[section_name] = adjusted_preset
+
+    return adjusted_presets
 
 
 def load_presets():
@@ -601,7 +694,22 @@ class ColoredItemDelegate(QStyledItemDelegate):
 class SelectedNodeInfo(QWidget):
     def __init__(self, parent=None):
         super(SelectedNodeInfo, self).__init__(parent)
-        self.presets = load_presets()
+
+        # Detectar formato del shotname y ajustar presets
+        debug_print(
+            "[Write_Presets] ========== INICIANDO DETECCION DE FORMATO =========="
+        )
+        has_description = detect_shotname_format()
+
+        # Cargar presets base y ajustarlos segun el formato detectado
+        base_presets = load_presets()
+        self.presets = adjust_tcl_formulas(base_presets, has_description)
+
+        debug_print(
+            f"[Write_Presets] Formato detectado: {'CON DESCRIPCION (5 bloques)' if has_description else 'SIMPLIFICADO (3 bloques)'}"
+        )
+        debug_print("[Write_Presets] ========== DETECCION COMPLETADA ==========")
+
         self.options = []
         for section, preset in self.presets.items():
             prefix = "[Script]" if preset["button_type"] == "script" else "[Read]"

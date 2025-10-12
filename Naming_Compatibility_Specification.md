@@ -304,10 +304,13 @@ if base_parts[-1].isdigit():
    - Compatibilidad 100% hacia atrás
    - ✅ **Corregido** parsing de nombres - eliminación correcta de extensión .nk
 
-### 🔄 Próximos Pasos Pendientes
-
-#### Fase 2B: Modificaciones Críticas Restantes
-5. **PENDIENTE** - Modificar `LGA_Write_Presets.py` - implementar ajuste dinámico de fórmulas TCL
+### ✅ Fase 2B: LGA_Write_Presets.py - COMPLETADA
+5. ✅ **Implementado** ajuste dinámico de fórmulas TCL en `LGA_Write_Presets.py`
+   - Detección automática de formato usando la misma técnica (campo 5 = versión)
+   - .ini configurado por defecto para formato simplificado (3 bloques)
+   - Ajuste dinámico +2 bloques cuando se detecta formato con descripción
+   - Logs detallados de detección y ajustes realizados
+   - Manejo de casos edge (script no guardado = formato simplificado)
 
 ### Fase 3: Revisión y Testing (Día 2)
 7. **Revisar** `LGA_viewer_SnapShot.py` y `LGA_viewer_SnapShot_Gallery.py`
@@ -341,15 +344,40 @@ else:
 
 ### LGA_Write_Presets.py
 ```python
-# Agregar función de ajuste TCL
-def adjust_tcl_formula(script_name, original_index=4):
-    parts = script_name.split('_')
-    if len(parts) > 5:  # Tiene descripción
-        return original_index  # Usar índice original
-    else:  # Sin descripción
-        return original_index - 2  # Restar 2 campos
+# ✅ IMPLEMENTADO - Detección y ajuste dinámico de fórmulas TCL
 
-# Modificar fórmulas dinámicamente antes de usarlas
-adjusted_index = adjust_tcl_formula(script_name)
-tcl_formula = f"[join [lrange [split [file tail [value root.name]]] _ ] 0 {adjusted_index}] _]"
+def detect_shotname_format():
+    """Detecta formato basado en script actual de Nuke"""
+    script_path = nuke.root().name()
+    if not script_path or script_path == "Root":
+        return False  # Sin script = formato simplificado
+    
+    base_name = re.sub(r"\.nk$", "", os.path.basename(script_path))
+    parts = base_name.split("_")
+    
+    if len(parts) >= 5:
+        field_5 = parts[4]
+        # Si campo 5 es versión -> formato simplificado
+        return not (field_5.startswith('v') and field_5[1:].isdigit())
+    return False
+
+def adjust_tcl_formulas(presets, has_description):
+    """Ajusta fórmulas TCL dinámicamente"""
+    if not has_description:
+        return presets  # Usar .ini tal como está (3 bloques)
+    
+    # Sumar 2 a todos los índices TCL para formato con descripción
+    for preset in presets.values():
+        if "file_pattern" in preset:
+            preset["file_pattern"] = re.sub(
+                r"\] 0 (\d+)\]", 
+                lambda m: f"] 0 {int(m.group(1)) + 2}]", 
+                preset["file_pattern"]
+            )
+    return presets
+
+# En __init__ de SelectedNodeInfo:
+has_description = detect_shotname_format()
+base_presets = load_presets()
+self.presets = adjust_tcl_formulas(base_presets, has_description)
 ```
