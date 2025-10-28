@@ -90,6 +90,32 @@ def debug_print(*message):
         print(*message)
 
 
+def resolve_relative_path(file_path, project_folder):
+    """
+    Resuelve una ruta relativa a una ruta absoluta usando el directorio del proyecto como base.
+
+    Args:
+        file_path: Ruta que puede ser relativa o absoluta
+        project_folder: Directorio base del proyecto para resolver rutas relativas
+
+    Returns:
+        Ruta absoluta resuelta
+    """
+    if not file_path:
+        return ""
+
+    # Si ya es una ruta absoluta (empieza con unidad de disco o /), devolverla tal como está
+    if os.path.isabs(file_path):
+        return file_path
+
+    # Para rutas relativas, resolverlas usando el directorio del proyecto
+    resolved_path = os.path.join(project_folder, file_path)
+    # Normalizar la ruta para manejar ./ ../ etc
+    resolved_path = os.path.normpath(resolved_path)
+
+    return resolved_path
+
+
 def normalize_path_for_comparison(file_path):
     """
     Normaliza una ruta de archivo para comparaciones consistentes.

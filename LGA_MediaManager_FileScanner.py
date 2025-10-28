@@ -1205,15 +1205,27 @@ class FileScanner(QWidget):
     def get_read_files(self):
         read_files = {}
         node_types = ["Read", "AudioRead", "ReadGeo", "DeepRead"]
+        
+        # Importar la función para resolver rutas relativas
+        from LGA_MediaManager_utils import resolve_relative_path
+        
+        # Obtener el directorio del proyecto para resolver rutas relativas
+        project_path = nuke.root().name()
+        if project_path:
+            project_folder = os.path.dirname(project_path)
+        else:
+            project_folder = ""
 
         # Procesar nodos Read y similares (usando knob 'file')
         for node_type in node_types:
             nodes = nuke.executeInMainThreadWithResult(lambda: nuke.allNodes(node_type))
             for node in nodes:
                 file_path = node["file"].getValue().replace("\\", "/")
-                if file_path not in read_files:
-                    read_files[file_path] = []
-                read_files[file_path].append(node.name())
+                # Resolver ruta relativa a absoluta
+                resolved_path = resolve_relative_path(file_path, project_folder)
+                if resolved_path not in read_files:
+                    read_files[resolved_path] = []
+                read_files[resolved_path].append(node.name())
 
         # Procesar nodos CopyCat (usando knobs 'dataDirectory' y 'checkpointFile')
         copycat_nodes = nuke.executeInMainThreadWithResult(
@@ -1230,13 +1242,16 @@ class FileScanner(QWidget):
             # Obtener dataDirectory si existe
             if node.knob("dataDirectory"):
                 data_dir = node["dataDirectory"].getValue().replace("\\", "/")
-                logger.debug(f"[READ_COPYCAT]   - dataDirectory: '{data_dir}'")
-                if data_dir and data_dir not in read_files:
-                    read_files[data_dir] = []
-                if data_dir:
-                    read_files[data_dir].append(node.name())
+                # Resolver ruta relativa a absoluta
+                resolved_data_dir = resolve_relative_path(data_dir, project_folder)
+                logger.debug(f"[READ_COPYCAT]   - dataDirectory original: '{data_dir}'")
+                logger.debug(f"[READ_COPYCAT]   - dataDirectory resuelto: '{resolved_data_dir}'")
+                if resolved_data_dir and resolved_data_dir not in read_files:
+                    read_files[resolved_data_dir] = []
+                if resolved_data_dir:
+                    read_files[resolved_data_dir].append(node.name())
                     logger.debug(
-                        f"[READ_COPYCAT]   - Agregado dataDirectory al read_files: {data_dir} -> {node.name()}"
+                        f"[READ_COPYCAT]   - Agregado dataDirectory al read_files: {resolved_data_dir} -> {node.name()}"
                     )
             else:
                 logger.debug(f"[READ_COPYCAT]   - Sin knob dataDirectory")
@@ -1244,13 +1259,16 @@ class FileScanner(QWidget):
             # Obtener checkpointFile si existe
             if node.knob("checkpointFile"):
                 checkpoint_file = node["checkpointFile"].getValue().replace("\\", "/")
-                logger.debug(f"[READ_COPYCAT]   - checkpointFile: '{checkpoint_file}'")
-                if checkpoint_file and checkpoint_file not in read_files:
-                    read_files[checkpoint_file] = []
-                if checkpoint_file:
-                    read_files[checkpoint_file].append(node.name())
+                # Resolver ruta relativa a absoluta
+                resolved_checkpoint = resolve_relative_path(checkpoint_file, project_folder)
+                logger.debug(f"[READ_COPYCAT]   - checkpointFile original: '{checkpoint_file}'")
+                logger.debug(f"[READ_COPYCAT]   - checkpointFile resuelto: '{resolved_checkpoint}'")
+                if resolved_checkpoint and resolved_checkpoint not in read_files:
+                    read_files[resolved_checkpoint] = []
+                if resolved_checkpoint:
+                    read_files[resolved_checkpoint].append(node.name())
                     logger.debug(
-                        f"[READ_COPYCAT]   - Agregado checkpointFile al read_files: {checkpoint_file} -> {node.name()}"
+                        f"[READ_COPYCAT]   - Agregado checkpointFile al read_files: {resolved_checkpoint} -> {node.name()}"
                     )
             else:
                 logger.debug(f"[READ_COPYCAT]   - Sin knob checkpointFile")
