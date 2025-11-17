@@ -1,10 +1,16 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.50 Lega
+  LGA_Write_Presets v2.51 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
+
+  v2.51: Usa modulo compartido LGA_ToolPack_NamingUtils para detectar el formato del shotname.
+
+  v2.50: Automatically detects and adapts to naming formats:
+        - PROYECTO_SEQ_SHOT_DESC1_DESC2 (5 blocks with description)
+        - PROYECTO_SEQ_SHOT (3 blocks simplified)
 _____________________________________________________________________________
 
 """
@@ -43,6 +49,21 @@ DEBUG = True
 def debug_print(*message):
     if DEBUG:
         print(*message)
+
+
+# Importar modulo compartido de naming utils
+try:
+    from LGA_ToolPack_NamingUtils import (
+        detect_shotname_format,
+        get_script_base_name,
+    )
+
+    naming_utils_available = True
+except ImportError:
+    naming_utils_available = False
+    debug_print(
+        "[Write_Presets] Advertencia: LGA_ToolPack_NamingUtils no disponible. Usando funcion local."
+    )
 
 
 # Intentar importar el modulo LGA_oz_backdropReplacer
@@ -278,8 +299,9 @@ def get_unique_write_name(base_name):
     return node_name
 
 
-def detect_shotname_format():
+def detect_shotname_format_local():
     """
+    Funcion local de respaldo si el modulo compartido no esta disponible.
     Detecta el formato del shotname basado en el script actual de Nuke.
     Retorna True si es formato con descripcion (5 bloques), False si es simplificado (3 bloques).
     Si no hay script guardado, asume formato simplificado.
@@ -327,6 +349,48 @@ def detect_shotname_format():
         return False
 
 
+def detect_shotname_format_from_script():
+    """
+    Detecta el formato del shotname basado en el script actual de Nuke.
+    Usa el modulo compartido LGA_ToolPack_NamingUtils si esta disponible.
+    Retorna True si es formato con descripcion (5 bloques), False si es simplificado (3 bloques).
+    Si no hay script guardado, asume formato simplificado.
+    """
+    if naming_utils_available:
+        try:
+            base_name = get_script_base_name()
+            if base_name is None:
+                debug_print(
+                    "[Write_Presets] No hay script guardado, asumiendo formato simplificado (3 bloques)"
+                )
+                return False
+
+            debug_print(f"[Write_Presets] Base name del script: {base_name}")
+            parts = base_name.split("_")
+            debug_print(f"[Write_Presets] Partes: {parts}")
+
+            has_description = detect_shotname_format(base_name)
+
+            if has_description:
+                debug_print(
+                    "[Write_Presets] Formato CON DESCRIPCION (5 bloques) detectado usando modulo compartido"
+                )
+            else:
+                debug_print(
+                    "[Write_Presets] Formato SIMPLIFICADO (3 bloques) detectado usando modulo compartido"
+                )
+
+            return has_description
+        except Exception as e:
+            debug_print(
+                f"[Write_Presets] Error usando modulo compartido: {e}, usando funcion local"
+            )
+            return detect_shotname_format_local()
+    else:
+        # Fallback a funcion local si el modulo no esta disponible
+        return detect_shotname_format_local()
+
+
 def adjust_tcl_formulas(presets, has_description):
     """
     Ajusta las formulas TCL en los presets segun el formato detectado.
@@ -351,16 +415,21 @@ def adjust_tcl_formulas(presets, has_description):
         if "file_pattern" in adjusted_preset:
             original_pattern = adjusted_preset["file_pattern"]
 
-            # Buscar patrones como "] 0 X]" y sumarles 2
+            # Buscar patrones como "] 0 X]" o "] 0 X ]" (con o sin espacio antes del ultimo ]) y sumarles 2
             def adjust_index(match):
                 current_index = int(match.group(1))
                 new_index = current_index + 2
                 debug_print(
                     f"[Write_Presets] Ajustando indice TCL: {current_index} -> {new_index}"
                 )
-                return f"] 0 {new_index}]"
+                # Preservar el formato original (con o sin espacio)
+                has_space = match.group(0).endswith(" ]")
+                return f"] 0 {new_index} ]" if has_space else f"] 0 {new_index}]"
 
-            adjusted_pattern = re.sub(r"\] 0 (\d+)\]", adjust_index, original_pattern)
+            # Regex que acepta espacios opcionales antes del ultimo ]
+            adjusted_pattern = re.sub(
+                r"\] 0 (\d+)\s*\]", adjust_index, original_pattern
+            )
             adjusted_preset["file_pattern"] = adjusted_pattern
 
             if original_pattern != adjusted_pattern:
@@ -699,7 +768,7 @@ class SelectedNodeInfo(QWidget):
         debug_print(
             "[Write_Presets] ========== INICIANDO DETECCION DE FORMATO =========="
         )
-        has_description = detect_shotname_format()
+        has_description = detect_shotname_format_from_script()
 
         # Cargar presets base y ajustarlos segun el formato detectado
         base_presets = load_presets()
