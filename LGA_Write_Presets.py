@@ -1,10 +1,12 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.61 | Lega
+  LGA_Write_Presets v2.62 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
+
+  v2.62: UI improvements.
 
   v2.61: Ventana de verificacion con controles para editar Naming Segments y Folder Up Levels.
          Ambos controles siempre visibles. Naming Segments deshabilitado cuando no aplica.

@@ -1,9 +1,11 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v1.22 | Lega
+  LGA_Write_Presets_Check v2.62 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset.
+
+  v2.62: UI improvements.
 
   v1.22: Flag para ocultar el TCL path original.
          - Agregada flag SHOW_ORIGINAL_TCL_PATH (por defecto False)
@@ -80,7 +82,7 @@ except ImportError:
                 text_color = "#c56cf0"
             colored_parts.append(f"<span style='color: {text_color};'>{part}</span>")
         if len(parts) > 0:
-            file_name = f"<span style='color: rgb(200, 200, 200);'>{parts[-1]}</span>"
+            file_name = f"<span style='color: #ffff66;'>{parts[-1]}</span>"
             colored_parts.append(file_name)
         colored_text = '<span style="color: white;">/</span>'.join(colored_parts)
         return colored_text
@@ -353,14 +355,10 @@ def split_path_at_violet_end(path, shot_folder_parts, is_sequence=False):
         violet_parts = parts
         rest_parts = []
 
-    # Aplicar coloreado a la parte violeta
+    # Aplicar coloreado a la parte violeta (todos los directorios son violeta)
     colored_violet = []
     for i, part in enumerate(violet_parts):
-        if i < len(shot_folder_parts) and parts_lower[i] == shot_folder_parts[i]:
-            colored_violet.append(f"<span style='color: #c56cf0;'>{part}</span>")
-        else:
-            color = get_color_for_level(i)
-            colored_violet.append(f"<span style='color: {color};'>{part}</span>")
+        colored_violet.append(f"<span style='color: #c56cf0;'>{part}</span>")
 
     violet_str = '<span style="color: white;">/</span>'.join(colored_violet)
     # Agregar / al final si hay resto
@@ -381,57 +379,47 @@ def split_path_at_violet_end(path, shot_folder_parts, is_sequence=False):
             subfolder_part = rest_parts[-2] if len(rest_parts) >= 2 else ""
             file_part = rest_parts[-1] if rest_parts else ""
 
-            # Aplicar coloreado a la parte intermedia
+            # Aplicar coloreado a la parte intermedia (todos violeta)
             if middle_parts:
                 colored_middle = []
-                for i, part in enumerate(middle_parts):
-                    level = violet_end_index + 1 + i
-                    color = get_color_for_level(level)
+                for part in middle_parts:
                     colored_middle.append(
-                        f"<span style='color: {color};'>{part}</span>"
+                        f"<span style='color: #c56cf0;'>{part}</span>"
                     )
                 middle_str = '<span style="color: white;">/</span>'.join(colored_middle)
                 if subfolder_part:
                     middle_str += '<span style="color: white;">/</span>'
 
-            # Aplicar coloreado a la subcarpeta (con / al final)
+            # Aplicar coloreado a la subcarpeta (color #6bc9ff para secuencias)
             if subfolder_part:
-                level = violet_end_index + 1 + len(middle_parts)
-                color = get_color_for_level(level)
                 subfolder_str = (
-                    f"<span style='color: {color};'>{subfolder_part}</span>"
+                    f"<span style='color: #6bc9ff;'>{subfolder_part}</span>"
                     '<span style="color: white;">/</span>'
                 )
 
-            # Aplicar coloreado al archivo
+            # Aplicar coloreado al archivo (#6bc9ff)
             if file_part:
-                file_str = (
-                    f"<span style='color: rgb(200, 200, 200);'>{file_part}</span>"
-                )
+                file_str = f"<span style='color: #6bc9ff;'>{file_part}</span>"
         else:
             # Si NO es secuencia: parte intermedia son todas las carpetas excepto el archivo
             # Parte final es solo el archivo
             middle_parts = rest_parts[:-1]
             file_part = rest_parts[-1] if rest_parts else ""
 
-            # Aplicar coloreado a la parte intermedia
+            # Aplicar coloreado a la parte intermedia (todos violeta)
             if middle_parts:
                 colored_middle = []
-                for i, part in enumerate(middle_parts):
-                    level = violet_end_index + 1 + i
-                    color = get_color_for_level(level)
+                for part in middle_parts:
                     colored_middle.append(
-                        f"<span style='color: {color};'>{part}</span>"
+                        f"<span style='color: #c56cf0;'>{part}</span>"
                     )
                 middle_str = '<span style="color: white;">/</span>'.join(colored_middle)
                 if file_part:
                     middle_str += '<span style="color: white;">/</span>'
 
-            # Aplicar coloreado al archivo
+            # Aplicar coloreado al archivo (#6bc9ff)
             if file_part:
-                file_str = (
-                    f"<span style='color: rgb(200, 200, 200);'>{file_part}</span>"
-                )
+                file_str = f"<span style='color: #6bc9ff;'>{file_part}</span>"
 
     if is_sequence:
         return violet_str, middle_str, subfolder_str, file_str
