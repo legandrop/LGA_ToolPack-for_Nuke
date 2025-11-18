@@ -1,10 +1,12 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.63 | Lega
+  LGA_Write_Presets v2.64 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
+
+  v2.64: Greyed out items in the table when the script is not saved.
 
   v2.63: Color coding for original extensions in the path.
 
@@ -727,10 +729,24 @@ def create_write_from_preset(preset, user_text=None, modified_file_pattern=None)
 
 
 class ColoredItemDelegate(QStyledItemDelegate):
+    def __init__(self, table_widget=None, parent=None):
+        super().__init__(parent)
+        self.table_widget = table_widget
+
     def paint(self, painter, option, index):
         text = index.data()
         if text:
             painter.save()
+
+            # Verificar si el item esta deshabilitado
+            is_enabled = True
+            if self.table_widget:
+                row = index.row()
+                col = index.column()
+                item = self.table_widget.item(row, col)
+                if item:
+                    # Verificar si el item tiene el flag ItemIsEnabled
+                    is_enabled = bool(item.flags() & Qt.ItemIsEnabled)
 
             if option.state & QStyle.State_Selected:
                 painter.fillRect(option.rect, QColor("#424242"))
@@ -742,15 +758,25 @@ class ColoredItemDelegate(QStyledItemDelegate):
             parts = text.split(" ", 1)
             prefix, name = parts if len(parts) > 1 else ("", text)
 
+            # Color base segun si esta habilitado o no
+            if not is_enabled:
+                base_color = QColor("#666666")  # Gris para items deshabilitados
+                prefix_color_script = QColor("#666666")
+                prefix_color_read = QColor("#666666")
+            else:
+                base_color = QColor("white")
+                prefix_color_script = QColor("#ed2464")
+                prefix_color_read = QColor("#66e2ff")
+
             # Dibujar prefijo
             if prefix == "[Script]":
-                painter.setPen(QColor("#ed2464"))
+                painter.setPen(prefix_color_script)
                 painter.drawText(
                     adjusted_rect, Qt.AlignLeft | Qt.AlignVCenter, prefix + " "
                 )
                 prefix_width = painter.fontMetrics().horizontalAdvance(prefix + " ")
             elif prefix == "[Read]":
-                painter.setPen(QColor("#66e2ff"))
+                painter.setPen(prefix_color_read)
                 painter.drawText(
                     adjusted_rect, Qt.AlignLeft | Qt.AlignVCenter, prefix + " "
                 )
@@ -760,7 +786,7 @@ class ColoredItemDelegate(QStyledItemDelegate):
 
             # Dibujar nombre con formato de color
             remaining_rect = adjusted_rect.adjusted(prefix_width, 0, 0, 0)
-            painter.setPen(QColor("white"))
+            painter.setPen(base_color)
 
             # Buscar formatos en el nombre
             for fmt, color in FORMAT_COLORS.items():
@@ -774,16 +800,17 @@ class ColoredItemDelegate(QStyledItemDelegate):
                         remaining_rect, Qt.AlignLeft | Qt.AlignVCenter, parts[0]
                     )
 
-                    # Dibujar formato con color
+                    # Dibujar formato con color (gris si esta deshabilitado)
                     fmt_rect = remaining_rect.adjusted(before_width, 0, 0, 0)
-                    painter.setPen(QColor(color))
+                    fmt_color = QColor("#666666") if not is_enabled else QColor(color)
+                    painter.setPen(fmt_color)
                     painter.drawText(fmt_rect, Qt.AlignLeft | Qt.AlignVCenter, fmt)
 
                     # Dibujar parte restante
                     remaining_rect = fmt_rect.adjusted(
                         painter.fontMetrics().horizontalAdvance(fmt), 0, 0, 0
                     )
-                    painter.setPen(QColor("white"))
+                    painter.setPen(base_color)
                     painter.drawText(
                         remaining_rect,
                         Qt.AlignLeft | Qt.AlignVCenter,
@@ -817,10 +844,21 @@ class ShiftClickTableWidget(QTableWidget):
             f"[ShiftClickTableWidget] Shift presionado: {bool(event.modifiers() & Qt.ShiftModifier)}"
         )
 
+        # Obtener el item bajo el mouse para verificar si esta habilitado
+        item = self.itemAt(event.pos())
+        if item is not None:
+            # Verificar si el item esta deshabilitado usando flags
+            table_item = self.item(item.row(), item.column())
+            if table_item and not (table_item.flags() & Qt.ItemIsEnabled):
+                debug_print(
+                    "[ShiftClickTableWidget] Item deshabilitado, ignorando click"
+                )
+                event.ignore()
+                return
+
         if event.button() == Qt.LeftButton and event.modifiers() & Qt.ShiftModifier:
             debug_print("[ShiftClickTableWidget] Shift+Click detectado!")
             # Obtener la celda bajo el mouse
-            item = self.itemAt(event.pos())
             debug_print(f"[ShiftClickTableWidget] Item encontrado: {item is not None}")
             if item is not None:
                 row = item.row()
@@ -874,7 +912,10 @@ class SelectedNodeInfo(QWidget):
         elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
             current_row = self.table.currentRow()
             if current_row >= 0:
-                self.handle_render_option(current_row, 0)
+                # Verificar si el item esta habilitado antes de procesar
+                item = self.table.item(current_row, 0)
+                if item and (item.flags() & Qt.ItemIsEnabled):
+                    self.handle_render_option(current_row, 0)
         elif event.key() in (Qt.Key_Up, Qt.Key_Down):
             QWidget.keyPressEvent(self, event)
         else:
@@ -993,13 +1034,30 @@ class SelectedNodeInfo(QWidget):
         # Ajustar el tamaño de la ventana y posicionarla
         self.adjust_window_size()
 
-        # Seleccionar la primera fila y establecer el foco
-        self.table.selectRow(0)
+        # Seleccionar la primera fila habilitada y establecer el foco
+        # (después de que se hayan cargado los items)
+        first_enabled_row = -1
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item and (item.flags() & Qt.ItemIsEnabled):
+                first_enabled_row = row
+                break
+
+        if first_enabled_row >= 0:
+            self.table.selectRow(first_enabled_row)
         self.table.setFocus()
+
+    def is_script_saved(self):
+        """Verifica si el script de Nuke esta guardado."""
+        script_path = nuke.root().name()
+        return script_path and script_path != "Root"
 
     def load_render_options(self):
         """Carga las opciones de render en la tabla con formato de color."""
-        self.table.setItemDelegate(ColoredItemDelegate())
+        self.table.setItemDelegate(ColoredItemDelegate(self.table))
+
+        # Verificar si el script esta guardado
+        script_saved = self.is_script_saved()
 
         for row, name in enumerate(self.options):
             # Extraer el nombre real del preset
@@ -1011,6 +1069,13 @@ class SelectedNodeInfo(QWidget):
                 f"[{preset['button_type'].capitalize()}] {display_name}"
             )
             item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+            # Deshabilitar items de tipo script si el script no esta guardado
+            # QTableWidgetItem no tiene setEnabled(), usamos flags en su lugar
+            if preset["button_type"] == "script" and not script_saved:
+                # Quitar flags de habilitado y seleccionable
+                item.setFlags(item.flags() & ~Qt.ItemIsEnabled & ~Qt.ItemIsSelectable)
+
             self.table.setItem(row, 0, item)
 
         self.table.resizeColumnsToContents()
@@ -1125,6 +1190,13 @@ class SelectedNodeInfo(QWidget):
         preset_number = row + 1
         preset = self.presets[f"Preset{preset_number}"]
 
+        # Verificar si es un preset de tipo script y el script no esta guardado
+        if preset["button_type"] == "script" and not self.is_script_saved():
+            debug_print(
+                "[Write_Presets] Preset de tipo script deshabilitado: script no guardado"
+            )
+            return
+
         dialog_enabled = preset["dialog_enabled"].lower() == "true"
 
         if dialog_enabled:
@@ -1155,6 +1227,13 @@ class SelectedNodeInfo(QWidget):
         selected_option = self.options[row]
         preset_number = row + 1
         preset = self.presets[f"Preset{preset_number}"]
+
+        # Verificar si es un preset de tipo script y el script no esta guardado
+        if preset["button_type"] == "script" and not self.is_script_saved():
+            debug_print(
+                "[Write_Presets] Preset de tipo script deshabilitado: script no guardado"
+            )
+            return
 
         self.close()
 

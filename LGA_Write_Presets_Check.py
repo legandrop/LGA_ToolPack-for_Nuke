@@ -1,9 +1,11 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.63 | Lega
+  LGA_Write_Presets_Check v2.64 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset.
+
+  v2.64: Greyed out items in the table when the script is not saved.
 
   v2.63: Color coding for original extensions in the path.
 
