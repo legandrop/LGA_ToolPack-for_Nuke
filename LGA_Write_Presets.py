@@ -1,10 +1,12 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.62 | Lega
+  LGA_Write_Presets v2.63 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
+
+  v2.63: Color coding for original extensions in the path.
 
   v2.62: UI improvements.
 

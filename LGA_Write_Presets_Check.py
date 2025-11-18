@@ -1,9 +1,11 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.62 | Lega
+  LGA_Write_Presets_Check v2.63 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset.
+
+  v2.63: Color coding for original extensions in the path.
 
   v2.62: UI improvements.
 
@@ -134,14 +136,99 @@ def debug_print(*message):
         print("[LGA_Write_Presets_Check]", *message)
 
 
+def get_topnode_file_path(temp_write):
+    """
+    Obtiene el path del archivo del topnode desde un Write temporal.
+    Busca recursivamente el nodo Read mas alto en las dependencias.
+    Retorna el path del archivo o None si no se puede obtener.
+    """
+    try:
+        if not temp_write.input(0):
+            return None
+
+        input_node = temp_write.input(0)
+
+        # Buscar recursivamente el Read mas alto en las dependencias
+        def find_read(node):
+            if node is None:
+                return None
+            if node.Class() == "Read":
+                return node
+            # Buscar en todos los inputs del nodo
+            for i in range(node.inputs()):
+                if node.input(i):
+                    result = find_read(node.input(i))
+                    if result:
+                        return result
+            return None
+
+        read_node = find_read(input_node)
+        if read_node:
+            file_path = read_node["file"].value()
+            if file_path:
+                debug_print(f"Topnode file path encontrado: {file_path}")
+                return file_path
+    except Exception as e:
+        debug_print(f"Error al obtener topnode file path: {e}")
+
+    return None
+
+
+def extract_original_extension(file_path):
+    """
+    Extrae la extension original del archivo, incluyendo el patron de frames si es secuencia.
+    Retorna una lista de posibles extensiones a buscar (con y sin frames).
+    Ejemplo: si el archivo es "shot.%04d.exr", retorna [".%04d.exr", ".exr"]
+    """
+    if not file_path:
+        return []
+
+    # Obtener el nombre del archivo
+    file_name = os.path.basename(file_path)
+
+    # Buscar patrones de secuencia como %04d, %03d, etc.
+    sequence_pattern = re.search(r"(%0\d+d)", file_name)
+
+    extensions = []
+
+    if sequence_pattern:
+        # Si tiene patron de secuencia, extraer desde el punto antes del patron hasta el final
+        pattern_start = sequence_pattern.start()
+        # Buscar el punto mas cercano antes del patron
+        dot_before = file_name.rfind(".", 0, pattern_start)
+        if dot_before >= 0:
+            # Extension completa con frames: .%04d.exr
+            full_extension = file_name[dot_before:]
+            extensions.append(full_extension)
+
+            # Tambien buscar la extension sin el patron de frames: .exr
+            # Reemplazar el patron de frames con cualquier numero para encontrar la extension final
+            temp_name = file_name.replace(sequence_pattern.group(1), "0001")
+            ext_match = re.search(r"\.([^.]+)$", temp_name)
+            if ext_match:
+                simple_ext = "." + ext_match.group(1)
+                if simple_ext not in extensions:
+                    extensions.append(simple_ext)
+    else:
+        # Si no tiene patron de secuencia, solo extraer la extension normal
+        ext_match = re.search(r"\.([^.]+)$", file_name)
+        if ext_match:
+            extensions.append("." + ext_match.group(1))
+
+    debug_print(f"Extensiones originales extraidas de '{file_name}': {extensions}")
+    return extensions
+
+
 def evaluate_file_pattern(file_pattern):
     """
     Evalua una expresion TCL file_pattern sin crear un Write node permanente.
     Crea un Write temporal solo para evaluar el path y luego lo elimina.
-    Retorna el path evaluado o None si hay error.
+    Retorna una tupla (evaluated_path, original_extensions) donde:
+    - evaluated_path: el path evaluado o None si hay error
+    - original_extensions: lista de extensiones originales del topnode o lista vacia
     """
     if not file_pattern:
-        return None
+        return None, []
 
     try:
         # Obtener el nodo seleccionado o crear un NoOp temporal para tener contexto
@@ -162,6 +249,12 @@ def evaluate_file_pattern(file_pattern):
 
         temp_write["file"].setValue(file_pattern)
 
+        # Obtener el path del topnode ANTES de evaluar (necesitamos el Write conectado)
+        topnode_file_path = get_topnode_file_path(temp_write)
+        original_extensions = []
+        if topnode_file_path:
+            original_extensions = extract_original_extension(topnode_file_path)
+
         # Evaluar el path usando nuke.filename()
         evaluated_path = nuke.filename(temp_write)
 
@@ -174,8 +267,9 @@ def evaluate_file_pattern(file_pattern):
 
         debug_print(f"File pattern original: {file_pattern}")
         debug_print(f"Path evaluado: {evaluated_path}")
+        debug_print(f"Extensiones originales detectadas: {original_extensions}")
 
-        return evaluated_path if evaluated_path else None
+        return (evaluated_path if evaluated_path else None, original_extensions)
     except Exception as e:
         debug_print(f"Error al evaluar file_pattern: {e}")
         # Asegurarse de eliminar el Write temporal incluso si hay error
@@ -184,7 +278,7 @@ def evaluate_file_pattern(file_pattern):
                 nuke.delete(temp_write)
         except:
             pass
-        return None
+        return None, []
 
 
 def get_shot_folder_parts(script_path):
@@ -321,19 +415,117 @@ def replace_directory_levels(file_pattern, new_level):
     return modified_pattern
 
 
-def split_path_at_violet_end(path, shot_folder_parts, is_sequence=False):
+def mark_original_extension_in_part(part, original_extensions, is_final_file=False):
+    """
+    Marca en rojo solo la parte específica que contiene extensiones originales heredadas.
+    No marca extensiones propias del archivo final.
+
+    Args:
+        part: Parte del path a analizar (texto plano, sin HTML)
+        original_extensions: Lista de extensiones originales del topnode
+        is_final_file: Si es True, es el archivo final y tiene su propia extensión/frame
+
+    Retorna:
+        String HTML con solo las partes problemáticas marcadas en rojo dentro de spans,
+        el resto del texto queda sin envolver para que se pueda aplicar el color base después
+    """
+    if not part or not original_extensions:
+        return part
+
+    # Si es el archivo final, verificar si tiene su propia extensión/frame
+    # En ese caso, solo marcar extensiones heredadas que aparezcan ANTES de la extensión propia
+    if is_final_file:
+        # Buscar el último patrón de frame propio seguido de extensión (como _%04d.exr al final)
+        # Esto identifica la extensión propia del archivo final
+        # Buscamos un guion bajo o punto, seguido de %0Xd, seguido de .ext al final
+        own_ext_pattern = re.search(r"[._]%0\d+d\.([^.]+)$", part)
+
+        if own_ext_pattern:
+            # Encontrar donde empieza la extensión propia (el frame pattern antes de la extensión)
+            own_ext_start = own_ext_pattern.start()
+
+            # Solo buscar extensiones heredadas antes de la extensión propia
+            part_before_own = part[:own_ext_start]
+            part_own = part[own_ext_start:]
+
+            # Marcar extensiones heredadas en la parte antes de la extensión propia
+            marked_part = part_before_own
+            for ext in original_extensions:
+                if ext.lower() in part_before_own.lower():
+                    # Encontrar todas las ocurrencias y marcarlas en rojo
+                    pattern = re.escape(ext)
+                    marked_part = re.sub(
+                        pattern,
+                        lambda m: f"<span style='color: #ff0000;'>{m.group(0)}</span>",
+                        marked_part,
+                        flags=re.IGNORECASE,
+                    )
+
+            # Retornar la parte marcada + la parte propia sin modificar
+            return marked_part + part_own
+        else:
+            # Si no tiene patrón de frame propio, buscar solo extensión al final
+            own_ext_match = re.search(r"\.([^.]+)$", part)
+            if own_ext_match:
+                ext_start = own_ext_match.start()
+                part_before_own = part[:ext_start]
+                part_own = part[ext_start:]
+
+                # Marcar extensiones heredadas en la parte antes de la extensión propia
+                marked_part = part_before_own
+                for ext in original_extensions:
+                    if ext.lower() in part_before_own.lower():
+                        pattern = re.escape(ext)
+                        marked_part = re.sub(
+                            pattern,
+                            lambda m: f"<span style='color: #ff0000;'>{m.group(0)}</span>",
+                            marked_part,
+                            flags=re.IGNORECASE,
+                        )
+
+                return marked_part + part_own
+
+    # Si no es archivo final o no tiene extensión propia, marcar todas las extensiones heredadas
+    marked_part = part
+    for ext in original_extensions:
+        if ext.lower() in part.lower():
+            # Encontrar todas las ocurrencias y marcarlas en rojo
+            pattern = re.escape(ext)
+            marked_part = re.sub(
+                pattern,
+                lambda m: f"<span style='color: #ff0000;'>{m.group(0)}</span>",
+                marked_part,
+                flags=re.IGNORECASE,
+            )
+
+    return marked_part
+
+
+def split_path_at_violet_end(
+    path, shot_folder_parts, is_sequence=False, original_extensions=None
+):
     """
     Divide un path en partes: la parte violeta (que coincide con shot_folder_parts),
     la parte intermedia, y la parte final.
     Si es secuencia: retorna (violet_part, middle_part, subfolder_part, file_part) - 4 partes
     Si NO es secuencia: retorna (violet_part, middle_part, file_part, "") - 3 partes (ultima vacia)
     Todas las partes son strings HTML con colores.
+    Los segmentos que contengan extensiones originales se marcan en rojo (#ff0000).
+
+    Args:
+        path: Path a dividir
+        shot_folder_parts: Partes del shot folder para coloreado violeta
+        is_sequence: Si el path es una secuencia
+        original_extensions: Lista de extensiones originales del topnode para detectar problemas
     """
     if not path:
         if is_sequence:
             return path, "", "", ""
         else:
             return path, "", ""
+
+    if original_extensions is None:
+        original_extensions = []
 
     parts = path.replace("\\", "/").split("/")
     parts_lower = [part.lower() for part in parts]
@@ -379,47 +571,66 @@ def split_path_at_violet_end(path, shot_folder_parts, is_sequence=False):
             subfolder_part = rest_parts[-2] if len(rest_parts) >= 2 else ""
             file_part = rest_parts[-1] if rest_parts else ""
 
-            # Aplicar coloreado a la parte intermedia (todos violeta)
+            # Aplicar coloreado a la parte intermedia (violeta base, con extensiones heredadas en rojo)
             if middle_parts:
                 colored_middle = []
                 for part in middle_parts:
+                    # Aplicar color violeta base y luego marcar extensiones heredadas en rojo
+                    marked_part = mark_original_extension_in_part(
+                        part, original_extensions, is_final_file=False
+                    )
                     colored_middle.append(
-                        f"<span style='color: #c56cf0;'>{part}</span>"
+                        f"<span style='color: #c56cf0;'>{marked_part}</span>"
                     )
                 middle_str = '<span style="color: white;">/</span>'.join(colored_middle)
                 if subfolder_part:
                     middle_str += '<span style="color: white;">/</span>'
 
-            # Aplicar coloreado a la subcarpeta (color #6bc9ff para secuencias)
+            # Aplicar coloreado a la subcarpeta (color #6bc9ff base, con extensiones heredadas en rojo)
             if subfolder_part:
+                marked_subfolder = mark_original_extension_in_part(
+                    subfolder_part, original_extensions, is_final_file=False
+                )
                 subfolder_str = (
-                    f"<span style='color: #6bc9ff;'>{subfolder_part}</span>"
+                    f"<span style='color: #6bc9ff;'>{marked_subfolder}</span>"
                     '<span style="color: white;">/</span>'
                 )
 
-            # Aplicar coloreado al archivo (#6bc9ff)
+            # Aplicar coloreado al archivo (color #6bc9ff base, con extensiones heredadas en rojo)
+            # El archivo final tiene su propia extensión/frame, así que solo marcamos extensiones heredadas
             if file_part:
-                file_str = f"<span style='color: #6bc9ff;'>{file_part}</span>"
+                marked_file = mark_original_extension_in_part(
+                    file_part, original_extensions, is_final_file=True
+                )
+                file_str = f"<span style='color: #6bc9ff;'>{marked_file}</span>"
         else:
             # Si NO es secuencia: parte intermedia son todas las carpetas excepto el archivo
             # Parte final es solo el archivo
             middle_parts = rest_parts[:-1]
             file_part = rest_parts[-1] if rest_parts else ""
 
-            # Aplicar coloreado a la parte intermedia (todos violeta)
+            # Aplicar coloreado a la parte intermedia (violeta base, con extensiones heredadas en rojo)
             if middle_parts:
                 colored_middle = []
                 for part in middle_parts:
+                    # Aplicar color violeta base y luego marcar extensiones heredadas en rojo
+                    marked_part = mark_original_extension_in_part(
+                        part, original_extensions, is_final_file=False
+                    )
                     colored_middle.append(
-                        f"<span style='color: #c56cf0;'>{part}</span>"
+                        f"<span style='color: #c56cf0;'>{marked_part}</span>"
                     )
                 middle_str = '<span style="color: white;">/</span>'.join(colored_middle)
                 if file_part:
                     middle_str += '<span style="color: white;">/</span>'
 
-            # Aplicar coloreado al archivo (#6bc9ff)
+            # Aplicar coloreado al archivo (color #6bc9ff base, con extensiones heredadas en rojo)
+            # El archivo final tiene su propia extensión/frame, así que solo marcamos extensiones heredadas
             if file_part:
-                file_str = f"<span style='color: #6bc9ff;'>{file_part}</span>"
+                marked_file = mark_original_extension_in_part(
+                    file_part, original_extensions, is_final_file=True
+                )
+                file_str = f"<span style='color: #6bc9ff;'>{marked_file}</span>"
 
     if is_sequence:
         return violet_str, middle_str, subfolder_str, file_str
@@ -536,6 +747,7 @@ class PathCheckWindow(QWidget):
         normalized_path,
         shot_folder_parts,
         callback=None,
+        original_extensions=None,
     ):
         super().__init__()
         self.callback = callback
@@ -545,6 +757,8 @@ class PathCheckWindow(QWidget):
         # Guardara el file_pattern modificado solo si el usuario cambia el indice
         # Si es None, se usara el patrón original del preset
         self.modified_file_pattern = None
+        # Extensiones originales del topnode para detectar problemas
+        self.original_extensions = original_extensions if original_extensions else []
 
         # Detectar si hay indices ajustables
         self.has_adjustable, self.current_index = has_adjustable_indices(file_pattern)
@@ -970,7 +1184,10 @@ class PathCheckWindow(QWidget):
             # Detectar si el path normalizado es secuencia (por si acaso)
             is_seq_normalized = is_sequence_pattern(normalized_path)
             path_result = split_path_at_violet_end(
-                normalized_path, shot_folder_parts, is_sequence=is_seq_normalized
+                normalized_path,
+                shot_folder_parts,
+                is_sequence=is_seq_normalized,
+                original_extensions=self.original_extensions,
             )
 
             # Desempaquetar segun si es secuencia o no
@@ -1309,8 +1526,14 @@ class PathCheckWindow(QWidget):
 
     def update_paths(self):
         """Actualiza el path final normalizado basado en el file_pattern actual."""
-        # Evaluar el nuevo path
-        evaluated_path = evaluate_file_pattern(self.current_file_pattern)
+        # Evaluar el nuevo path (ahora retorna tupla con path y extensiones originales)
+        evaluated_path, original_extensions = evaluate_file_pattern(
+            self.current_file_pattern
+        )
+
+        # Actualizar las extensiones originales si se obtuvieron nuevas
+        if original_extensions:
+            self.original_extensions = original_extensions
 
         # Normalizar el path
         normalized_path = None
@@ -1327,7 +1550,10 @@ class PathCheckWindow(QWidget):
             # Detectar si el path normalizado es secuencia
             is_seq_normalized = is_sequence_pattern(normalized_path)
             path_result = split_path_at_violet_end(
-                normalized_path, self.shot_folder_parts, is_sequence=is_seq_normalized
+                normalized_path,
+                self.shot_folder_parts,
+                is_sequence=is_seq_normalized,
+                original_extensions=self.original_extensions,
             )
 
             # Desempaquetar segun si es secuencia o no
@@ -1404,7 +1630,8 @@ def show_path_check_window(preset, user_text=None, callback=None):
         processed_pattern = file_pattern
 
     # Evaluar y normalizar el path para mostrar el resultado final
-    evaluated_path = evaluate_file_pattern(processed_pattern)
+    # evaluate_file_pattern ahora retorna tupla (evaluated_path, original_extensions)
+    evaluated_path, original_extensions = evaluate_file_pattern(processed_pattern)
     normalized_path = None
     if evaluated_path:
         normalized_path = normalize_path_preserve_case(evaluated_path)
@@ -1426,5 +1653,6 @@ def show_path_check_window(preset, user_text=None, callback=None):
         normalized_path,
         shot_folder_parts,
         callback_wrapper,
+        original_extensions=original_extensions,
     )
     window.show()

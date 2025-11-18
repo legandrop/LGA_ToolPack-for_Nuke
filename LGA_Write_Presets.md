@@ -55,6 +55,19 @@ La ventana muestra en orden:
 
 Los paths se dividen automáticamente: la primera línea muestra la parte que coincide con el shot folder (en violeta), las siguientes muestran el resto del path. Si es una secuencia, se separa la subcarpeta y el archivo en líneas distintas. Esto mejora la legibilidad en paths largos.
 
+### Detección de Extensiones Originales
+
+El sistema detecta automáticamente cuando los nombres de carpetas o archivos generados incluyen extensiones originales del archivo fuente (topnode). Esto ocurre cuando se incluyen demasiados segmentos en las expresiones `lrange`, causando que se incluya la extensión original (como `.%04d.exr`) en los nombres generados.
+
+**Indicadores visuales:**
+- Los segmentos que contienen extensiones originales se muestran en **rojo** (#ff0000) en el "Final Path"
+- Esto ayuda a identificar rápidamente cuando hay un problema en la configuración del preset
+
+**Ejemplo de problema detectado:**
+- Archivo original: `ERSO_DAY007_102_059_010.%04d.exr`
+- Path generado problemático: `ERSO_DAY007_102_059_010.%04d.exr_Denoised_v01` (subcarpeta en rojo)
+- El sistema detecta que `.%04d.exr` es parte de la extensión original y marca el segmento completo en rojo
+
 ### Edición de Índices Ajustables
 
 El control **Naming Segments** siempre está visible en la ventana. Cuando el preset contiene expresiones `lrange` con índices ajustables (patrón `] 0 X]`), el control está habilitado y permite:
@@ -89,12 +102,15 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 - `replace_indices_in_pattern(file_pattern, new_index)`: Reemplaza todos los índices ajustables con el nuevo valor
 - `has_directory_levels(file_pattern)`: Detecta si el file_pattern tiene niveles de directorio (`../`, `../../`, etc.) y retorna la cantidad máxima
 - `replace_directory_levels(file_pattern, new_level)`: Reemplaza todos los patrones `../` consecutivos con la cantidad especificada de niveles
-- `split_path_at_violet_end(path, shot_folder_parts, is_sequence=False)`: Divide el path normalizado en partes visuales (parte violeta, intermedia, subcarpeta y archivo según corresponda)
+- `get_topnode_file_path(temp_write)`: Obtiene el path del archivo del topnode desde un Write temporal buscando recursivamente el Read más alto
+- `extract_original_extension(file_path)`: Extrae la extensión original del archivo, incluyendo el patrón de frames si es secuencia (ej: `.%04d.exr`, `.exr`)
+- `contains_original_extension(part, original_extensions)`: Verifica si una parte del path contiene alguna de las extensiones originales
+- `split_path_at_violet_end(path, shot_folder_parts, is_sequence=False, original_extensions=None)`: Divide el path normalizado en partes visuales (parte violeta, intermedia, subcarpeta y archivo según corresponda). Marca en rojo los segmentos que contienen extensiones originales
 - `split_tcl_path_at_shot_end(tcl_path, shot_folder_parts, is_sequence=False)`: Divide el TCL path en partes visuales correspondientes
 - `is_sequence_pattern(pattern)`: Detecta si un pattern contiene una secuencia de cuadros (`%04d`, `%03d`, etc.)
-- `evaluate_file_pattern(file_pattern)`: Evalúa expresiones TCL creando un Write temporal
+- `evaluate_file_pattern(file_pattern)`: Evalúa expresiones TCL creando un Write temporal. Retorna tupla `(evaluated_path, original_extensions)` donde `original_extensions` es una lista de extensiones detectadas del topnode
 - `show_path_check_window(preset, user_text=None, callback=None)`: Muestra la ventana de verificación
-- `PathCheckWindow`: Clase de la ventana que muestra los controles de edición, el TCL path original y el path final normalizado
+- `PathCheckWindow`: Clase de la ventana que muestra los controles de edición, el TCL path original y el path final normalizado con detección de extensiones problemáticas
 
 **`LGA_ToolPack/LGA_Write_Presets.py`**:
 - `ShiftClickTableWidget`: Clase personalizada de `QTableWidget` que detecta Shift+Click
