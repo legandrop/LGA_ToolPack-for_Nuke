@@ -1,7 +1,7 @@
 """
 _____________________________________
 
-  LGA_ToolPack v2.44 | Lega
+  LGA_ToolPack v2.45 | Lega
   Colección de herramientas de Nuke
 _____________________________________
 
@@ -647,4 +647,4 @@ def _documentation_runner():
     webbrowser.open("file://" + TP_pdf_path)
 
 
-n.addCommand("Documentation v2.44", _documentation_runner)
+n.addCommand("Documentation v2.45", _documentation_runner)
