@@ -1,10 +1,14 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.51 | Lega
+  LGA_Write_Presets v2.53 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
+
+  v2.53: Shift+Click permite editar indices ajustables en tiempo real antes de crear el Write.
+
+  v2.52: Shift+Click en presets muestra ventana de verificacion del path antes de crear el Write.
 
   v2.51: Usa modulo compartido LGA_ToolPack_NamingUtils para detectar el formato del shotname.
 
@@ -32,7 +36,7 @@ from PySide2.QtWidgets import (
     QStyle,
 )
 from PySide2.QtCore import Qt
-from PySide2.QtGui import QCursor, QPalette, QColor, QKeyEvent, QBrush
+from PySide2.QtGui import QCursor, QPalette, QColor, QKeyEvent, QBrush, QMouseEvent
 import nuke
 import sys
 import os
@@ -78,6 +82,17 @@ except ImportError:
     oz_backdrop_available = False
     debug_print(
         "El modulo LGA_oz_backdropReplacer no esta disponible. Continuando sin reemplazar el backdrop."
+    )
+
+# Importar modulo de verificacion de path
+try:
+    from LGA_Write_Presets_Check import show_path_check_window
+
+    path_check_available = True
+except ImportError:
+    path_check_available = False
+    debug_print(
+        "El modulo LGA_Write_Presets_Check no esta disponible. Shift+Click no funcionara."
     )
 
 # Añadir al inicio del archivo
@@ -448,8 +463,15 @@ def load_presets():
     return {section: dict(config[section]) for section in config.sections()}
 
 
-def create_write_from_preset(preset, user_text=None):
-    """Crea un Write node y nodos adicionales según el preset"""
+def create_write_from_preset(preset, user_text=None, modified_file_pattern=None):
+    """
+    Crea un Write node y nodos adicionales según el preset
+
+    Args:
+        preset: Diccionario con la configuracion del preset
+        user_text: Texto ingresado por el usuario (si aplica, reemplaza ****)
+        modified_file_pattern: File pattern modificado desde la ventana de verificacion (opcional)
+    """
     nuke.Undo().begin("Create Write Node")
 
     # Obtener nodo seleccionado o crear NoOp
@@ -618,10 +640,18 @@ def create_write_from_preset(preset, user_text=None):
     write_node["create_directories"].setValue(create_directories)
 
     # Configurar el patrón de archivo
-    if user_text and "****" in preset["file_pattern"]:
-        file_pattern = preset["file_pattern"].replace("****", user_text)
+    # Si hay un file_pattern modificado desde la ventana de verificacion, usarlo
+    if modified_file_pattern:
+        base_pattern = modified_file_pattern
     else:
-        file_pattern = preset["file_pattern"]
+        base_pattern = preset["file_pattern"]
+
+    # Reemplazar **** con user_text si aplica
+    if user_text and "****" in base_pattern:
+        file_pattern = base_pattern.replace("****", user_text)
+    else:
+        file_pattern = base_pattern
+
     write_node["file"].setValue(file_pattern)
 
     # Configurar nombre del Write
@@ -760,6 +790,52 @@ class ColoredItemDelegate(QStyledItemDelegate):
             painter.restore()
 
 
+class ShiftClickTableWidget(QTableWidget):
+    """
+    QTableWidget personalizado que detecta Shift+Click y emite una senal personalizada.
+    """
+
+    def __init__(self, rows, columns, parent=None):
+        super().__init__(rows, columns, parent)
+        self.shift_click_callback = None  # type: ignore
+
+    def mousePressEvent(self, event):
+        """Detecta Shift+Click y llama al callback si esta definido."""
+        debug_print("[ShiftClickTableWidget] mousePressEvent detectado")
+        debug_print(
+            f"[ShiftClickTableWidget] Boton: {event.button()}, Modifiers: {event.modifiers()}"
+        )
+        debug_print(f"[ShiftClickTableWidget] ShiftModifier: {Qt.ShiftModifier}")
+        debug_print(
+            f"[ShiftClickTableWidget] Shift presionado: {bool(event.modifiers() & Qt.ShiftModifier)}"
+        )
+
+        if event.button() == Qt.LeftButton and event.modifiers() & Qt.ShiftModifier:
+            debug_print("[ShiftClickTableWidget] Shift+Click detectado!")
+            # Obtener la celda bajo el mouse
+            item = self.itemAt(event.pos())
+            debug_print(f"[ShiftClickTableWidget] Item encontrado: {item is not None}")
+            if item is not None:
+                row = item.row()
+                column = item.column()
+                debug_print(f"[ShiftClickTableWidget] Fila: {row}, Columna: {column}")
+                debug_print(
+                    f"[ShiftClickTableWidget] Callback disponible: {self.shift_click_callback is not None}"
+                )
+                if self.shift_click_callback:
+                    debug_print("[ShiftClickTableWidget] Llamando al callback...")
+                    # Seleccionar la fila antes de llamar al callback
+                    self.selectRow(row)
+                    # Llamar al callback con la fila y columna
+                    self.shift_click_callback(row, column)
+                    # Aceptar el evento para evitar que se propague
+                    event.accept()
+                    return
+        # Si no es Shift+Click, procesar normalmente
+        debug_print("[ShiftClickTableWidget] No es Shift+Click, procesando normalmente")
+        super().mousePressEvent(event)
+
+
 class SelectedNodeInfo(QWidget):
     def __init__(self, parent=None):
         super(SelectedNodeInfo, self).__init__(parent)
@@ -856,7 +932,7 @@ class SelectedNodeInfo(QWidget):
         main_layout.addWidget(title_bar)
 
         # Crear y configurar la tabla (una sola vez)
-        self.table = QTableWidget(len(self.options), 1, self)
+        self.table = ShiftClickTableWidget(len(self.options), 1, self)
         self.table.horizontalHeader().setVisible(False)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -867,8 +943,10 @@ class SelectedNodeInfo(QWidget):
         # Cargar datos en la tabla
         self.load_render_options()
 
-        # Conectar solo el evento de clic
+        # Conectar eventos de clic
         self.table.cellClicked.connect(self.handle_render_option)
+        # Conectar Shift+Click
+        self.table.shift_click_callback = self.handle_render_option_shift  # type: ignore
 
         main_layout.addWidget(self.table)
 
@@ -1030,6 +1108,43 @@ class SelectedNodeInfo(QWidget):
         self.move(posx, posy)
 
     def handle_render_option(self, row, column):
+        """Maneja el clic normal en un preset, mostrando ventana de verificacion."""
+        if not path_check_available:
+            # Si el modulo no esta disponible, comportarse como Shift+Click (crear directamente)
+            self.handle_render_option_shift(row, column)
+            return
+
+        selected_option = self.options[row]
+        preset_number = row + 1
+        preset = self.presets[f"Preset{preset_number}"]
+
+        dialog_enabled = preset["dialog_enabled"].lower() == "true"
+
+        if dialog_enabled:
+            esc_exit, user_text = show_name_input_dialog(
+                initial_text=preset["dialog_default_name"]
+            )
+            if not esc_exit and user_text is not None:
+                # Guardar preset y user_text para usar en el callback
+                self._pending_preset = preset
+                self._pending_user_text = user_text
+
+                # Cerrar y mostrar ventana de verificacion
+                self.close()
+                show_path_check_window(
+                    preset, user_text, self._create_write_from_pending
+                )
+        else:
+            # Guardar preset para usar en el callback
+            self._pending_preset = preset
+            self._pending_user_text = None
+
+            # Cerrar y mostrar ventana de verificacion
+            self.close()
+            show_path_check_window(preset, None, self._create_write_from_pending)
+
+    def handle_render_option_shift(self, row, column):
+        """Maneja Shift+Click en un preset, creando el Write directamente sin ventana."""
         selected_option = self.options[row]
         preset_number = row + 1
         preset = self.presets[f"Preset{preset_number}"]
@@ -1046,6 +1161,17 @@ class SelectedNodeInfo(QWidget):
                 create_write_from_preset(preset, user_text)
         else:
             create_write_from_preset(preset)
+
+    def _create_write_from_pending(self, modified_file_pattern=None):
+        """
+        Callback que crea el Write usando los valores pendientes.
+
+        Args:
+            modified_file_pattern: File pattern modificado desde la ventana de verificacion (opcional)
+        """
+        create_write_from_preset(
+            self._pending_preset, self._pending_user_text, modified_file_pattern
+        )
 
     def show_write_path_window(self):
         """Importa y ejecuta el main() de LGA_Write_PathToText.py para mostrar el path del Write seleccionado."""
