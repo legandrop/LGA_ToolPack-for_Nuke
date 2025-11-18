@@ -1,9 +1,20 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v1.20 | Lega
+  LGA_Write_Presets_Check v1.22 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset.
+
+  v1.22: Flag para ocultar el TCL path original.
+         - Agregada flag SHOW_ORIGINAL_TCL_PATH (por defecto False)
+         - Cuando esta en False, el TCL path original no se muestra en la ventana
+         - El path final normalizado siempre se muestra
+
+  v1.21: Path dividido en 3 o 4 lineas segun corresponda.
+         - Detecta si el path es una secuencia (busca %04d, %03d, etc.)
+         - Si es secuencia: tercera linea muestra subcarpeta (con / al final), cuarta linea muestra archivo
+         - Si NO es secuencia: tercera linea muestra solo el archivo
+         - Aplica tanto al TCL path original como al path final normalizado
 
   v1.20: Edición de indices ajustables en tiempo real implementada.
          - Detecta si el preset tiene indices ajustables en expresiones lrange
@@ -69,7 +80,7 @@ except ImportError:
                 text_color = "#c56cf0"
             colored_parts.append(f"<span style='color: {text_color};'>{part}</span>")
         if len(parts) > 0:
-            file_name = f"<b style='color: rgb(200, 200, 200);'>{parts[-1]}</b>"
+            file_name = f"<span style='color: rgb(200, 200, 200);'>{parts[-1]}</span>"
             colored_parts.append(file_name)
         colored_text = '<span style="color: white;">/</span>'.join(colored_parts)
         return colored_text
@@ -108,6 +119,9 @@ except ImportError:
 
 # Variable global para activar o desactivar los debug_prints
 DEBUG = False
+
+# Flag para mostrar/ocultar el TCL path original
+SHOW_ORIGINAL_TCL_PATH = True
 
 app = None
 window = None
@@ -188,6 +202,18 @@ def get_shot_folder_parts(script_path):
     return shot_folder_parts
 
 
+def is_sequence_pattern(pattern):
+    """
+    Detecta si un pattern (TCL o path) contiene una secuencia de cuadros.
+    Busca patrones como %04d, %03d, %05d, etc.
+    Retorna True si es una secuencia, False si no.
+    """
+    if not pattern:
+        return False
+    # Buscar patrones %0Xd donde X es un numero
+    return bool(re.search(r"%0\d+d", pattern))
+
+
 def has_adjustable_indices(file_pattern):
     """
     Detecta si el file_pattern tiene indices ajustables en expresiones lrange.
@@ -233,13 +259,19 @@ def replace_indices_in_pattern(file_pattern, new_index):
     return modified_pattern
 
 
-def split_path_at_violet_end(path, shot_folder_parts):
+def split_path_at_violet_end(path, shot_folder_parts, is_sequence=False):
     """
-    Divide un path en dos partes: la parte violeta (que coincide con shot_folder_parts) y el resto.
-    Retorna (violet_part, rest_part) como strings HTML con colores.
+    Divide un path en partes: la parte violeta (que coincide con shot_folder_parts),
+    la parte intermedia, y la parte final.
+    Si es secuencia: retorna (violet_part, middle_part, subfolder_part, file_part) - 4 partes
+    Si NO es secuencia: retorna (violet_part, middle_part, file_part, "") - 3 partes (ultima vacia)
+    Todas las partes son strings HTML con colores.
     """
     if not path:
-        return path, ""
+        if is_sequence:
+            return path, "", "", ""
+        else:
+            return path, "", ""
 
     parts = path.replace("\\", "/").split("/")
     parts_lower = [part.lower() for part in parts]
@@ -275,31 +307,90 @@ def split_path_at_violet_end(path, shot_folder_parts):
     if rest_parts and violet_parts:
         violet_str += '<span style="color: white;">/</span>'
 
-    # Aplicar coloreado al resto (si existe)
-    rest_str = ""
+    # Dividir el resto en parte intermedia y parte final
+    middle_str = ""
+    subfolder_str = ""
+    file_str = ""
+
     if rest_parts:
-        colored_rest = []
-        for i, part in enumerate(rest_parts[:-1]):
-            level = violet_end_index + 1 + i
-            color = get_color_for_level(level)
-            colored_rest.append(f"<span style='color: {color};'>{part}</span>")
+        if is_sequence and len(rest_parts) >= 2:
+            # Si es secuencia: parte intermedia son todas las carpetas excepto las ultimas 2
+            # Subcarpeta es la penultima
+            # Archivo es la ultima
+            middle_parts = rest_parts[:-2]
+            subfolder_part = rest_parts[-2] if len(rest_parts) >= 2 else ""
+            file_part = rest_parts[-1] if rest_parts else ""
 
-        # Agregar el nombre del archivo
-        file_name = f"<b style='color: rgb(200, 200, 200);'>{rest_parts[-1]}</b>"
-        colored_rest.append(file_name)
+            # Aplicar coloreado a la parte intermedia
+            if middle_parts:
+                colored_middle = []
+                for i, part in enumerate(middle_parts):
+                    level = violet_end_index + 1 + i
+                    color = get_color_for_level(level)
+                    colored_middle.append(
+                        f"<span style='color: {color};'>{part}</span>"
+                    )
+                middle_str = '<span style="color: white;">/</span>'.join(colored_middle)
+                if subfolder_part:
+                    middle_str += '<span style="color: white;">/</span>'
 
-        rest_str = '<span style="color: white;">/</span>'.join(colored_rest)
+            # Aplicar coloreado a la subcarpeta (con / al final)
+            if subfolder_part:
+                level = violet_end_index + 1 + len(middle_parts)
+                color = get_color_for_level(level)
+                subfolder_str = (
+                    f"<span style='color: {color};'>{subfolder_part}</span>"
+                    '<span style="color: white;">/</span>'
+                )
 
-    return violet_str, rest_str
+            # Aplicar coloreado al archivo
+            if file_part:
+                file_str = (
+                    f"<span style='color: rgb(200, 200, 200);'>{file_part}</span>"
+                )
+        else:
+            # Si NO es secuencia: parte intermedia son todas las carpetas excepto el archivo
+            # Parte final es solo el archivo
+            middle_parts = rest_parts[:-1]
+            file_part = rest_parts[-1] if rest_parts else ""
+
+            # Aplicar coloreado a la parte intermedia
+            if middle_parts:
+                colored_middle = []
+                for i, part in enumerate(middle_parts):
+                    level = violet_end_index + 1 + i
+                    color = get_color_for_level(level)
+                    colored_middle.append(
+                        f"<span style='color: {color};'>{part}</span>"
+                    )
+                middle_str = '<span style="color: white;">/</span>'.join(colored_middle)
+                if file_part:
+                    middle_str += '<span style="color: white;">/</span>'
+
+            # Aplicar coloreado al archivo
+            if file_part:
+                file_str = (
+                    f"<span style='color: rgb(200, 200, 200);'>{file_part}</span>"
+                )
+
+    if is_sequence:
+        return violet_str, middle_str, subfolder_str, file_str
+    else:
+        return violet_str, middle_str, file_str, ""
 
 
-def split_tcl_path_at_shot_end(tcl_path, shot_folder_parts):
+def split_tcl_path_at_shot_end(tcl_path, shot_folder_parts, is_sequence=False):
     """
-    Divide el TCL path en dos partes basandose en donde termina la parte del shot.
+    Divide el TCL path en partes basandose en donde termina la parte del shot.
     Busca patrones comunes que indican salida del shot folder (como ../2_prerenders, ../4_publish, etc).
+    Si es secuencia: retorna (violet_part, middle_part, subfolder_part, file_part) - 4 partes
+    Si NO es secuencia: retorna (violet_part, middle_part, file_part, "") - 3 partes (ultima vacia)
     """
     if not tcl_path:
-        return tcl_path, ""
+        if is_sequence:
+            return tcl_path, "", "", ""
+        else:
+            return tcl_path, "", ""
 
     # Buscar patrones que indican salida del shot folder
     # Patrones comunes: ../2_prerenders, ../3_review, ../4_publish, etc.
@@ -312,27 +403,67 @@ def split_tcl_path_at_shot_end(tcl_path, shot_folder_parts):
         # Buscar el / anterior mas cercano para dividir mejor
         prev_slash = tcl_path.rfind("/", 0, split_pos)
         if prev_slash > 0:
-            return tcl_path[:prev_slash], tcl_path[prev_slash + 1 :]
+            violet_part = tcl_path[:prev_slash]
+            rest_part = tcl_path[prev_slash + 1 :]
         else:
-            return tcl_path[:split_pos], tcl_path[split_pos:]
-
-    # Si no encontramos el patron, buscar el primer ../ que aparece
-    first_dotdot = tcl_path.find("../")
-    if first_dotdot > 0:
-        # Buscar el / anterior mas cercano
-        prev_slash = tcl_path.rfind("/", 0, first_dotdot)
-        if prev_slash > 0:
-            return tcl_path[:prev_slash], tcl_path[prev_slash + 1 :]
-        else:
-            return tcl_path[:first_dotdot], tcl_path[first_dotdot:]
-
-    # Si no encontramos nada, dividir aproximadamente al 60% buscando el / mas cercano
-    split_point = int(len(tcl_path) * 0.6)
-    nearest_slash = tcl_path.rfind("/", 0, split_point)
-    if nearest_slash > 0:
-        return tcl_path[:nearest_slash], tcl_path[nearest_slash + 1 :]
+            violet_part = tcl_path[:split_pos]
+            rest_part = tcl_path[split_pos:]
     else:
-        return tcl_path, ""
+        # Si no encontramos el patron, buscar el primer ../ que aparece
+        first_dotdot = tcl_path.find("../")
+        if first_dotdot > 0:
+            # Buscar el / anterior mas cercano
+            prev_slash = tcl_path.rfind("/", 0, first_dotdot)
+            if prev_slash > 0:
+                violet_part = tcl_path[:prev_slash]
+                rest_part = tcl_path[prev_slash + 1 :]
+            else:
+                violet_part = tcl_path[:first_dotdot]
+                rest_part = tcl_path[first_dotdot:]
+        else:
+            # Si no encontramos nada, dividir aproximadamente al 60% buscando el / mas cercano
+            split_point = int(len(tcl_path) * 0.6)
+            nearest_slash = tcl_path.rfind("/", 0, split_point)
+            if nearest_slash > 0:
+                violet_part = tcl_path[:nearest_slash]
+                rest_part = tcl_path[nearest_slash + 1 :]
+            else:
+                violet_part = tcl_path
+                rest_part = ""
+
+    # Dividir el resto en parte intermedia y parte final
+    if not rest_part:
+        if is_sequence:
+            return violet_part, "", "", ""
+        else:
+            return violet_part, "", ""
+
+    # Dividir por / para obtener las partes
+    rest_parts = rest_part.split("/")
+
+    if is_sequence and len(rest_parts) >= 2:
+        # Si es secuencia: parte intermedia son todas las carpetas excepto las ultimas 2
+        # Subcarpeta es la penultima
+        # Archivo es la ultima
+        middle_parts = rest_parts[:-2]
+        subfolder_part = rest_parts[-2] if len(rest_parts) >= 2 else ""
+        file_part = rest_parts[-1] if rest_parts else ""
+
+        middle_str = "/".join(middle_parts) if middle_parts else ""
+        subfolder_str = f"{subfolder_part}/" if subfolder_part else ""
+        file_str = file_part if file_part else ""
+
+        return violet_part, middle_str, subfolder_str, file_str
+    else:
+        # Si NO es secuencia: parte intermedia son todas las carpetas excepto el archivo
+        # Parte final es solo el archivo
+        middle_parts = rest_parts[:-1]
+        file_part = rest_parts[-1] if rest_parts else ""
+
+        middle_str = "/".join(middle_parts) if middle_parts else ""
+        file_str = file_part if file_part else ""
+
+        return violet_part, middle_str, file_str, ""
 
 
 class PathCheckWindow(QWidget):
@@ -367,39 +498,78 @@ class PathCheckWindow(QWidget):
 
         self.setWindowFlags(Qt.Window)
         self.setWindowTitle("LGA Write Path Check")
-        self.setStyleSheet("background-color: #232323; border-radius: 10px;")
+        self.setStyleSheet("background-color: #212121; border-radius: 10px;")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
+        layout.setSpacing(16)
 
-        def add_block(title, value, rich=False):
+        def add_block(title, value, rich=False, is_section=False):
+            """
+            Crea un bloque con titulo y valor.
+            """
             block_layout = QVBoxLayout()
-            block_layout.setSpacing(2)
+            block_layout.setSpacing(8)
             block_layout.setContentsMargins(0, 0, 0, 0)
-            title_label = QLabel(f"<b style='color:#cccccc;'>{title}</b>")
-            title_label.setStyleSheet("font-size:14px;")
+
+            # Contenedor para el contenido de la seccion con fondo
+            content_widget = QWidget()
+            content_layout = QVBoxLayout(content_widget)
+            content_layout.setContentsMargins(12, 10, 12, 10)
+            content_layout.setSpacing(6)
+
+            # Titulo con estilo mejorado
+            title_label = QLabel(
+                f"<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>{title}</span>"
+            )
+            title_label.setStyleSheet("font-size:13px; padding-bottom:2px;")
+            content_layout.addWidget(title_label)
+
+            # Valor con padding adicional
             if rich:
                 value_label = QLabel(value)
             else:
                 value_label = QLabel(f"<span style='color:#AEAEAE;'>{value}</span>")
-            value_label.setStyleSheet("font-size:13px;")
+            value_label.setStyleSheet("font-size:13px; padding:4px 0px;")
             value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            block_layout.addWidget(title_label)
-            block_layout.addWidget(value_label)
+
+            # Fondo sutil para la seccion (sin border)
+            content_widget.setStyleSheet(
+                """
+                QWidget {
+                    background-color: #292929;
+                    border-radius: 6px;
+                }
+            """
+            )
+
+            content_layout.addWidget(value_label)
+            block_layout.addWidget(content_widget)
             layout.addLayout(block_layout)
+
             return value_label  # Retornar el label para poder actualizarlo
 
         # Agregar control de indice ajustable primero si aplica
         if self.has_adjustable:
-            index_layout = QHBoxLayout()
-            index_layout.setSpacing(10)
-            index_layout.setContentsMargins(0, 0, 0, 0)
+            # Contenedor principal con fondo (sin border)
+            index_container = QWidget()
+            index_container.setStyleSheet(
+                """
+                QWidget {
+                    background-color: #292929;
+                    border-radius: 6px;
+                }
+            """
+            )
+
+            index_layout = QHBoxLayout(index_container)
+            index_layout.setSpacing(12)
+            index_layout.setContentsMargins(12, 10, 12, 10)
 
             index_title = QLabel(
-                "<b style='color:#cccccc;'>Naming segments to include:</b>"
+                "<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>Naming Segments</span>"
             )
-            index_title.setStyleSheet("font-size:14px;")
+            index_title.setStyleSheet("font-size:13px;")
             index_layout.addWidget(index_title)
 
             # Contenedor para el numero y botones
@@ -416,7 +586,7 @@ class PathCheckWindow(QWidget):
                 """
                 QLabel {
                     background-color: #3e3e3e;
-                    color: #FFFFFF;
+                    color: #CCCCCC;
                     border: none;
                     border-top-left-radius: 4px;
                     border-bottom-left-radius: 4px;
@@ -444,7 +614,7 @@ class PathCheckWindow(QWidget):
                 """
                 QPushButton {
                     background-color: #3e3e3e;
-                    color: #FFFFFF;
+                    color: #CCCCCC;
                     border: none;
                     border-top-left-radius: 0px;
                     border-top-right-radius: 4px;
@@ -472,7 +642,7 @@ class PathCheckWindow(QWidget):
                 """
                 QPushButton {
                     background-color: #3e3e3e;
-                    color: #FFFFFF;
+                    color: #CCCCCC;
                     border: none;
                     border-top-left-radius: 0px;
                     border-top-right-radius: 0px;
@@ -505,7 +675,8 @@ class PathCheckWindow(QWidget):
             self.min_index = 0
             self.max_index = 20
 
-            layout.addLayout(index_layout)
+            layout.addWidget(index_container)
+            layout.addSpacing(8)  # Espacio antes de la siguiente seccion
         else:
             # Mostrar mensaje informativo si no hay indices ajustables
             info_label = QLabel(
@@ -516,32 +687,106 @@ class PathCheckWindow(QWidget):
             info_label.setStyleSheet("font-size:12px; padding: 8px 0px;")
             layout.addWidget(info_label)
 
-        # Mostrar TCL path original (despues del control de indice) con salto de linea
-        tcl_violet, tcl_rest = split_tcl_path_at_shot_end(
-            file_pattern, shot_folder_parts
-        )
-        if tcl_rest:
-            tcl_display = f"{tcl_violet}/<br>{tcl_rest}"
-        else:
-            tcl_display = file_pattern
-        self.original_label = add_block("Original TCL Path:", tcl_display)
+        # Mostrar TCL path original solo si la flag esta activada
+        if SHOW_ORIGINAL_TCL_PATH:
+            # Detectar si es una secuencia
+            is_seq = is_sequence_pattern(file_pattern)
 
-        # Label para path final normalizado (se actualizara en tiempo real) con salto de linea
-        if normalized_path:
-            violet_part, rest_part = split_path_at_violet_end(
-                normalized_path, shot_folder_parts
+            # Mostrar TCL path original (despues del control de indice) con 3 o 4 lineas
+            tcl_result = split_tcl_path_at_shot_end(
+                file_pattern, shot_folder_parts, is_sequence=is_seq
             )
-            if rest_part:
-                colored_normalized = f"{violet_part}<br>{rest_part}"
+
+            # Desempaquetar segun si es secuencia o no
+            tcl_violet = tcl_result[0]
+            tcl_middle = tcl_result[1]
+            if is_seq and len(tcl_result) >= 4:
+                tcl_subfolder = tcl_result[2]
+                tcl_file = tcl_result[3]
+            else:
+                tcl_subfolder = ""
+                tcl_file = tcl_result[2] if len(tcl_result) >= 3 else ""
+
+            # Construir display con 3 o 4 lineas segun corresponda
+            tcl_lines = []
+            if tcl_violet:
+                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_violet}</span>")
+            if tcl_middle:
+                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_middle}</span>")
+            if is_seq:
+                # Si es secuencia: mostrar subcarpeta y archivo en lineas separadas
+                if tcl_subfolder:
+                    tcl_lines.append(
+                        f"<span style='color:#AEAEAE;'>{tcl_subfolder}</span>"
+                    )
+                if tcl_file:
+                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+            else:
+                # Si NO es secuencia: mostrar solo archivo
+                if tcl_file:
+                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+
+            if tcl_lines:
+                tcl_display = "<br>".join(tcl_lines)
+            else:
+                tcl_display = f"<span style='color:#AEAEAE;'>{file_pattern}</span>"
+
+            self.original_label = add_block(
+                "Original TCL Path", tcl_display, rich=True, is_section=True
+            )
+        else:
+            # Si la flag esta desactivada, crear un label vacio pero no mostrarlo
+            self.original_label = None
+
+        # Label para path final normalizado (se actualizara en tiempo real) con 3 o 4 lineas
+        if normalized_path:
+            # Detectar si el path normalizado es secuencia (por si acaso)
+            is_seq_normalized = is_sequence_pattern(normalized_path)
+            path_result = split_path_at_violet_end(
+                normalized_path, shot_folder_parts, is_sequence=is_seq_normalized
+            )
+
+            # Desempaquetar segun si es secuencia o no
+            violet_part = path_result[0]
+            middle_part = path_result[1]
+            if is_seq_normalized and len(path_result) >= 4:
+                subfolder_part = path_result[2]
+                file_part = path_result[3]
+            else:
+                subfolder_part = ""
+                file_part = path_result[2] if len(path_result) >= 3 else ""
+
+            # Construir display con 3 o 4 lineas segun corresponda
+            path_lines = []
+            if violet_part:
+                path_lines.append(violet_part)
+            if middle_part:
+                path_lines.append(middle_part)
+            if is_seq_normalized:
+                # Si es secuencia: mostrar subcarpeta y archivo en lineas separadas
+                if subfolder_part:
+                    path_lines.append(subfolder_part)
+                if file_part:
+                    path_lines.append(file_part)
+            else:
+                # Si NO es secuencia: mostrar solo archivo
+                if file_part:
+                    path_lines.append(file_part)
+
+            if path_lines:
+                colored_normalized = "<br>".join(path_lines)
             else:
                 colored_normalized = apply_path_coloring(
                     normalized_path, shot_folder_parts
                 )
+
             self.normalized_label = add_block(
-                "Final Path:", colored_normalized, rich=True
+                "Final Path", colored_normalized, rich=True, is_section=True
             )
         else:
-            self.normalized_label = add_block("Final Path:", "(No normalized)")
+            self.normalized_label = add_block(
+                "Final Path", "(No normalized)", is_section=True
+            )
 
         # Botones Cancel y OK
         buttons_layout = QHBoxLayout()
@@ -551,7 +796,7 @@ class PathCheckWindow(QWidget):
         cancel_button.setStyleSheet(
             """
             QPushButton {
-                background-color: #443a3a;
+                background-color: #2a2a2a;
                 color: #cccccc;
                 border: none;
                 border-radius: 6px;
@@ -561,7 +806,7 @@ class PathCheckWindow(QWidget):
                 min-width: 80px;
             }
             QPushButton:hover {
-                background-color: #5a4a4a;
+                background-color: #443a91;
             }
             QPushButton:pressed {
                 background-color: #3a2e2e;
@@ -575,7 +820,7 @@ class PathCheckWindow(QWidget):
         ok_button.setStyleSheet(
             """
             QPushButton {
-                background-color: #443a91;
+                background-color: #2a2a2a;
                 color: #cccccc;
                 border: none;
                 border-radius: 6px;
@@ -585,7 +830,7 @@ class PathCheckWindow(QWidget):
                 min-width: 80px;
             }
             QPushButton:hover {
-                background-color: #372e7a;
+                background-color: #443a91;
             }
             QPushButton:pressed {
                 background-color: #2d265e;
@@ -645,19 +890,52 @@ class PathCheckWindow(QWidget):
         else:
             self.modified_file_pattern = self.current_file_pattern
 
-        # Actualizar el label del codigo original con salto de linea
-        tcl_violet, tcl_rest = split_tcl_path_at_shot_end(
-            self.current_file_pattern, self.shot_folder_parts
-        )
-        if tcl_rest:
-            tcl_display = (
-                f"<span style='color:#AEAEAE;'>{tcl_violet}/<br>{tcl_rest}</span>"
+        # Actualizar el label del codigo original solo si esta visible
+        if self.original_label is not None:
+            # Detectar si es una secuencia
+            is_seq = is_sequence_pattern(self.current_file_pattern)
+
+            # Actualizar el label del codigo original con 3 o 4 lineas
+            tcl_result = split_tcl_path_at_shot_end(
+                self.current_file_pattern, self.shot_folder_parts, is_sequence=is_seq
             )
-        else:
-            tcl_display = (
-                f"<span style='color:#AEAEAE;'>{self.current_file_pattern}</span>"
-            )
-        self.original_label.setText(tcl_display)
+
+            # Desempaquetar segun si es secuencia o no
+            tcl_violet = tcl_result[0]
+            tcl_middle = tcl_result[1]
+            if is_seq and len(tcl_result) >= 4:
+                tcl_subfolder = tcl_result[2]
+                tcl_file = tcl_result[3]
+            else:
+                tcl_subfolder = ""
+                tcl_file = tcl_result[2] if len(tcl_result) >= 3 else ""
+
+            # Construir display con 3 o 4 lineas segun corresponda
+            tcl_lines = []
+            if tcl_violet:
+                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_violet}</span>")
+            if tcl_middle:
+                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_middle}</span>")
+            if is_seq:
+                # Si es secuencia: mostrar subcarpeta y archivo en lineas separadas
+                if tcl_subfolder:
+                    tcl_lines.append(
+                        f"<span style='color:#AEAEAE;'>{tcl_subfolder}</span>"
+                    )
+                if tcl_file:
+                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+            else:
+                # Si NO es secuencia: mostrar solo archivo
+                if tcl_file:
+                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+
+            if tcl_lines:
+                tcl_display = "<br>".join(tcl_lines)
+            else:
+                tcl_display = (
+                    f"<span style='color:#AEAEAE;'>{self.current_file_pattern}</span>"
+                )
+            self.original_label.setText(tcl_display)
 
         # Programar actualizacion de paths (con debounce)
         self.update_timer.stop()
@@ -673,13 +951,43 @@ class PathCheckWindow(QWidget):
         if evaluated_path:
             normalized_path = normalize_path_preserve_case(evaluated_path)
 
-        # Actualizar label del path final con salto de linea
+        # Actualizar label del path final con 3 o 4 lineas
         if normalized_path:
-            violet_part, rest_part = split_path_at_violet_end(
-                normalized_path, self.shot_folder_parts
+            # Detectar si el path normalizado es secuencia
+            is_seq_normalized = is_sequence_pattern(normalized_path)
+            path_result = split_path_at_violet_end(
+                normalized_path, self.shot_folder_parts, is_sequence=is_seq_normalized
             )
-            if rest_part:
-                colored_normalized = f"{violet_part}<br>{rest_part}"
+
+            # Desempaquetar segun si es secuencia o no
+            violet_part = path_result[0]
+            middle_part = path_result[1]
+            if is_seq_normalized and len(path_result) >= 4:
+                subfolder_part = path_result[2]
+                file_part = path_result[3]
+            else:
+                subfolder_part = ""
+                file_part = path_result[2] if len(path_result) >= 3 else ""
+
+            # Construir display con 3 o 4 lineas segun corresponda
+            path_lines = []
+            if violet_part:
+                path_lines.append(violet_part)
+            if middle_part:
+                path_lines.append(middle_part)
+            if is_seq_normalized:
+                # Si es secuencia: mostrar subcarpeta y archivo en lineas separadas
+                if subfolder_part:
+                    path_lines.append(subfolder_part)
+                if file_part:
+                    path_lines.append(file_part)
+            else:
+                # Si NO es secuencia: mostrar solo archivo
+                if file_part:
+                    path_lines.append(file_part)
+
+            if path_lines:
+                colored_normalized = "<br>".join(path_lines)
             else:
                 colored_normalized = apply_path_coloring(
                     normalized_path, self.shot_folder_parts

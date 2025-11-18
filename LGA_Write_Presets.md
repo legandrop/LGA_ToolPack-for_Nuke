@@ -48,8 +48,10 @@ Al hacer **click normal** sobre un preset, se muestra una ventana de verificaci�
 La ventana muestra en orden:
 
 1. **Naming segments to include**: Control para editar índices ajustables (si el preset los tiene)
-2. **Original TCL Path**: El `file_pattern` tal como está configurado
-3. **Final Path**: El path resuelto y normalizado con colores por nivel de directorio
+2. **Original TCL Path**: El `file_pattern` tal como está configurado, dividido en dos líneas visuales
+3. **Final Path**: El path resuelto y normalizado con colores por nivel de directorio, dividido en dos líneas visuales
+
+Los paths se dividen automáticamente en dos líneas: la primera muestra la parte que coincide con el shot folder (en violeta), y la segunda muestra el resto del path. Esto mejora la legibilidad en paths largos.
 
 ### Edición de Índices Ajustables
 
@@ -72,9 +74,11 @@ Cuando el preset contiene expresiones `lrange` con índices ajustables (patrón 
 **`LGA_ToolPack/LGA_Write_Presets_Check.py`**:
 - `has_adjustable_indices(file_pattern)`: Detecta si el file_pattern tiene índices ajustables y retorna el valor actual
 - `replace_indices_in_pattern(file_pattern, new_index)`: Reemplaza todos los índices ajustables con el nuevo valor
+- `split_path_at_violet_end(path, shot_folder_parts)`: Divide el path normalizado en dos partes visuales (parte violeta y resto)
+- `split_tcl_path_at_shot_end(tcl_path, shot_folder_parts)`: Divide el TCL path en dos partes visuales correspondientes
 - `evaluate_file_pattern(file_pattern)`: Evalúa expresiones TCL creando un Write temporal
 - `show_path_check_window(preset, user_text=None, callback=None)`: Muestra la ventana de verificación
-- `PathCheckWindow`: Clase de la ventana que muestra el TCL path original y el path final normalizado
+- `PathCheckWindow`: Clase de la ventana que muestra el TCL path original y el path final normalizado en formato de dos líneas
 
 **`LGA_ToolPack/LGA_Write_Presets.py`**:
 - `ShiftClickTableWidget`: Clase personalizada de `QTableWidget` que detecta Shift+Click
