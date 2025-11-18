@@ -18,7 +18,7 @@ import base64  # Importar base64
 import binascii  # Importar binascii para la excepcion
 
 # Variable global para controlar el debug
-DEBUG = True  # Poner en False para desactivar los mensajes de debug
+DEBUG = False  # Poner en False para desactivar los mensajes de debug
 
 
 # Funcion debug_print
