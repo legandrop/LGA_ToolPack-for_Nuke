@@ -1,10 +1,13 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.53 | Lega
+  LGA_Write_Presets v2.61 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
+
+  v2.61: Ventana de verificacion con controles para editar Naming Segments y Folder Up Levels.
+         Ambos controles siempre visibles. Naming Segments deshabilitado cuando no aplica.
 
   v2.53: Shift+Click permite editar indices ajustables en tiempo real antes de crear el Write.
 
@@ -47,7 +50,7 @@ import unicodedata
 import re
 
 # Variable global para activar o desactivar los debug_prints
-DEBUG = True
+DEBUG = False
 
 
 def debug_print(*message):

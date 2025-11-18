@@ -118,10 +118,10 @@ except ImportError:
 
 
 # Variable global para activar o desactivar los debug_prints
-DEBUG = False
+DEBUG = True
 
 # Flag para mostrar/ocultar el TCL path original
-SHOW_ORIGINAL_TCL_PATH = True
+SHOW_ORIGINAL_TCL_PATH = False
 
 app = None
 window = None
@@ -256,6 +256,66 @@ def replace_indices_in_pattern(file_pattern, new_index):
 
     # Reemplazar todos los indices
     modified_pattern = re.sub(r"\] 0 (\d+)\s*\]", replace_index, file_pattern)
+    return modified_pattern
+
+
+def has_directory_levels(file_pattern):
+    """
+    Detecta si el file_pattern tiene niveles de directorio (../ o ../../, etc).
+    Retorna (bool, int) donde bool indica si hay niveles y int es la cantidad actual.
+    Busca patrones ../ seguidos opcionalmente por más ../.
+    """
+    if not file_pattern:
+        return False, None
+
+    # Buscar todos los patrones ../ seguidos usando finditer para obtener el texto completo
+    # Buscamos ../ que aparezcan juntos (como ../../ o ../../../)
+    matches = list(re.finditer(r"(\.\./)+", file_pattern))
+    debug_print(f"has_directory_levels - matches encontrados: {len(matches)}")
+    if not matches:
+        return False, None
+
+    # Contar la cantidad máxima de ../ consecutivos
+    max_levels = 0
+    for match in matches:
+        # Obtener el texto completo del match (puede ser ../, ../../, ../../../, etc)
+        match_text = match.group(0)
+        # Contar cuantos ../ hay en este match
+        levels = match_text.count("../")
+        debug_print(
+            f"has_directory_levels - match: '{match_text}', niveles contados: {levels}"
+        )
+        max_levels = max(max_levels, levels)
+
+    debug_print(f"has_directory_levels - max_levels final: {max_levels}")
+    if max_levels > 0:
+        return True, max_levels
+    return False, None
+
+
+def replace_directory_levels(file_pattern, new_level):
+    """
+    Reemplaza los niveles de directorio en el file_pattern con el nuevo valor.
+    Busca patrones ../ (repetidos) y los reemplaza por la cantidad especificada.
+    Si new_level es 0, elimina todos los ../.
+    Si new_level es mayor a 0, reemplaza por new_level veces ../.
+    """
+    if not file_pattern:
+        return file_pattern
+
+    if new_level < 0:
+        new_level = 0
+
+    # Crear el reemplazo
+    replacement = "../" * new_level if new_level > 0 else ""
+
+    # Buscar y reemplazar todos los patrones de ../ consecutivos
+    # Usamos una funcion para reemplazar cada ocurrencia
+    def replace_levels(match):
+        return replacement
+
+    # Reemplazar todos los patrones ../+ con el nuevo nivel
+    modified_pattern = re.sub(r"(\.\./)+", replacement, file_pattern)
     return modified_pattern
 
 
@@ -431,6 +491,10 @@ def split_tcl_path_at_shot_end(tcl_path, shot_folder_parts, is_sequence=False):
                 violet_part = tcl_path
                 rest_part = ""
 
+    # Agregar / al final de violet_part si hay resto
+    if rest_part and violet_part:
+        violet_part = violet_part + "/"
+
     # Dividir el resto en parte intermedia y parte final
     if not rest_part:
         if is_sequence:
@@ -450,6 +514,9 @@ def split_tcl_path_at_shot_end(tcl_path, shot_folder_parts, is_sequence=False):
         file_part = rest_parts[-1] if rest_parts else ""
 
         middle_str = "/".join(middle_parts) if middle_parts else ""
+        # Agregar / al final si hay subcarpeta
+        if subfolder_part and middle_str:
+            middle_str = middle_str + "/"
         subfolder_str = f"{subfolder_part}/" if subfolder_part else ""
         file_str = file_part if file_part else ""
 
@@ -461,6 +528,9 @@ def split_tcl_path_at_shot_end(tcl_path, shot_folder_parts, is_sequence=False):
         file_part = rest_parts[-1] if rest_parts else ""
 
         middle_str = "/".join(middle_parts) if middle_parts else ""
+        # Agregar / al final si hay archivo
+        if file_part and middle_str:
+            middle_str = middle_str + "/"
         file_str = file_part if file_part else ""
 
         return violet_part, middle_str, file_str, ""
@@ -491,13 +561,30 @@ class PathCheckWindow(QWidget):
         # Detectar si hay indices ajustables
         self.has_adjustable, self.current_index = has_adjustable_indices(file_pattern)
 
+        # Detectar si hay niveles de directorio
+        self.has_dir_levels, self.current_dir_level = has_directory_levels(file_pattern)
+        if not self.has_dir_levels:
+            self.current_dir_level = 1  # Valor por defecto si no se detecta
+
+        # Logs iniciales
+        naming_segments = (
+            self.current_index
+            if self.has_adjustable and self.current_index is not None
+            else "N/A"
+        )
+        folder_up_levels = (
+            self.current_dir_level if self.has_dir_levels else self.current_dir_level
+        )
+        debug_print(f"Naming Segments: {naming_segments}")
+        debug_print(f"Folder Up Levels: {folder_up_levels}")
+
         # Timer para actualizacion en tiempo real (debounce)
         self.update_timer = QTimer()
         self.update_timer.setSingleShot(True)
         self.update_timer.timeout.connect(self.update_paths)
 
         self.setWindowFlags(Qt.Window)
-        self.setWindowTitle("LGA Write Path Check")
+        self.setWindowTitle("Write Path Review")
         self.setStyleSheet("background-color: #212121; border-radius: 10px;")
 
         layout = QVBoxLayout(self)
@@ -549,41 +636,46 @@ class PathCheckWindow(QWidget):
 
             return value_label  # Retornar el label para poder actualizarlo
 
-        # Agregar control de indice ajustable primero si aplica
-        if self.has_adjustable:
-            # Contenedor principal con fondo (sin border)
-            index_container = QWidget()
-            index_container.setStyleSheet(
-                """
-                QWidget {
-                    background-color: #292929;
-                    border-radius: 6px;
-                }
+        # Agregar controles de edicion (siempre se muestran)
+        # Contenedor principal con fondo (sin border)
+        index_container = QWidget()
+        index_container.setStyleSheet(
             """
-            )
+            QWidget {
+                background-color: #292929;
+                border-radius: 6px;
+            }
+        """
+        )
 
-            index_layout = QHBoxLayout(index_container)
-            index_layout.setSpacing(12)
-            index_layout.setContentsMargins(12, 10, 12, 10)
+        index_layout = QHBoxLayout(index_container)
+        index_layout.setSpacing(12)
+        index_layout.setContentsMargins(12, 10, 12, 10)
 
-            index_title = QLabel(
-                "<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>Naming Segments</span>"
-            )
-            index_title.setStyleSheet("font-size:13px;")
-            index_layout.addWidget(index_title)
+        # Primera columna: Naming Segments (siempre visible)
+        naming_title_color = "#E8E8E8" if self.has_adjustable else "#666666"
+        naming_title = QLabel(
+            f"<span style='color:{naming_title_color}; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>Naming Segments</span>"
+        )
+        naming_title.setStyleSheet("font-size:13px;")
+        index_layout.addWidget(naming_title)
 
-            # Contenedor para el numero y botones
-            control_layout = QHBoxLayout()
-            control_layout.setSpacing(2)
-            control_layout.setContentsMargins(0, 0, 0, 0)
+        # Contenedor para el numero y botones de Naming Segments
+        naming_control_layout = QHBoxLayout()
+        naming_control_layout.setSpacing(2)
+        naming_control_layout.setContentsMargins(0, 0, 0, 0)
 
-            # Label con el numero (no editable)
-            self.index_label = QLabel(str(self.current_index))
-            self.index_label.setFixedSize(
-                28, 24
-            )  # Altura igual a los dos botones juntos (12+12=24)
-            self.index_label.setStyleSheet(
-                """
+        # Label con el numero (muestra N/A si no hay indices ajustables)
+        naming_display_value = (
+            str(self.current_index)
+            if self.has_adjustable and self.current_index is not None
+            else "N/A"
+        )
+        self.index_label = QLabel(naming_display_value)
+        self.index_label.setFixedSize(28, 24)
+        # Estilo diferente si esta deshabilitado
+        if self.has_adjustable:
+            index_label_style = """
                 QLabel {
                     background-color: #3e3e3e;
                     color: #CCCCCC;
@@ -597,21 +689,36 @@ class PathCheckWindow(QWidget):
                     font-weight: bold;
                 }
             """
-            )
-            self.index_label.setAlignment(Qt.AlignCenter)
-            control_layout.addWidget(self.index_label)
+        else:
+            index_label_style = """
+                QLabel {
+                    background-color: #2a2a2a;
+                    color: #666666;
+                    border: none;
+                    border-top-left-radius: 4px;
+                    border-bottom-left-radius: 4px;
+                    border-top-right-radius: 0px;
+                    border-bottom-right-radius: 0px;
+                    padding: 0px;
+                    font-size: 13px;
+                    font-weight: bold;
+                }
+            """
+        self.index_label.setStyleSheet(index_label_style)
+        self.index_label.setAlignment(Qt.AlignCenter)
+        naming_control_layout.addWidget(self.index_label)
 
-            # Contenedor vertical para los botones
-            buttons_container = QWidget()
-            buttons_layout = QVBoxLayout(buttons_container)
-            buttons_layout.setSpacing(0)
-            buttons_layout.setContentsMargins(0, 0, 0, 0)
+        # Contenedor vertical para los botones
+        naming_buttons_container = QWidget()
+        naming_buttons_layout = QVBoxLayout(naming_buttons_container)
+        naming_buttons_layout.setSpacing(0)
+        naming_buttons_layout.setContentsMargins(0, 0, 0, 0)
 
-            # Boton triangulo arriba
-            self.up_button = QPushButton("▲")
-            self.up_button.setFixedSize(24, 12)
-            self.up_button.setStyleSheet(
-                """
+        # Boton triangulo arriba
+        self.up_button = QPushButton("▲")
+        self.up_button.setFixedSize(24, 12)
+        if self.has_adjustable:
+            up_button_style = """
                 QPushButton {
                     background-color: #3e3e3e;
                     color: #CCCCCC;
@@ -631,15 +738,31 @@ class PathCheckWindow(QWidget):
                     background-color: #2e2e2e;
                 }
             """
-            )
-            self.up_button.clicked.connect(self.increment_index)
-            buttons_layout.addWidget(self.up_button)
+        else:
+            up_button_style = """
+                QPushButton {
+                    background-color: #2a2a2a;
+                    color: #666666;
+                    border: none;
+                    border-top-left-radius: 0px;
+                    border-top-right-radius: 4px;
+                    border-bottom-left-radius: 0px;
+                    border-bottom-right-radius: 0px;
+                    font-size: 8px;
+                    font-weight: bold;
+                    padding: 0px;
+                }
+            """
+        self.up_button.setStyleSheet(up_button_style)
+        self.up_button.setEnabled(self.has_adjustable)
+        self.up_button.clicked.connect(self.increment_index)
+        naming_buttons_layout.addWidget(self.up_button)
 
-            # Boton triangulo abajo
-            self.down_button = QPushButton("▼")
-            self.down_button.setFixedSize(24, 12)
-            self.down_button.setStyleSheet(
-                """
+        # Boton triangulo abajo
+        self.down_button = QPushButton("▼")
+        self.down_button.setFixedSize(24, 12)
+        if self.has_adjustable:
+            down_button_style = """
                 QPushButton {
                     background-color: #3e3e3e;
                     color: #CCCCCC;
@@ -659,33 +782,149 @@ class PathCheckWindow(QWidget):
                     background-color: #2e2e2e;
                 }
             """
-            )
-            self.down_button.clicked.connect(self.decrement_index)
-            buttons_layout.addWidget(self.down_button)
-
-            control_layout.addWidget(buttons_container)
-
-            # Widget contenedor para el control
-            control_widget = QWidget()
-            control_widget.setLayout(control_layout)
-            index_layout.addWidget(control_widget)
-            index_layout.addStretch()
-
-            # Guardar valores minimo y maximo
-            self.min_index = 0
-            self.max_index = 20
-
-            layout.addWidget(index_container)
-            layout.addSpacing(8)  # Espacio antes de la siguiente seccion
         else:
-            # Mostrar mensaje informativo si no hay indices ajustables
-            info_label = QLabel(
-                "<span style='color:#888888; font-style:italic;'>"
-                "Este preset no utiliza índices ajustables en su fórmula TCL"
-                "</span>"
-            )
-            info_label.setStyleSheet("font-size:12px; padding: 8px 0px;")
-            layout.addWidget(info_label)
+            down_button_style = """
+                QPushButton {
+                    background-color: #2a2a2a;
+                    color: #666666;
+                    border: none;
+                    border-top-left-radius: 0px;
+                    border-top-right-radius: 0px;
+                    border-bottom-left-radius: 0px;
+                    border-bottom-right-radius: 4px;
+                    font-size: 8px;
+                    font-weight: bold;
+                    padding: 0px;
+                }
+            """
+        self.down_button.setStyleSheet(down_button_style)
+        self.down_button.setEnabled(self.has_adjustable)
+        self.down_button.clicked.connect(self.decrement_index)
+        naming_buttons_layout.addWidget(self.down_button)
+
+        naming_control_layout.addWidget(naming_buttons_container)
+
+        # Widget contenedor para el control de Naming Segments
+        naming_control_widget = QWidget()
+        naming_control_widget.setLayout(naming_control_layout)
+        index_layout.addWidget(naming_control_widget)
+
+        # Agregar stretch para separar las dos columnas
+        index_layout.addStretch()
+
+        # Segunda columna: Folder Up Levels (siempre visible y habilitada)
+        upward_title = QLabel(
+            "<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>FOLDER UP LEVELS</span>"
+        )
+        upward_title.setStyleSheet("font-size:13px;")
+        index_layout.addWidget(upward_title)
+
+        # Contenedor para el numero y botones de Upward Levels
+        upward_control_layout = QHBoxLayout()
+        upward_control_layout.setSpacing(2)
+        upward_control_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Label con el numero (muestra el valor detectado o 1 por defecto)
+        self.upward_level_label = QLabel(str(self.current_dir_level))
+        self.upward_level_label.setFixedSize(28, 24)
+        self.upward_level_label.setStyleSheet(
+            """
+            QLabel {
+                background-color: #3e3e3e;
+                color: #CCCCCC;
+                border: none;
+                border-top-left-radius: 4px;
+                border-bottom-left-radius: 4px;
+                border-top-right-radius: 0px;
+                border-bottom-right-radius: 0px;
+                padding: 0px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+        """
+        )
+        self.upward_level_label.setAlignment(Qt.AlignCenter)
+        upward_control_layout.addWidget(self.upward_level_label)
+
+        # Contenedor vertical para los botones de Upward Levels
+        upward_buttons_container = QWidget()
+        upward_buttons_layout = QVBoxLayout(upward_buttons_container)
+        upward_buttons_layout.setSpacing(0)
+        upward_buttons_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Boton triangulo arriba para Upward Levels
+        self.upward_up_button = QPushButton("▲")
+        self.upward_up_button.setFixedSize(24, 12)
+        self.upward_up_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #3e3e3e;
+                color: #CCCCCC;
+                border: none;
+                border-top-left-radius: 0px;
+                border-top-right-radius: 4px;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 0px;
+                font-size: 8px;
+                font-weight: bold;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: #4e4e4e;
+            }
+            QPushButton:pressed {
+                background-color: #2e2e2e;
+            }
+        """
+        )
+        self.upward_up_button.clicked.connect(self.increment_upward_level)
+        upward_buttons_layout.addWidget(self.upward_up_button)
+
+        # Boton triangulo abajo para Upward Levels
+        self.upward_down_button = QPushButton("▼")
+        self.upward_down_button.setFixedSize(24, 12)
+        self.upward_down_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #3e3e3e;
+                color: #CCCCCC;
+                border: none;
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
+                border-bottom-left-radius: 0px;
+                border-bottom-right-radius: 4px;
+                font-size: 8px;
+                font-weight: bold;
+                padding: 0px;
+            }
+            QPushButton:hover {
+                background-color: #4e4e4e;
+            }
+            QPushButton:pressed {
+                background-color: #2e2e2e;
+            }
+        """
+        )
+        self.upward_down_button.clicked.connect(self.decrement_upward_level)
+        upward_buttons_layout.addWidget(self.upward_down_button)
+
+        upward_control_layout.addWidget(upward_buttons_container)
+
+        # Widget contenedor para el control de Upward Levels
+        upward_control_widget = QWidget()
+        upward_control_widget.setLayout(upward_control_layout)
+        index_layout.addWidget(upward_control_widget)
+
+        # Guardar valores minimo y maximo para Naming Segments
+        self.min_index = 0
+        self.max_index = 20
+
+        # Guardar valores minimo y maximo para Dir Levels
+        self.min_dir_level = 0
+        self.max_dir_level = 5
+
+        layout.addWidget(index_container)
+        layout.addSpacing(8)  # Espacio antes de la siguiente seccion
 
         # Mostrar TCL path original solo si la flag esta activada
         if SHOW_ORIGINAL_TCL_PATH:
@@ -868,6 +1107,119 @@ class PathCheckWindow(QWidget):
         new_value = max(self.current_index - 1, self.min_index)
         self.set_index_value(new_value)
 
+    def increment_upward_level(self):
+        """Incrementa el nivel de directorio en 1 y actualiza el file_pattern."""
+        if self.current_dir_level is None:
+            self.current_dir_level = 1
+        new_value = min(self.current_dir_level + 1, self.max_dir_level)
+        self.set_dir_level_value(new_value)
+
+    def decrement_upward_level(self):
+        """Decrementa el nivel de directorio en 1 y actualiza el file_pattern."""
+        if self.current_dir_level is None:
+            self.current_dir_level = 1
+        new_value = max(self.current_dir_level - 1, self.min_dir_level)
+        self.set_dir_level_value(new_value)
+
+    def set_dir_level_value(self, new_value):
+        """Establece el nuevo valor del nivel de directorio y actualiza todo."""
+        if new_value == self.current_dir_level:
+            return
+
+        self.current_dir_level = new_value
+
+        # Actualizar el label del numero
+        self.upward_level_label.setText(str(self.current_dir_level))
+
+        # Actualizar el file_pattern con el nuevo nivel de directorio
+        # Primero aplicar cambios de indices si los hay
+        base_pattern = self.original_file_pattern
+        if self.has_adjustable and self.current_index is not None:
+            base_pattern = replace_indices_in_pattern(
+                self.original_file_pattern, self.current_index
+            )
+
+        # Luego aplicar cambios de niveles de directorio
+        self.current_file_pattern = replace_directory_levels(base_pattern, new_value)
+
+        # Log del cambio
+        naming_segments = (
+            self.current_index
+            if self.has_adjustable and self.current_index is not None
+            else "N/A"
+        )
+        debug_print(f"Folder Up Levels cambiado a: {new_value}")
+        debug_print(
+            f"Naming Segments: {naming_segments}, Folder Up Levels: {new_value}"
+        )
+        debug_print(f"Original TCL Path: {self.current_file_pattern}")
+
+        # Si el nivel vuelve al valor original y no hay cambios de indices, usar None
+        original_dir_level = has_directory_levels(self.original_file_pattern)[1]
+        if new_value == (original_dir_level if original_dir_level else 1):
+            # Verificar si hay cambios de indices
+            if self.has_adjustable:
+                original_index = has_adjustable_indices(self.original_file_pattern)[1]
+                if self.current_index == original_index:
+                    self.modified_file_pattern = None
+                else:
+                    self.modified_file_pattern = self.current_file_pattern
+            else:
+                self.modified_file_pattern = None
+        else:
+            self.modified_file_pattern = self.current_file_pattern
+
+        # Actualizar el label del codigo original solo si esta visible
+        if self.original_label is not None:
+            # Detectar si es una secuencia
+            is_seq = is_sequence_pattern(self.current_file_pattern)
+
+            # Actualizar el label del codigo original con 3 o 4 lineas
+            tcl_result = split_tcl_path_at_shot_end(
+                self.current_file_pattern, self.shot_folder_parts, is_sequence=is_seq
+            )
+
+            # Desempaquetar segun si es secuencia o no
+            tcl_violet = tcl_result[0]
+            tcl_middle = tcl_result[1]
+            if is_seq and len(tcl_result) >= 4:
+                tcl_subfolder = tcl_result[2]
+                tcl_file = tcl_result[3]
+            else:
+                tcl_subfolder = ""
+                tcl_file = tcl_result[2] if len(tcl_result) >= 3 else ""
+
+            # Construir display con 3 o 4 lineas segun corresponda
+            tcl_lines = []
+            if tcl_violet:
+                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_violet}</span>")
+            if tcl_middle:
+                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_middle}</span>")
+            if is_seq:
+                # Si es secuencia: mostrar subcarpeta y archivo en lineas separadas
+                if tcl_subfolder:
+                    tcl_lines.append(
+                        f"<span style='color:#AEAEAE;'>{tcl_subfolder}</span>"
+                    )
+                if tcl_file:
+                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+            else:
+                # Si NO es secuencia: mostrar solo archivo
+                if tcl_file:
+                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+
+            if tcl_lines:
+                tcl_display = "<br>".join(tcl_lines)
+            else:
+                tcl_display = (
+                    f"<span style='color:#AEAEAE;'>{self.current_file_pattern}</span>"
+                )
+            self.original_label.setText(tcl_display)
+
+        # Programar actualizacion de paths (con debounce)
+        self.update_timer.stop()
+        self.update_timer.start(200)  # Esperar 200ms antes de actualizar
+
     def set_index_value(self, new_value):
         """Establece el nuevo valor del indice y actualiza todo."""
         if new_value == self.current_index:
@@ -879,14 +1231,40 @@ class PathCheckWindow(QWidget):
         self.index_label.setText(str(self.current_index))
 
         # Actualizar el file_pattern con el nuevo indice
-        self.current_file_pattern = replace_indices_in_pattern(
-            self.original_file_pattern, new_value
-        )
+        base_pattern = replace_indices_in_pattern(self.original_file_pattern, new_value)
 
-        # Si el indice vuelve al valor original, usar None para que se use el patrón original
+        # Aplicar cambios de niveles de directorio si los hay
+        if self.has_dir_levels:
+            self.current_file_pattern = replace_directory_levels(
+                base_pattern, self.current_dir_level
+            )
+        else:
+            self.current_file_pattern = base_pattern
+
+        # Log del cambio
+        folder_up_levels = (
+            self.current_dir_level if self.has_dir_levels else self.current_dir_level
+        )
+        debug_print(f"Naming Segments cambiado a: {new_value}")
+        debug_print(
+            f"Naming Segments: {new_value}, Folder Up Levels: {folder_up_levels}"
+        )
+        debug_print(f"Original TCL Path: {self.current_file_pattern}")
+
+        # Si el indice vuelve al valor original y no hay cambios de niveles, usar None
         original_index = has_adjustable_indices(self.original_file_pattern)[1]
         if new_value == original_index:
-            self.modified_file_pattern = None
+            # Verificar si hay cambios de niveles de directorio
+            if self.has_dir_levels:
+                original_dir_level = has_directory_levels(self.original_file_pattern)[1]
+                if self.current_dir_level == (
+                    original_dir_level if original_dir_level else 1
+                ):
+                    self.modified_file_pattern = None
+                else:
+                    self.modified_file_pattern = self.current_file_pattern
+            else:
+                self.modified_file_pattern = None
         else:
             self.modified_file_pattern = self.current_file_pattern
 
@@ -950,6 +1328,11 @@ class PathCheckWindow(QWidget):
         normalized_path = None
         if evaluated_path:
             normalized_path = normalize_path_preserve_case(evaluated_path)
+
+        # Log del Final Path
+        debug_print(
+            f"Final Path: {normalized_path if normalized_path else '(No normalized)'}"
+        )
 
         # Actualizar label del path final con 3 o 4 lineas
         if normalized_path:
