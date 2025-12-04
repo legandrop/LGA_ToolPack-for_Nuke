@@ -30,7 +30,7 @@ except:
     from PySide2.QtWidgets import QApplication, QPushButton, QDialog, QHBoxLayout
 
 
-DEBUG = False
+DEBUG = True
 
 
 def debug_print(*message):
@@ -242,10 +242,39 @@ def launch():
 
     def find_viewer():
         """Encuentra el widget del viewer activo"""
-        nuke.show(nuke.thisNode())
-        for widget in QApplication.allWidgets():
-            if widget.windowTitle() == nuke.activeViewer().node().name():
-                return widget
+        try:
+            # Primero intentar con el activeViewer
+            active_viewer = nuke.activeViewer()
+            if active_viewer:
+                for widget in QApplication.allWidgets():
+                    if (
+                        hasattr(widget, "windowTitle")
+                        and widget.windowTitle() == active_viewer.node().name()
+                    ):
+                        debug_print(
+                            f"✅ Encontrado widget del viewer activo: {widget.windowTitle()}"
+                        )
+                        return widget
+
+            # Si no hay activeViewer, buscar cualquier viewer widget
+            debug_print("⚠️ No hay activeViewer, buscando viewers disponibles...")
+            for widget in QApplication.allWidgets():
+                if hasattr(widget, "windowTitle") and widget.windowTitle():
+                    title = widget.windowTitle().lower()
+                    # Buscar widgets que parezcan viewers (contienen "viewer" o son nodos Viewer)
+                    if "viewer" in title or any(
+                        node.name() == widget.windowTitle()
+                        for node in nuke.allNodes("Viewer")
+                    ):
+                        debug_print(
+                            f"✅ Encontrado widget de viewer: {widget.windowTitle()}"
+                        )
+                        return widget
+
+        except Exception as e:
+            debug_print(f"❌ Error en find_viewer: {e}")
+
+        debug_print("⚠️ No se pudo encontrar ningún widget de viewer")
         return False
 
     def find_framerange(qtObject):
@@ -287,5 +316,14 @@ def launch():
     viewer_widget = find_viewer()
     if viewer_widget:
         find_framerange(viewer_widget)
+        debug_print("✅ Botones agregados exitosamente al viewer")
     else:
-        debug_print("⚠️ No se pudo encontrar el widget del viewer")
+        debug_print(
+            "⚠️ No se pudo encontrar el widget del viewer - reintentando en 500ms..."
+        )
+        # Reintentar despues de mas tiempo si no se encontro
+        try:
+            from PySide2.QtCore import QTimer
+        except:
+            from PySide.QtCore import QTimer
+        QTimer.singleShot(500, launch)
