@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.64 | Lega
+  LGA_Write_Presets_Check v2.65 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset.
 
@@ -34,15 +34,16 @@ ________________________________________________________________________________
 import nuke
 import os
 import re
-from PySide2.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QLabel,
-    QPushButton,
-    QHBoxLayout,
-)
-from PySide2.QtCore import Qt, QTimer
+from qt_compat import QtWidgets, QtCore
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QLabel = QtWidgets.QLabel
+QPushButton = QtWidgets.QPushButton
+QHBoxLayout = QtWidgets.QHBoxLayout
+Qt = QtCore.Qt
+QTimer = QtCore.QTimer
 
 # Importar funciones de LGA_Write_PathToText para reutilizar
 try:

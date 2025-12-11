@@ -1,27 +1,31 @@
 """
 ________________________________________________________________________
 
-  LGA_RnW_ColorSpace_Favs v1.43 | Lega
+  LGA_RnW_ColorSpace_Favs v1.44 | Lega
   Tool for applying OCIO color spaces to selected Read and Write nodes
 ________________________________________________________________________
 
 """
 
-from PySide2.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QPushButton,
-    QHBoxLayout,
-    QLabel,
-    QComboBox,
-    QSizePolicy,
-)
-from PySide2.QtCore import Qt, QRect
-from PySide2.QtGui import QCursor, QPalette, QColor, QFont
+from qt_compat import QtWidgets, QtCore, QtGui
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QTableWidget = QtWidgets.QTableWidget
+QTableWidgetItem = QtWidgets.QTableWidgetItem
+QHeaderView = QtWidgets.QHeaderView
+QPushButton = QtWidgets.QPushButton
+QHBoxLayout = QtWidgets.QHBoxLayout
+QLabel = QtWidgets.QLabel
+QComboBox = QtWidgets.QComboBox
+QSizePolicy = QtWidgets.QSizePolicy
+Qt = QtCore.Qt
+QRect = QtCore.QRect
+QCursor = QtGui.QCursor
+QPalette = QtGui.QPalette
+QColor = QtGui.QColor
+QFont = QtGui.QFont
 import configparser
 import nuke
 import os

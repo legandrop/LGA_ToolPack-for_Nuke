@@ -20,11 +20,11 @@
 - [x] `LGA_viewer_SnapShot.py` — ahora via `qt_compat`.
 - [x] `LGA_viewer_SnapShot_Buttons.py` — ahora via `qt_compat`, limpieza por `objectName`, detección slider robusta (N15/16).
 - [x] `LGA_viewer_SnapShot_Gallery.py` — imports via `qt_compat`.
-- [ ] `LGA_mediaPathReplacer.py` — PySide2 directo.
-- [ ] `LGA_Write_PathToText.py` — PySide2 directo.
-- [ ] `LGA_Write_Presets_Check.py` — PySide2 (`QTimer`).
-- [ ] `LGA_RnW_ColorSpace_Favs.py` — PySide2 directo.
-- [ ] `LGA_disable_A_B.py` — PySide2 directo.
+- [x] `LGA_mediaPathReplacer.py` — via `qt_compat`.
+- [x] `LGA_Write_PathToText.py` — via `qt_compat`.
+- [x] `LGA_Write_Presets_Check.py` — via `qt_compat`.
+- [x] `LGA_RnW_ColorSpace_Favs.py` — via `qt_compat`.
+- [x] `LGA_disable_A_B.py` — via `qt_compat`.
 - [ ] `LGA_CopyCat_Cleaner.py` — PySide2 directo.
 - [ ] `LGA_MediaManager.py` — PySide2 directo.
 - [ ] `LGA_MediaManager_utils.py` — PySide2 directo.

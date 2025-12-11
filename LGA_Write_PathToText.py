@@ -1,15 +1,21 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_PathToText v1.21 | Lega
+  LGA_Write_PathToText v1.22 | Lega
   Script para mostrar el path de un Write seleccionado, su evaluación y su versión normalizada en una ventana personalizada.
 _______________________________________________________________________________________________________________________________
 """
 
 import nuke
 import os
-from PySide2.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QPushButton
-from PySide2.QtCore import Qt
+from qt_compat import QtWidgets, QtCore
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QLabel = QtWidgets.QLabel
+QPushButton = QtWidgets.QPushButton
+Qt = QtCore.Qt
 
 # Variable global para activar o desactivar los prints de depuracion
 debug = False  # Cambiar a False para ocultar los mensajes de debug

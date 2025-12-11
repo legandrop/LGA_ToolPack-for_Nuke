@@ -1,26 +1,35 @@
 """
 ________________________________________________________________________________
 
-  LGA_disable_A_B v1.7 | Lega
+  LGA_disable_A_B v1.8 | Lega
   Tool for creating A/B comparisons between selected nodes.
   Links the disable knob of nodes to a central Disable_A_B node for easy switching.
 ________________________________________________________________________________
 
 """
 
-from PySide2.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QCheckBox,
-    QStyledItemDelegate,
-)
-from PySide2.QtWidgets import QPushButton, QHBoxLayout, QStyle
-from PySide2.QtGui import QColor, QBrush, QScreen, QFont, QPalette, QKeyEvent, QCursor
-from PySide2.QtCore import Qt
+from qt_compat import QtWidgets, QtGui, QtCore
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QTableWidget = QtWidgets.QTableWidget
+QTableWidgetItem = QtWidgets.QTableWidgetItem
+QHeaderView = QtWidgets.QHeaderView
+QCheckBox = QtWidgets.QCheckBox
+QStyledItemDelegate = QtWidgets.QStyledItemDelegate
+QPushButton = QtWidgets.QPushButton
+QHBoxLayout = QtWidgets.QHBoxLayout
+QStyle = QtWidgets.QStyle
+QColor = QtGui.QColor
+QBrush = QtGui.QBrush
+QScreen = QtGui.QScreen
+QFont = QtGui.QFont
+QPalette = QtGui.QPalette
+QKeyEvent = QtGui.QKeyEvent
+QCursor = QtGui.QCursor
+Qt = QtCore.Qt
+QEvent = QtCore.QEvent
 import nuke
 import colorsys
 
@@ -219,13 +228,14 @@ class SelectedNodeInfo(QWidget):
 
     def eventFilter(self, source, event):
         if source == self.table.viewport():
-            if event.type() == event.MouseButtonPress:
+            etype = event.type()
+            if etype == QEvent.MouseButtonPress and hasattr(event, "pos"):
                 self.is_dragging = True
                 self.drag_start_pos = event.pos()
                 self.handle_drag(event.pos())
-            elif event.type() == event.MouseMove and self.is_dragging:
+            elif etype == QEvent.MouseMove and self.is_dragging and hasattr(event, "pos"):
                 self.handle_drag(event.pos())
-            elif event.type() == event.MouseButtonRelease:
+            elif etype == QEvent.MouseButtonRelease:
                 self.is_dragging = False
         return super(SelectedNodeInfo, self).eventFilter(source, event)
 

@@ -1,35 +1,34 @@
 """
 _______________________________________________
 
-  LGA_mediaPathReplacer v1.7 | Lega
+  LGA_mediaPathReplacer v1.8 | Lega
   Search and replace for Read and Write nodes
 _______________________________________________
 
 """
 
-from PySide2.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QLineEdit,
-    QPushButton,
-    QTextEdit,
-    QCheckBox,
-    QHBoxLayout,
-    QLabel,
-)
-from PySide2.QtWidgets import (
-    QSpacerItem,
-    QSizePolicy,
-    QTableWidget,
-    QTableWidgetItem,
-    QDialog,
-    QVBoxLayout,
-    QHeaderView,
-    QFrame,
-)
-from PySide2.QtGui import QFontMetrics, QKeySequence, QColor
-from PySide2.QtCore import Qt
+from qt_compat import QtWidgets, QtGui, QtCore
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QLineEdit = QtWidgets.QLineEdit
+QPushButton = QtWidgets.QPushButton
+QTextEdit = QtWidgets.QTextEdit
+QCheckBox = QtWidgets.QCheckBox
+QHBoxLayout = QtWidgets.QHBoxLayout
+QLabel = QtWidgets.QLabel
+QSpacerItem = QtWidgets.QSpacerItem
+QSizePolicy = QtWidgets.QSizePolicy
+QTableWidget = QtWidgets.QTableWidget
+QTableWidgetItem = QtWidgets.QTableWidgetItem
+QDialog = QtWidgets.QDialog
+QHeaderView = QtWidgets.QHeaderView
+QFrame = QtWidgets.QFrame
+QFontMetrics = QtGui.QFontMetrics
+QKeySequence = QtGui.QKeySequence
+QColor = QtGui.QColor
+Qt = QtCore.Qt
 import nuke
 import re
 import os
