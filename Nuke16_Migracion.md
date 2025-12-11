@@ -15,7 +15,6 @@
 - [x] `LGA_Write_Presets.py` — `QDesktopWidget` → `screenAt/primaryScreen().availableGeometry()`.
 - [x] `LGA_Write_RenderComplete.py` — audio: PySide6 usa `QMediaPlayer+QAudioOutput`, PySide2 mantiene `QSound`.
 
-### Solo compatibilidad de imports (PySide2 directo, sin APIs deprecadas)
 - [x] `qt_compat.py` (copiado, fallback PySide6→PySide2).
 - [x] `LGA_viewer_SnapShot.py` — ahora via `qt_compat`.
 - [x] `LGA_viewer_SnapShot_Buttons.py` — ahora via `qt_compat`, limpieza por `objectName`, detección slider robusta (N15/16).
@@ -25,11 +24,11 @@
 - [x] `LGA_Write_Presets_Check.py` — via `qt_compat`.
 - [x] `LGA_RnW_ColorSpace_Favs.py` — via `qt_compat`.
 - [x] `LGA_disable_A_B.py` — via `qt_compat`.
-- [ ] `LGA_CopyCat_Cleaner.py` — PySide2 directo.
-- [ ] `LGA_MediaManager.py` — PySide2 directo.
-- [ ] `LGA_MediaManager_utils.py` — PySide2 directo.
-- [ ] `LGA_MediaManager_settings.py` — PySide2 directo.
-- [ ] `LGA_MediaManager_FileScanner.py` — PySide2 directo.
+- [x] `LGA_CopyCat_Cleaner.py` — via `qt_compat`.
+- [x] `LGA_MediaManager.py` — via `qt_compat`.
+- [x] `LGA_MediaManager_utils.py` — via `qt_compat`.
+- [x] `LGA_MediaManager_settings.py` — via `qt_compat`.
+- [x] `LGA_MediaManager_FileScanner.py` — via `qt_compat`.
 - [ ] `LGA_build_Grade.py` — PySide2 (cursor/eventos).
 - [ ] `LGA_build_Merge.py` — PySide2 (cursor/eventos).
 - [ ] `LGA_build_Roto.py` — PySide2 (cursor/eventos).
@@ -80,6 +79,9 @@ Notas rápidas:
 - PySide2 no disponible en N16 → `LGA_viewer_SnapShot.py` y Buttons migrados a `qt_compat`.
 - Botones duplicados en Viewer (Qt6) → limpiar instancias por `objectName` antes de insertar.
 - Detección de frameslider fallaba (layouts/AAction) → BFS ignorando `QAction`/`QLayout` y detección por tooltip/objectName/clase o `QSlider`.
+- `LGA_disable_A_B`: en PySide6 los eventos `QChildEvent` no tienen `MouseButtonPress`; se usa `QEvent.MouseButton*` y se valida `pos()` antes de usarlo.
+- `LGA_mediaPathReplacer`: `QFontMetrics.width` no existe en Qt6; usar `horizontalAdvance` con fallback a `width`.
+- MediaManager (N16): `QAction` solo en `QtGui` y `QThreadPool` en `QtCore`; evitar imports PySide2.
 
 - Crear tooltip como `QLabel` con `parent=self`, flags `Qt.Tool | FramelessWindowHint | WindowStaysOnTopHint`, `WA_DeleteOnClose`, `WA_ShowWithoutActivating`.
 - Conectar `destroyed` del diálogo a `hide_custom_tooltip_*`.

@@ -1,27 +1,34 @@
 """
 _______________________________________
 
-  LGA_CopyCat_Cleaner v1.0 | Lega
+  LGA_CopyCat_Cleaner v1.01 | Lega
   Verifica que los nodos Inference usen el .cat mas alto en su carpeta
 _______________________________________
 
 """
 
-from PySide2.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QMessageBox,
-    QProgressBar,
-    QLabel,
-    QPushButton,
-)
-from PySide2.QtWidgets import QStyledItemDelegate, QStyle
-from PySide2.QtGui import QColor, QBrush, QPalette, QFont
-from PySide2.QtCore import Qt, QObject, Signal, QThread
+from qt_compat import QtWidgets, QtGui, QtCore
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QTableWidget = QtWidgets.QTableWidget
+QTableWidgetItem = QtWidgets.QTableWidgetItem
+QHeaderView = QtWidgets.QHeaderView
+QMessageBox = QtWidgets.QMessageBox
+QProgressBar = QtWidgets.QProgressBar
+QLabel = QtWidgets.QLabel
+QPushButton = QtWidgets.QPushButton
+QStyledItemDelegate = QtWidgets.QStyledItemDelegate
+QStyle = QtWidgets.QStyle
+QColor = QtGui.QColor
+QBrush = QtGui.QBrush
+QPalette = QtGui.QPalette
+QFont = QtGui.QFont
+Qt = QtCore.Qt
+QObject = QtCore.QObject
+Signal = QtCore.Signal
+QThread = QtCore.QThread
 import nuke
 import os
 import re

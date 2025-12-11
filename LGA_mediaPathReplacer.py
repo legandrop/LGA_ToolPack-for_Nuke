@@ -348,8 +348,15 @@ class SearchAndReplaceWidget(QWidget):
     def adjustSizeDialog(self):
         # Calcular el ancho del texto mas largo
         fm = QFontMetrics(self.font())
+
+        def _text_width(txt):
+            # Qt6: usar horizontalAdvance; Qt5: width
+            if hasattr(fm, "horizontalAdvance"):
+                return fm.horizontalAdvance(txt)
+            return fm.width(txt)
+
         max_text_width = max(
-            [fm.width(node["file"].getValue()) for node in self.nodes] + [200],
+            [_text_width(node["file"].getValue()) for node in self.nodes] + [200],
             default=0,
         )
         width = min(max_text_width * 2, 1600)  # Ancho maximo ajustado

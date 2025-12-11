@@ -1,38 +1,50 @@
 """
 _______________________________________
 
-  LGA_mediaManager v2.10 | Lega
+  LGA_mediaManager v2.12 | Lega
 _______________________________________
 
 """
 
-from PySide2.QtWidgets import (
-    QApplication,
-    QTableWidget,
-    QTableWidgetItem,
-    QVBoxLayout,
-    QWidget,
-    QPushButton,
-    QToolButton,
-    QSizePolicy,
-    QFileDialog,
-)
-from PySide2.QtWidgets import (
-    QItemDelegate,
-    QStyle,
-    QMessageBox,
-    QCheckBox,
-    QLabel,
-    QHBoxLayout,
-    QSpinBox,
-    QFrame,
-    QMenu,
-    QAction,
-    QProgressBar,
-    QLineEdit,
-)
-from PySide2.QtGui import QBrush, QColor, QPalette, QMovie, QScreen, QIcon
-from PySide2.QtCore import Qt, QTimer, QThread, Signal, QObject, QRunnable, Slot
+from qt_compat import QtWidgets, QtGui, QtCore
+
+QApplication = QtWidgets.QApplication
+QTableWidget = QtWidgets.QTableWidget
+QTableWidgetItem = QtWidgets.QTableWidgetItem
+QVBoxLayout = QtWidgets.QVBoxLayout
+QWidget = QtWidgets.QWidget
+QPushButton = QtWidgets.QPushButton
+QToolButton = QtWidgets.QToolButton
+QSizePolicy = QtWidgets.QSizePolicy
+QFileDialog = QtWidgets.QFileDialog
+QItemDelegate = QtWidgets.QItemDelegate
+QStyle = QtWidgets.QStyle
+QMessageBox = QtWidgets.QMessageBox
+QCheckBox = QtWidgets.QCheckBox
+QLabel = QtWidgets.QLabel
+QHBoxLayout = QtWidgets.QHBoxLayout
+QSpinBox = QtWidgets.QSpinBox
+QFrame = QtWidgets.QFrame
+QMenu = QtWidgets.QMenu
+try:
+    QAction = QtGui.QAction
+except Exception:
+    QAction = QtWidgets.QAction
+QProgressBar = QtWidgets.QProgressBar
+QLineEdit = QtWidgets.QLineEdit
+QBrush = QtGui.QBrush
+QColor = QtGui.QColor
+QPalette = QtGui.QPalette
+QMovie = QtGui.QMovie
+QScreen = QtGui.QScreen
+QIcon = QtGui.QIcon
+Qt = QtCore.Qt
+QTimer = QtCore.QTimer
+QThread = QtCore.QThread
+Signal = QtCore.Signal
+QObject = QtCore.QObject
+QRunnable = QtCore.QRunnable
+Slot = QtCore.Slot
 import nuke
 import os
 import re
@@ -42,7 +54,7 @@ import shutil
 import sys
 import configparser
 import logging
-from PySide2.QtCore import QThreadPool
+QThreadPool = QtCore.QThreadPool
 
 start_time = time.time()
 
