@@ -1,7 +1,7 @@
 """
 __________________________________________________________
 
-  LGA_build_iteration v1.22 | Lega
+  LGA_build_iteration v1.23 | Lega
   Genera un arbol de nodos usado para generar variaciones
   de una imagen.
 
@@ -12,9 +12,14 @@ __________________________________________________________
 """
 
 import nuke
-from PySide2.QtGui import QCursor, QMouseEvent
-from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import Qt, QEvent, QPoint
+from qt_compat import QtGui, QtWidgets, QtCore
+
+QCursor = QtGui.QCursor
+QMouseEvent = QtGui.QMouseEvent
+QApplication = QtWidgets.QApplication
+Qt = QtCore.Qt
+QEvent = QtCore.QEvent
+QPoint = QtCore.QPoint
 
 # Variable global para activar o desactivar los prints
 DEBUG = False

@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Merge v1.6 | Lega
+  LGA_build_Merge v1.7 | Lega
 
   Crea nodos Merge con configuración de máscara predefinida.
   Soporta creación desde un nodo seleccionado o desde la posición del cursor.
@@ -14,9 +14,14 @@ _____________________________________________________________________________
 """
 
 import nuke
-from PySide2.QtGui import QCursor, QMouseEvent
-from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import Qt, QEvent, QPoint
+from qt_compat import QtGui, QtWidgets, QtCore
+
+QCursor = QtGui.QCursor
+QMouseEvent = QtGui.QMouseEvent
+QApplication = QtWidgets.QApplication
+Qt = QtCore.Qt
+QEvent = QtCore.QEvent
+QPoint = QtCore.QPoint
 
 
 def get_common_variables():

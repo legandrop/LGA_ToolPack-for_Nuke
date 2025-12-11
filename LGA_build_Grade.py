@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Grade v1.62 | Lega
+  LGA_build_Grade v1.63 | Lega
 
   Crea nodos Grade con diferentes configuraciones de máscaras.
   Soporta creación desde un nodo seleccionado o desde la posición del cursor.
@@ -11,9 +11,14 @@ _____________________________________________________________________________
 """
 
 import nuke
-from PySide2.QtGui import QCursor, QMouseEvent
-from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import Qt, QEvent, QPoint
+from qt_compat import QtGui, QtWidgets, QtCore
+
+QCursor = QtGui.QCursor
+QMouseEvent = QtGui.QMouseEvent
+QApplication = QtWidgets.QApplication
+Qt = QtCore.Qt
+QEvent = QtCore.QEvent
+QPoint = QtCore.QPoint
 
 # Variable global para activar o desactivar los prints
 DEBUG = False

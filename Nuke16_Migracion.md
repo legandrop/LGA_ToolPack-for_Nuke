@@ -29,10 +29,10 @@
 - [x] `LGA_MediaManager_utils.py` — via `qt_compat`.
 - [x] `LGA_MediaManager_settings.py` — via `qt_compat`.
 - [x] `LGA_MediaManager_FileScanner.py` — via `qt_compat`.
-- [ ] `LGA_build_Grade.py` — PySide2 (cursor/eventos).
-- [ ] `LGA_build_Merge.py` — PySide2 (cursor/eventos).
-- [ ] `LGA_build_Roto.py` — PySide2 (cursor/eventos).
-- [ ] `LGA_build_iteration.py` — PySide2 (cursor/eventos).
+- [x] `LGA_build_Grade.py` — via `qt_compat`.
+- [x] `LGA_build_Merge.py` — via `qt_compat`.
+- [x] `LGA_build_Roto.py` — via `qt_compat`.
+- [x] `LGA_build_iteration.py` — via `qt_compat`.
 
 Notas rápidas:
 - `QDesktopWidget` → `QGuiApplication.primaryScreen().availableGeometry()`; para posicionar relativo al cursor usar `screenAt(pos) or primaryScreen()`.

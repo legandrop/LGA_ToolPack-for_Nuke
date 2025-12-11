@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Roto v1.12 | Lega
+  LGA_build_Roto v1.13 | Lega
 
   Crea nodos Roto, Blur y Dot conectados al input mask del nodo Merge (llamado Merge2 en Nuke) o al input 1 de cualquier otro nodo.
   Requiere que haya un nodo seleccionado para funcionar.
@@ -11,9 +11,14 @@ _____________________________________________________________________________
 """
 
 import nuke
-from PySide2.QtGui import QCursor, QMouseEvent
-from PySide2.QtWidgets import QApplication
-from PySide2.QtCore import Qt, QEvent, QPoint
+from qt_compat import QtGui, QtWidgets, QtCore
+
+QCursor = QtGui.QCursor
+QMouseEvent = QtGui.QMouseEvent
+QApplication = QtWidgets.QApplication
+Qt = QtCore.Qt
+QEvent = QtCore.QEvent
+QPoint = QtCore.QPoint
 
 
 def get_common_variables():
