@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.64 | Lega
+  LGA_Write_Presets v2.65 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -28,24 +28,28 @@ _____________________________________________________________________________
 
 """
 
-from PySide2.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QTableWidget,
-    QTableWidgetItem,
-    QPushButton,
-    QHBoxLayout,
-    QDialog,
-    QLabel,
-    QLineEdit,
-    QDesktopWidget,
-    QFrame,
-    QStyledItemDelegate,
-    QStyle,
-)
-from PySide2.QtCore import Qt
-from PySide2.QtGui import QCursor, QPalette, QColor, QKeyEvent, QBrush, QMouseEvent
+from qt_compat import QtWidgets, QtGui, QtCore, QGuiApplication
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QTableWidget = QtWidgets.QTableWidget
+QTableWidgetItem = QtWidgets.QTableWidgetItem
+QPushButton = QtWidgets.QPushButton
+QHBoxLayout = QtWidgets.QHBoxLayout
+QDialog = QtWidgets.QDialog
+QLabel = QtWidgets.QLabel
+QLineEdit = QtWidgets.QLineEdit
+QFrame = QtWidgets.QFrame
+QStyledItemDelegate = QtWidgets.QStyledItemDelegate
+QStyle = QtWidgets.QStyle
+Qt = QtCore.Qt
+QCursor = QtGui.QCursor
+QPalette = QtGui.QPalette
+QColor = QtGui.QColor
+QKeyEvent = QtGui.QKeyEvent
+QBrush = QtGui.QBrush
+QMouseEvent = QtGui.QMouseEvent
 import nuke
 import sys
 import os
@@ -254,10 +258,16 @@ class NameInputDialog(QDialog):
 def show_name_input_dialog(initial_text=""):
     dialog = NameInputDialog(initial_text)
     cursor_pos = QCursor.pos()
-    avail_space = QDesktopWidget().availableGeometry(cursor_pos)
-    posx = min(max(cursor_pos.x() - 100, avail_space.left()), avail_space.right() - 200)
-    posy = min(max(cursor_pos.y() - 80, avail_space.top()), avail_space.bottom() - 150)
-    dialog.move(posx, posy)
+    screen = QGuiApplication.screenAt(cursor_pos) or QGuiApplication.primaryScreen()
+    if screen:
+        avail_space = screen.availableGeometry()
+        posx = min(
+            max(cursor_pos.x() - 100, avail_space.left()), avail_space.right() - 200
+        )
+        posy = min(
+            max(cursor_pos.y() - 80, avail_space.top()), avail_space.bottom() - 150
+        )
+        dialog.move(posx, posy)
 
     if dialog.exec_() == QDialog.Accepted:
         return dialog.esc_exit, dialog.line_edit.text()

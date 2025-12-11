@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________________________________________________
 
-  LGA_Write_RenderComplete v1.34 | Lega
+  LGA_Write_RenderComplete v1.35 | Lega
   Calcula la duracion al finalizar el render y la agrega en un knob en el tab User del nodo write
   Reproduce un sonido y envia un correo con los detalles del render si la opcion 'Send Mail' esta activada
 _______________________________________________________________________________________________________________
@@ -11,7 +11,19 @@ ________________________________________________________________________________
 import nuke
 import os
 import datetime
-from PySide2.QtMultimedia import QSound
+from qt_compat import QtCore
+
+try:
+    from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+    QSound = None
+except ImportError:
+    QAudioOutput = None
+    QMediaPlayer = None
+    try:
+        from PySide2.QtMultimedia import QSound  # type: ignore
+    except ImportError:
+        QSound = None
+
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -27,6 +39,30 @@ DEBUG = False  # Poner en False para desactivar los mensajes de debug
 def debug_print(*message):
     if DEBUG:
         print(*message)
+
+_sound_player = None
+_audio_output = None
+
+
+def play_sound(sound_file_path):
+    """Reproduce sonido con PySide6 (QMediaPlayer) o PySide2 (QSound)."""
+    global _sound_player, _audio_output
+    if not sound_file_path:
+        return
+
+    if QMediaPlayer and QAudioOutput:
+        if _sound_player is None:
+            _sound_player = QMediaPlayer()
+            _audio_output = QAudioOutput()
+            _sound_player.setAudioOutput(_audio_output)
+        _sound_player.setSource(QtCore.QUrl.fromLocalFile(sound_file_path))
+        _audio_output.setVolume(1.0)
+        _sound_player.stop()
+        _sound_player.play()
+    elif QSound:
+        QSound.play(sound_file_path)
+    else:
+        debug_print("Audio no disponible: faltan PySide QtMultimedia.")
 
 
 def get_user_config_dir():
@@ -454,7 +490,7 @@ def Render_Complete():
     # Reproducir el sonido solo si el setting está en ON
     if get_sound_enabled_from_config():
         sound_file_path = get_wav_path_from_config()
-        QSound.play(sound_file_path)
+        play_sound(sound_file_path)
 
     # Verificar si el knob "send_mail" existe y esta activado
     write_node = nuke.thisNode()

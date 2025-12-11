@@ -1,7 +1,7 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v0.51 - Lega
+  LGA_viewer_SnapShot_Gallery v0.52 - Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 ___________________________________________________________________________________
 
@@ -13,23 +13,30 @@ import glob
 import shutil
 import subprocess  # Importar subprocess para abrir archivos en macOS/Linux
 import platform  # Importar platform para detectar el SO
-from PySide2.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QScrollArea,
-    QFrame,
-    QSlider,
-    QToolBar,
-    QSizePolicy,
-    QMessageBox,
-    QLayout,
-)
-from PySide2.QtCore import Qt, QSize, Signal, QRect, QPoint
-from PySide2.QtGui import QPixmap, QFont, QCursor, QIcon
+from qt_compat import QtWidgets, QtCore, QtGui
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QHBoxLayout = QtWidgets.QHBoxLayout
+QLabel = QtWidgets.QLabel
+QPushButton = QtWidgets.QPushButton
+QScrollArea = QtWidgets.QScrollArea
+QFrame = QtWidgets.QFrame
+QSlider = QtWidgets.QSlider
+QToolBar = QtWidgets.QToolBar
+QSizePolicy = QtWidgets.QSizePolicy
+QMessageBox = QtWidgets.QMessageBox
+QLayout = QtWidgets.QLayout
+Qt = QtCore.Qt
+QSize = QtCore.QSize
+Signal = QtCore.Signal
+QRect = QtCore.QRect
+QPoint = QtCore.QPoint
+QPixmap = QtGui.QPixmap
+QFont = QtGui.QFont
+QCursor = QtGui.QCursor
+QIcon = QtGui.QIcon
 
 # Variable global para activar o desactivar los prints de depuracion
 debug = False  # Cambiar a False para ocultar los mensajes de debug

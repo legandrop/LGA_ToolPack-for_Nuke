@@ -9,25 +9,28 @@ ______________________________________________________
 
 import nuke
 import os
+from qt_compat import QtGui, QtCore, QtWidgets
 
 # Obtener la ruta de los iconos
 KS_DIR = os.path.dirname(__file__)
 icons_path = os.path.join(KS_DIR, "icons")
 
+QImage = QtGui.QImage
+QClipboard = QtGui.QClipboard
+QIcon = QtGui.QIcon
+QApplication = QtWidgets.QApplication
+QPushButton = QtWidgets.QPushButton
+QDialog = QtWidgets.QDialog
+QHBoxLayout = QtWidgets.QHBoxLayout
+QSlider = QtWidgets.QSlider
 try:
-    # nuke <11
-    import PySide.QtGui as QtGui
-    import PySide.QtCore as QtCore
-    import PySide.QtWidgets as QtWidgets
-    from PySide.QtGui import QImage, QClipboard, QIcon
-    from PySide.QtWidgets import QApplication, QPushButton, QDialog, QHBoxLayout
-except:
-    # nuke>=11
-    import PySide2.QtGui as QtGui
-    import PySide2.QtCore as QtCore
-    import PySide2.QtWidgets as QtWidgets
-    from PySide2.QtGui import QImage, QClipboard, QIcon
-    from PySide2.QtWidgets import QApplication, QPushButton, QDialog, QHBoxLayout
+    QAction = QtGui.QAction
+except Exception:
+    QAction = None
+
+BTN_NAME_TAKE = "LGA_Snapshot_Take"
+BTN_NAME_SHOW = "LGA_Snapshot_Show"
+BTN_NAME_GALLERY = "LGA_Snapshot_Gallery"
 
 
 DEBUG = True
@@ -54,8 +57,9 @@ def launch():
 
         def __init__(self):
             super(Take_SnapShotButton, self).__init__()
+            self.setObjectName(BTN_NAME_TAKE)
             self.generalLayout = QHBoxLayout(self)
-            self.generalLayout.setMargin(0)
+            self.generalLayout.setContentsMargins(0, 0, 0, 0)
             self.generalLayout.setSpacing(0)
             self.addShortcutButton = CustomButton("", self)
             self.icon_size = 20
@@ -114,8 +118,9 @@ def launch():
 
         def __init__(self):
             super(Show_SnapShotButton, self).__init__()
+            self.setObjectName(BTN_NAME_SHOW)
             self.generalLayout = QHBoxLayout(self)
-            self.generalLayout.setMargin(0)
+            self.generalLayout.setContentsMargins(0, 0, 0, 0)
             self.generalLayout.setSpacing(0)
             self.addShortcutButton = CustomButton("", self)
             self.icon_size = 20
@@ -193,8 +198,9 @@ def launch():
 
         def __init__(self):
             super(Gallery_SnapShotButton, self).__init__()
+            self.setObjectName(BTN_NAME_GALLERY)
             self.generalLayout = QHBoxLayout(self)
-            self.generalLayout.setMargin(0)
+            self.generalLayout.setContentsMargins(0, 0, 0, 0)
             self.generalLayout.setSpacing(0)
             self.addShortcutButton = CustomButton("", self)
             self.icon_size = 20
@@ -277,39 +283,76 @@ def launch():
         debug_print("⚠️ No se pudo encontrar ningún widget de viewer")
         return False
 
-    def find_framerange(qtObject):
-        """Busca el frameslider y agrega los botones"""
-        for c in qtObject.children():
-            found = find_framerange(c)
-            if found:
-                return found
+    def is_frameslider_widget(w):
+        """Detecta el control de frame slider en diferentes versiones de Nuke/Qt."""
+        try:
+            tt = w.toolTip().lower() if hasattr(w, "toolTip") else ""
+        except Exception:
+            tt = ""
+        try:
+            name = w.objectName().lower()
+        except Exception:
+            name = ""
+        cls_name = w.__class__.__name__.lower()
+        if "frameslider" in tt or "frame slider" in tt:
+            return True
+        if "frameslider" in name or "frame slider" in name:
+            return True
+        if "frameslider" in cls_name or "frame slider" in cls_name:
+            return True
+        try:
+            if isinstance(w, QSlider):
+                return True
+        except Exception:
+            pass
+        return False
+
+    def find_framerange(root):
+        """Busca el frameslider y agrega los botones (Nuke 15/16)."""
+        queue = [root]
+        while queue:
+            c = queue.pop(0)
             try:
-                tt = c.toolTip().lower()
-                if tt.startswith("frameslider range"):
-                    # Crear los tres botones
-                    take_snapshot_btn = Take_SnapShotButton()
-                    show_snapshot_btn = Show_SnapShotButton()
-                    gallery_snapshot_btn = Gallery_SnapShotButton()
+                if is_frameslider_widget(c):
+                    parent = c.parentWidget()
+                    layout = parent.layout() if parent else None
+                    if parent and layout:
+                        take_snapshot_btn = Take_SnapShotButton()
+                        show_snapshot_btn = Show_SnapShotButton()
+                        gallery_snapshot_btn = Gallery_SnapShotButton()
 
-                    # Limpiar botones existentes si los hay
-                    wdgets = c.parentWidget().children()
-                    if len(wdgets) >= 3:
-                        for x in range(3, len(wdgets)):
-                            widget_to_remove = c.parentWidget().children()[x]
-                            c.parentWidget().layout().removeWidget(widget_to_remove)
-                            widget_to_remove.deleteLater()
+                        # Remover instancias previas de nuestros botones por objectName
+                        for w in list(parent.children()):
+                            try:
+                                if w.objectName() in (
+                                    BTN_NAME_TAKE,
+                                    BTN_NAME_SHOW,
+                                    BTN_NAME_GALLERY,
+                                ):
+                                    layout.removeWidget(w)
+                                    w.deleteLater()
+                            except Exception:
+                                continue
 
-                    # Agregar los tres botones al layout
-                    c.parentWidget().layout().addWidget(take_snapshot_btn)
-                    c.parentWidget().layout().addWidget(show_snapshot_btn)
-                    c.parentWidget().layout().addWidget(gallery_snapshot_btn)
+                        layout.addWidget(take_snapshot_btn)
+                        layout.addWidget(show_snapshot_btn)
+                        layout.addWidget(gallery_snapshot_btn)
 
-                    debug_print(
-                        "✅ Botones LGA SnapShot agregados al viewer (Take, Show y Gallery)"
-                    )
-                    return c
-            except:
-                pass
+                        debug_print(
+                            "✅ Botones LGA SnapShot agregados al viewer (Take, Show y Gallery)"
+                        )
+                        return c
+            except Exception as e:
+                debug_print(f"⚠️ Error buscando frame slider: {e}")
+
+            # Explorar hijos widgets (saltar QAction y layouts)
+            for child in c.children():
+                if QAction and isinstance(child, QAction):
+                    continue
+                if isinstance(child, QtWidgets.QLayout):
+                    continue
+                if isinstance(child, QtWidgets.QWidget):
+                    queue.append(child)
         return None
 
     # Ejecutar la insercion de botones
@@ -322,8 +365,4 @@ def launch():
             "⚠️ No se pudo encontrar el widget del viewer - reintentando en 500ms..."
         )
         # Reintentar despues de mas tiempo si no se encontro
-        try:
-            from PySide2.QtCore import QTimer
-        except:
-            from PySide.QtCore import QTimer
-        QTimer.singleShot(500, launch)
+        QtCore.QTimer.singleShot(500, launch)

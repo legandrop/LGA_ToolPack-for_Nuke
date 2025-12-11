@@ -1,7 +1,7 @@
 """
 ______________________________________________________________________________
 
-  LGA_viewer_SnapShot v0.64 - Lega
+  LGA_viewer_SnapShot v0.65 - Lega
   Crea un snapshot de la imagen actual del viewer y lo copia al portapapeles
 ______________________________________________________________________________
 
@@ -11,23 +11,13 @@ import nuke
 import nukescripts
 import os
 import tempfile
+from qt_compat import QtGui, QtCore, QtWidgets
 
-try:
-    # nuke <11
-    import PySide.QtGui as QtGui
-    import PySide.QtCore as QtCore
-    import PySide.QtWidgets as QtWidgets
-    from PySide.QtGui import QImage, QClipboard
-    from PySide.QtWidgets import QApplication
-    from PySide.QtCore import QTimer, QEventLoop
-except:
-    # nuke>=11
-    import PySide2.QtGui as QtGui
-    import PySide2.QtCore as QtCore
-    import PySide2.QtWidgets as QtWidgets
-    from PySide2.QtGui import QImage, QClipboard
-    from PySide2.QtWidgets import QApplication
-    from PySide2.QtCore import QTimer, QEventLoop
+QImage = QtGui.QImage
+QClipboard = QtGui.QClipboard
+QApplication = QtWidgets.QApplication
+QTimer = QtCore.QTimer
+QEventLoop = QtCore.QEventLoop
 
 DEBUG = False
 

@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________________________________
 
-  LGA_ToolPack_settings v0.45 | Lega
+  LGA_ToolPack_settings v0.46 | Lega
   Configuracion de la herramienta LGA_ToolPack
 _____________________________________________________________________________________________________
 """
@@ -12,24 +12,23 @@ import configparser
 import typing  # Importar typing
 from typing import Optional, Tuple
 
-from PySide2.QtWidgets import (
-    QApplication,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QGroupBox,
-    QLabel,
-    QLineEdit,
-    QFormLayout,
-    QPushButton,
-    QTextEdit,  # Importar QTextEdit
-    QMessageBox,  # Importar QMessageBox
-    QCheckBox,
-    QFileDialog,
-    QDesktopWidget,
-    QFrame,  # <--- Importar QFrame para divisores
-)
-from PySide2.QtCore import Qt
+from qt_compat import QtWidgets, QtCore, QtGui, QGuiApplication
+
+QApplication = QtWidgets.QApplication
+QWidget = QtWidgets.QWidget
+QVBoxLayout = QtWidgets.QVBoxLayout
+QHBoxLayout = QtWidgets.QHBoxLayout
+QGroupBox = QtWidgets.QGroupBox
+QLabel = QtWidgets.QLabel
+QLineEdit = QtWidgets.QLineEdit
+QFormLayout = QtWidgets.QFormLayout
+QPushButton = QtWidgets.QPushButton
+QTextEdit = QtWidgets.QTextEdit  # Importar QTextEdit
+QMessageBox = QtWidgets.QMessageBox  # Importar QMessageBox
+QCheckBox = QtWidgets.QCheckBox
+QFileDialog = QtWidgets.QFileDialog
+QFrame = QtWidgets.QFrame  # Divisores
+Qt = QtCore.Qt
 
 # Variable global para controlar el debug
 DEBUG = False
@@ -187,9 +186,11 @@ class SettingsWindow(QWidget):
         # Centrar la ventana en la pantalla (horizontal y vertical) DESPUES de show()
         self.show()
         qr = self.frameGeometry()
-        cp = QDesktopWidget().availableGeometry().center()
-        qr.moveCenter(cp)
-        self.move(qr.topLeft())
+        screen = QGuiApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            qr.moveCenter(geo.center())
+            self.move(qr.topLeft())
         self.hide()
 
     def initUI(self):

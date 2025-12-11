@@ -34,21 +34,11 @@ nuke.menu("Nuke").findItem("Edit").addCommand("HotBox", 'channel_hotbox.start()'
 
 """
 
-__version__ = 2.0
+__version__ = 2.01
 
 import math
 import nuke  # pylint: disable=import-error
-
-try:
-    # < Nuke 11
-    import PySide.QtCore as QtCore
-    import PySide.QtGui as QtGui
-    import PySide.QtGui as QtGuiWidgets
-except ImportError:
-    # >= Nuke 11
-    import PySide2.QtCore as QtCore
-    import PySide2.QtGui as QtGui
-    import PySide2.QtWidgets as QtGuiWidgets
+from qt_compat import QtCore, QtGui, QtWidgets as QtGuiWidgets
 
 HOTBOX = None
 

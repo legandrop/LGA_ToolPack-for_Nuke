@@ -552,12 +552,9 @@ def menu_f9_hold():
         _f9_menu_timer = None
 
     # Crear nuevo timer para detectar release - USAR QTimer en lugar de threading.Timer
-    try:
-        from PySide2.QtCore import QTimer
-    except:
-        from PySide.QtCore import QTimer
+    from qt_compat import QtCore
 
-    _f9_menu_timer = QTimer()
+    _f9_menu_timer = QtCore.QTimer()
     _f9_menu_timer.setSingleShot(True)
     _f9_menu_timer.timeout.connect(menu_f9_release)
     _f9_menu_timer.start(400)
