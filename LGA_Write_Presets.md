@@ -6,8 +6,7 @@ Sistema para crear nodos Write con configuraciones predefinidas. Genera paths au
 
 - **`LGA_ToolPack/LGA_Write_Presets.py`**: Script principal que contiene la interfaz y lógica de creación de Write nodes
 - **`LGA_ToolPack/LGA_Write_Presets.ini`**: Archivo de configuración con los presets disponibles
-- **`LGA_ToolPack/LGA_Write_Presets_Check.py`**: Módulo auxiliar para verificación y edición de paths antes de crear el Write
-- **`LGA_ToolPack/LGA_Write_PathToText.py`**: Módulo para mostrar paths de Write nodes ya creados
+- **`LGA_ToolPack/LGA_Write_Presets_Check.py`**: Módulo auxiliar para verificación y edición de paths antes de crear el Write o editar Writes existentes
 
 ## Funcionalidad Principal
 
@@ -42,6 +41,18 @@ Las fórmulas TCL en los presets se ajustan automáticamente según el formato d
 Al hacer **click normal** sobre un preset, se muestra una ventana de verificación (`PathCheckWindow`) que permite revisar y editar el path antes de crear el Write node.
 
 **Shift+Click** crea el Write directamente sin mostrar la ventana de verificación.
+
+### Edición de Write Nodes Existentes
+
+Cuando hay un Write node seleccionado, aparece un botón adicional **"Show selected Write node file path"** en la interfaz principal. Este botón abre la misma ventana de verificación y edición (`PathCheckWindow`) pero cargada con el contenido del Write seleccionado, permitiendo:
+
+- Revisar el path actual del Write
+- Editar índices ajustables si los tiene
+- Modificar niveles de directorio
+- Aplicar cambios directamente al Write seleccionado
+- Ver la misma detección de extensiones problemáticas
+
+Los cambios se aplican al Write seleccionado mediante undo/redo, manteniendo la integridad del flujo de trabajo.
 
 ### Contenido de la Ventana
 

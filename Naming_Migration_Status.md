@@ -79,13 +79,13 @@ Este documento rastrea el estado de migración de los scripts de LGA ToolPack pa
 
 ---
 
-### 5. LGA_Write_PathToText.py
-**Estado:** ➖ **No Aplica (Roadmap Futuro)**  
-**Descripción:** Muestra path de Write con coloreado por niveles de directorio  
+### 5. LGA_Write_Presets_Check.py - Función get_shot_folder_parts()
+**Estado:** ➖ **No Aplica (Roadmap Futuro)**
+**Descripción:** Calcula profundidad de directorios para coloreado de paths
 **Implementación actual:**
 - Calcula profundidad de directorios fija (`project_folder_depth = 3`)
 - Mencionado en especificación como "ROADMAP FUTURO"
-- Lógica en líneas 180-193
+- Lógica en función `get_shot_folder_parts()`
 
 **Análisis:**
 - No trabaja directamente con shotnames

@@ -109,7 +109,7 @@ shot_code = "_".join(parts[:5])  # Siempre toma primeros 5 campos
 - Afecta directamente la generación de archivos de salida
 - Puede generar nombres completamente incorrectos
 
-### 3. LGA_Write_PathToText.py (Problema MODERADO)
+### 3. LGA_Write_Presets_Check.py - Función get_shot_folder_parts() (Problema MODERADO)
 **Problema:** Cálculo de profundidad de directorios fijo
 ```python
 project_folder_depth = 3  # Siempre sube 3 niveles
@@ -144,7 +144,7 @@ if base_parts[-1].isdigit():
 
 ### Archivos Moderados (Deben revisarse)
 
-3. **LGA_Write_PathToText.py** - Script auxiliar de LGA_Write_Presets
+3. **LGA_Write_Presets_Check.py - Función get_shot_folder_parts()**
    - 🔮 **ROADMAP FUTURO:** Mejorar cálculo de profundidad de directorios
    - Por ahora NO se modifica (es funcional tal como está)
 
@@ -265,7 +265,7 @@ if base_parts[-1].isdigit():
 - Si existe `MOR_000_140_comp_001_v19.nk`, sería un error de naming que debe corregirse
 - La función actual elimina correctamente números inválidos al final del nombre
 
-### 4. Roadmap Futuro - LGA_Write_PathToText.py
+### 4. Roadmap Futuro - LGA_Write_Presets_Check.py - Función get_shot_folder_parts()
 
 **Por ahora NO se modifica** (funciona correctamente)
 **Mejora futura propuesta:**

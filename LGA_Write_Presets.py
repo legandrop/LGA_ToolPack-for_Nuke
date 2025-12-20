@@ -1,10 +1,14 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.65 | Lega
+  LGA_Write_Presets v2.66 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
+
+  v2.65: Eliminado LGA_Write_PathToText.py. Boton "Show selected Write node file path"
+         ahora abre ventana editable para modificar Writes existentes en lugar de
+         mostrar informacion solo de lectura.
 
   v2.64: Greyed out items in the table when the script is not saved.
 
@@ -60,7 +64,7 @@ import unicodedata
 import re
 
 # Variable global para activar o desactivar los debug_prints
-DEBUG = False
+DEBUG = True
 
 
 def debug_print(*message):
@@ -1270,28 +1274,67 @@ class SelectedNodeInfo(QWidget):
         )
 
     def show_write_path_window(self):
-        """Importa y ejecuta el main() de LGA_Write_PathToText.py para mostrar el path del Write seleccionado."""
-        import importlib.util
-        import os
+        """Abre una ventana editable con el contenido del Write seleccionado."""
+        from LGA_Write_Presets_Check import (
+            PathCheckWindow,
+            evaluate_file_pattern,
+            get_shot_folder_parts,
+            normalize_path_preserve_case,
+        )
 
-        def normalize_path(path):
-            # Normalizar barras y convertir a minúsculas
-            path = path.replace("\\", "/").lower()
-            # Eliminar redundancias como '.' o '..'
-            path = os.path.normpath(path)
-            return path
+        # Obtener el Write seleccionado
+        selected_write = None
+        for node in nuke.selectedNodes():
+            if node.Class() == "Write":
+                selected_write = node
+                break
+
+        if not selected_write:
+            debug_print("[Write_Presets] No hay ningun nodo Write seleccionado.")
+            return
+
+        # Obtener el file_pattern del Write seleccionado
+        file_pattern = selected_write["file"].value()
+        if not file_pattern:
+            debug_print("[Write_Presets] El Write seleccionado no tiene file pattern.")
+            return
 
         self.close()
-        script_path = os.path.join(os.path.dirname(__file__), "LGA_Write_PathToText.py")
-        spec = importlib.util.spec_from_file_location(
-            "LGA_Write_PathToText", script_path
+
+        # Evaluar y normalizar el path para mostrar el resultado final
+        evaluated_path, original_extensions = evaluate_file_pattern(file_pattern)
+        normalized_path = None
+        if evaluated_path:
+            normalized_path = normalize_path_preserve_case(evaluated_path)
+
+        # Obtener path del script para calcular shot_folder_parts
+        script_path = nuke.root().name()
+        if not script_path or script_path == "Root":
+            script_path = None
+        shot_folder_parts = get_shot_folder_parts(script_path)
+
+        # Callback para aplicar cambios al Write seleccionado
+        def apply_changes_to_write(modified_pattern):
+            if modified_pattern:
+                # Aplicar el patrón modificado al Write seleccionado
+                nuke.Undo().begin("Modify Write File Pattern")
+                selected_write["file"].setValue(modified_pattern)
+                nuke.Undo().end()
+                debug_print(
+                    f"[Write_Presets] File pattern actualizado en Write: {selected_write.name()}"
+                )
+
+        # Crear y mostrar la ventana editable
+        global app, window
+        app = QApplication.instance() or QApplication([])
+        window = PathCheckWindow(
+            file_pattern,
+            normalized_path,
+            shot_folder_parts,
+            apply_changes_to_write,
+            original_extensions=original_extensions,
         )
-        if spec is not None and spec.loader is not None:
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            if hasattr(module, "main"):
-                # Pasar la función de normalización al módulo
-                module.main(normalize_path_func=normalize_path)
+        window.exec_()
 
 
 def normalize_node_name(name):

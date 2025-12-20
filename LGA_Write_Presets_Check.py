@@ -1,9 +1,12 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.65 | Lega
+  LGA_Write_Presets_Check v2.66 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
-  Se usa cuando el usuario hace Shift+Click sobre un preset.
+  Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
+
+  v2.65: PathCheckWindow ahora hereda de QDialog en lugar de QWidget para comportamiento modal.
+         Permite editar Writes existentes desde el boton "Show selected Write node file path".
 
   v2.64: Greyed out items in the table when the script is not saved.
 
@@ -38,6 +41,7 @@ from qt_compat import QtWidgets, QtCore
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
+QDialog = QtWidgets.QDialog
 QVBoxLayout = QtWidgets.QVBoxLayout
 QLabel = QtWidgets.QLabel
 QPushButton = QtWidgets.QPushButton
@@ -45,7 +49,7 @@ QHBoxLayout = QtWidgets.QHBoxLayout
 Qt = QtCore.Qt
 QTimer = QtCore.QTimer
 
-# Importar funciones de LGA_Write_PathToText para reutilizar
+# Importar funciones de LGA_Write_PathToText para reutilizar (ahora definidas localmente)
 try:
     from LGA_Write_PathToText import (
         apply_path_coloring,
@@ -53,7 +57,7 @@ try:
         get_color_for_level,
     )
 except ImportError:
-    # Si no se puede importar, definir funciones locales
+    # Si no se puede importar, usar funciones locales (desde v2.66)
     def get_color_for_level(level):
         colors = {
             0: "#ffff66",
@@ -287,7 +291,7 @@ def evaluate_file_pattern(file_pattern):
 def get_shot_folder_parts(script_path):
     """
     Calcula las partes de la ruta del shot para el coloreado.
-    Reutiliza la logica de LGA_Write_PathToText.
+    Reutiliza la logica de coloreado de paths (originalmente de LGA_Write_PathToText).
     """
     shot_folder_parts = []
     if script_path and script_path != "Root":
@@ -738,7 +742,7 @@ def split_tcl_path_at_shot_end(tcl_path, shot_folder_parts, is_sequence=False):
         return violet_part, middle_str, file_str, ""
 
 
-class PathCheckWindow(QWidget):
+class PathCheckWindow(QDialog):
     """
     Ventana de verificacion que muestra el TCL path original y el path final normalizado.
     Permite editar indices ajustables en tiempo real si el preset los tiene.
@@ -788,9 +792,12 @@ class PathCheckWindow(QWidget):
         self.update_timer.setSingleShot(True)
         self.update_timer.timeout.connect(self.update_paths)
 
-        self.setWindowFlags(Qt.Window)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setWindowTitle("Write Path Review")
         self.setStyleSheet("background-color: #212121; border-radius: 10px;")
+
+        # Configurar el diálogo para que sea modal
+        self.setModal(True)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
@@ -1604,17 +1611,17 @@ class PathCheckWindow(QWidget):
             # Pasar el file_pattern modificado si hubo cambios
             # Si modified_file_pattern es None, se usara el patrón original del preset
             self.callback(self.modified_file_pattern)
-        self.close()
+        super().accept()
 
     def reject(self):
         """Se llama cuando el usuario presiona Cancel."""
-        self.close()
+        super().reject()
 
 
 def show_path_check_window(preset, user_text=None, callback=None):
     """
     Muestra la ventana de verificacion del path.
-    Funciona igual que main() en LGA_Write_PathToText.py
+    Funciona igual que el comportamiento original de mostrar paths (inspirado en LGA_Write_PathToText.py)
 
     Args:
         preset: Diccionario con la configuracion del preset
@@ -1658,4 +1665,4 @@ def show_path_check_window(preset, user_text=None, callback=None):
         callback_wrapper,
         original_extensions=original_extensions,
     )
-    window.show()
+    window.exec_()
