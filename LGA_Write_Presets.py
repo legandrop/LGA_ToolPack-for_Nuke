@@ -1,11 +1,19 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.67 | Lega
+  LGA_Write_Presets v2.69 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
+
+  v2.69: Mejorado manejo de Writes con paths invalidos. Ahora muestra una ventana
+         de error explicativa cuando el Write seleccionado no tiene file pattern
+         valido, en lugar de abrir la interfaz normal. Evita confusion del usuario.
+
+  v2.68: Eliminado completamente el boton "Show selected Write node file path". La
+         funcionalidad ahora es 100% automatica - si hay Write seleccionado se abre
+         la edicion, si no hay Write no aparece ningun boton extra.
 
   v2.67: Comportamiento automatico - Si hay un Write seleccionado al abrir el script,
          automaticamente abre la ventana de edicion. El boton solo aparece si no hay
@@ -14,10 +22,6 @@ _____________________________________________________________________________
   v2.66: Eliminado LGA_Write_PathToText.py. Boton "Show selected Write node file path"
          ahora abre ventana editable para modificar Writes existentes en lugar de
          mostrar informacion solo de lectura.
-
-  v2.68: Eliminado completamente el boton "Show selected Write node file path". La
-         funcionalidad ahora es 100% automatica - si hay Write seleccionado se abre
-         la edicion, si no hay Write no aparece ningun boton extra.
 
   v2.64: Greyed out items in the table when the script is not saved.
 
@@ -74,7 +78,7 @@ import unicodedata
 import re
 
 # Variable global para activar o desactivar los debug_prints
-DEBUG = True
+DEBUG = False
 
 
 def debug_print(*message):
@@ -928,6 +932,30 @@ class SelectedNodeInfo(QWidget):
         for section, preset in self.presets.items():
             prefix = "[Script]" if preset["button_type"] == "script" else "[Read]"
             self.options.append(f"{prefix} {preset['button_name']}")
+
+        # Verificar si hay un Write seleccionado antes de crear la interfaz
+        selected_write = None
+        for node in nuke.selectedNodes():
+            if node.Class() == "Write":
+                selected_write = node
+                break
+
+        if selected_write:
+            # Verificar si el Write tiene un file_pattern válido
+            file_pattern = selected_write["file"].value()
+            if not file_pattern or not file_pattern.strip():
+                # Mostrar error inmediatamente sin crear la interfaz
+                debug_print(
+                    f"[Write_Presets] Write seleccionado ({selected_write.name()}) no tiene file pattern válido. Mostrando mensaje de error."
+                )
+                self.show_invalid_write_error(selected_write.name())
+                return  # No llamar a initUI()
+            else:
+                # Si hay un Write válido, preparar para abrir la ventana de edición
+                self.selected_write_for_edit = selected_write
+                self.initUI()
+                return
+
         self.initUI()
 
     def keyPressEvent(self, event):
@@ -946,6 +974,15 @@ class SelectedNodeInfo(QWidget):
             event.ignore()
 
     def initUI(self):
+        # Si hay un Write para editar, abrir directamente la ventana de edición
+        if hasattr(self, "selected_write_for_edit") and self.selected_write_for_edit:
+            debug_print(
+                f"[Write_Presets] Write seleccionado detectado: {self.selected_write_for_edit.name()}"
+            )
+            # Llamar a la función de edición después de un pequeño delay para asegurar que la ventana esté inicializada
+            QTimer.singleShot(10, lambda: self.show_write_path_window())
+            return  # No crear la interfaz normal
+
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setWindowTitle("RENDER TYPE")
 
@@ -1022,24 +1059,23 @@ class SelectedNodeInfo(QWidget):
 
         main_layout.addWidget(self.table)
 
-        # Verificar si hay un Write seleccionado para abrir directamente la ventana de edición
-        selected_write = None
-        for node in nuke.selectedNodes():
-            if node.Class() == "Write":
-                selected_write = node
-                break
-
-        if selected_write:
-            # Si hay un Write seleccionado, abrir directamente la ventana de edición
-            debug_print(
-                f"[Write_Presets] Write seleccionado detectado: {selected_write.name()}"
-            )
-            # Llamar a la función de edición después de un pequeño delay para asegurar que la ventana esté inicializada
-            QTimer.singleShot(10, lambda: self.show_write_path_window())
-            return  # No crear el botón ni continuar con la interfaz
-
         # Nota: Ya no se crea el botón "Show selected Write node file path"
         # La funcionalidad ahora es completamente automática
+
+    def show_invalid_write_error(self, write_name):
+        """Muestra una ventana de error cuando el Write seleccionado no tiene file pattern válido."""
+        msg_box = QtWidgets.QMessageBox()
+        msg_box.setIcon(QtWidgets.QMessageBox.Warning)
+        msg_box.setWindowTitle("Write Node Error")
+        msg_box.setText(
+            f"The Write node '{write_name}' does not contain a valid TCL path."
+        )
+        msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        msg_box.setDefaultButton(QtWidgets.QMessageBox.Ok)
+        msg_box.exec_()
+
+        # Después de mostrar el error, terminar la aplicación
+        # No hay ventana principal que cerrar ya que no se creó
 
         # Layout de la ventana principal
         window_layout = QVBoxLayout(self)
@@ -1293,11 +1329,7 @@ class SelectedNodeInfo(QWidget):
             debug_print("[Write_Presets] No hay ningun nodo Write seleccionado.")
             return
 
-        # Obtener el file_pattern del Write seleccionado
-        file_pattern = selected_write["file"].value()
-        if not file_pattern:
-            debug_print("[Write_Presets] El Write seleccionado no tiene file pattern.")
-            return
+        # El file_pattern ya fue verificado antes de llamar a esta función
 
         self.close()
 

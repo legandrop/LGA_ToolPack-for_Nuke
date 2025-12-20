@@ -1,10 +1,13 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.67 | Lega
+  LGA_Write_Presets_Check v2.69 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 
+
+  v2.69: Mejorado manejo de paths invalidos. Agregados mensajes informativos
+         y validacion previa para evitar abrir ventanas con contenido invalido.
 
   v2.67: Comportamiento automatico integrado - La ventana de edicion se abre automaticamente
          cuando hay un Write seleccionado al iniciar LGA_Write_Presets.py. Y se elimina el boton manual de edicion de Writes.
@@ -135,7 +138,7 @@ except ImportError:
 
 
 # Variable global para activar o desactivar los debug_prints
-DEBUG = True
+DEBUG = False
 
 # Flag para mostrar/ocultar el TCL path original
 SHOW_ORIGINAL_TCL_PATH = False
@@ -1244,8 +1247,12 @@ class PathCheckWindow(QDialog):
                 "Final Path", colored_normalized, rich=True, is_section=True
             )
         else:
+            # Mostrar mensaje informativo cuando no hay path válido
+            error_message = """<span style='color:#ff6b6b; font-weight: bold;'>⚠️ No se puede mostrar el path</span><br>
+<span style='color:#AEAEAE; font-size:11px;'>El file pattern actual no se puede evaluar.<br>
+Verifica que el Write esté conectado correctamente y que el pattern TCL sea válido.</span>"""
             self.normalized_label = add_block(
-                "Final Path", "(No normalized)", is_section=True
+                "Final Path", error_message, rich=True, is_section=True
             )
 
         # Botones Cancel y OK
@@ -1304,6 +1311,14 @@ class PathCheckWindow(QDialog):
 
         self.setLayout(layout)
         self.adjustSize()
+
+        # Asegurar tamaño mínimo para casos donde no hay path válido
+        min_width = 500
+        min_height = 300
+        current_size = self.size()
+        new_width = max(current_size.width(), min_width)
+        new_height = max(current_size.height(), min_height)
+        self.resize(new_width, new_height)
 
     def keyPressEvent(self, event):
         """Maneja eventos de teclado: ESC para cancelar, Enter para aceptar."""
@@ -1607,9 +1622,11 @@ class PathCheckWindow(QDialog):
                 )
             self.normalized_label.setText(colored_normalized)
         else:
-            self.normalized_label.setText(
-                "<span style='color:#AEAEAE;'>(No normalized)</span>"
-            )
+            # Mostrar mensaje informativo cuando no hay path válido
+            error_message = """<span style='color:#ff6b6b; font-weight: bold;'>⚠️ No se puede mostrar el path</span><br>
+<span style='color:#AEAEAE; font-size:11px;'>El file pattern actual no se puede evaluar.<br>
+Verifica que el Write esté conectado correctamente y que el pattern TCL sea válido.</span>"""
+            self.normalized_label.setText(error_message)
 
     def accept(self):
         """Se llama cuando el usuario presiona OK."""

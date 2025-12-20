@@ -46,7 +46,8 @@ Al hacer **click normal** sobre un preset, se muestra una ventana de verificaci�
 
 **Comportamiento Completamente Automático:** El sistema detecta automáticamente el contexto de uso:
 
-- **Si hay un Write seleccionado:** Se abre directamente la ventana de edición (`PathCheckWindow`) cargada con el contenido del Write seleccionado
+- **Si hay un Write seleccionado con file pattern válido:** Se abre directamente la ventana de edición (`PathCheckWindow`) cargada con el contenido del Write seleccionado
+- **Si hay un Write seleccionado sin file pattern válido:** Se muestra una ventana de error explicando que el Write necesita un patrón de archivo válido configurado
 - **Si no hay Write seleccionado:** Se muestra la interfaz normal de creación de presets
 
 La ventana de edición permite:
