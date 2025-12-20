@@ -33,7 +33,7 @@ BTN_NAME_SHOW = "LGA_Snapshot_Show"
 BTN_NAME_GALLERY = "LGA_Snapshot_Gallery"
 
 
-DEBUG = True
+DEBUG = False
 
 
 def debug_print(*message):
