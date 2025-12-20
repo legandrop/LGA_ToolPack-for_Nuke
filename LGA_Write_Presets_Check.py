@@ -1,9 +1,15 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.66 | Lega
+  LGA_Write_Presets_Check v2.67 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
+
+
+  v2.67: Comportamiento automatico integrado - La ventana de edicion se abre automaticamente
+         cuando hay un Write seleccionado al iniciar LGA_Write_Presets.py. Y se elimina el boton manual de edicion de Writes.
+
+  v2.66: Eliminado LGA_Write_PathToText.py. Funciones de coloreado de paths ahora definidas localmente.
 
   v2.65: PathCheckWindow ahora hereda de QDialog en lugar de QWidget para comportamiento modal.
          Permite editar Writes existentes desde el boton "Show selected Write node file path".

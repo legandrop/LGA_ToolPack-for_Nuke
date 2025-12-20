@@ -44,7 +44,12 @@ Al hacer **click normal** sobre un preset, se muestra una ventana de verificaci�
 
 ### Edición de Write Nodes Existentes
 
-Cuando hay un Write node seleccionado, aparece un botón adicional **"Show selected Write node file path"** en la interfaz principal. Este botón abre la misma ventana de verificación y edición (`PathCheckWindow`) pero cargada con el contenido del Write seleccionado, permitiendo:
+**Comportamiento Completamente Automático:** El sistema detecta automáticamente el contexto de uso:
+
+- **Si hay un Write seleccionado:** Se abre directamente la ventana de edición (`PathCheckWindow`) cargada con el contenido del Write seleccionado
+- **Si no hay Write seleccionado:** Se muestra la interfaz normal de creación de presets
+
+La ventana de edición permite:
 
 - Revisar el path actual del Write
 - Editar índices ajustables si los tiene

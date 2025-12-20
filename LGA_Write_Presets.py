@@ -1,14 +1,23 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.66 | Lega
+  LGA_Write_Presets v2.67 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
-  v2.65: Eliminado LGA_Write_PathToText.py. Boton "Show selected Write node file path"
+
+  v2.67: Comportamiento automatico - Si hay un Write seleccionado al abrir el script,
+         automaticamente abre la ventana de edicion. El boton solo aparece si no hay
+         Write seleccionado.
+
+  v2.66: Eliminado LGA_Write_PathToText.py. Boton "Show selected Write node file path"
          ahora abre ventana editable para modificar Writes existentes en lugar de
          mostrar informacion solo de lectura.
+
+  v2.68: Eliminado completamente el boton "Show selected Write node file path". La
+         funcionalidad ahora es 100% automatica - si hay Write seleccionado se abre
+         la edicion, si no hay Write no aparece ningun boton extra.
 
   v2.64: Greyed out items in the table when the script is not saved.
 
@@ -48,6 +57,7 @@ QFrame = QtWidgets.QFrame
 QStyledItemDelegate = QtWidgets.QStyledItemDelegate
 QStyle = QtWidgets.QStyle
 Qt = QtCore.Qt
+QTimer = QtCore.QTimer
 QCursor = QtGui.QCursor
 QPalette = QtGui.QPalette
 QColor = QtGui.QColor
@@ -1012,33 +1022,24 @@ class SelectedNodeInfo(QWidget):
 
         main_layout.addWidget(self.table)
 
-        # --- Agregar botón personalizado debajo de la tabla ---
-        self.show_path_button = QPushButton("Show selected Write node file path")
-        self.show_path_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #443a91;
-                color: #cccccc;
-                border: none;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: bold;
-                padding: 8px 0px;
-                margin-top: 2px;
-                margin-bottom: 2px;
-            }
-            QPushButton:hover {
-                background-color: #372e7a;
-            }
-            QPushButton:pressed {
-                background-color: #2d265e;
-            }
-            """
-        )
-        self.show_path_button.setCursor(Qt.PointingHandCursor)
-        self.show_path_button.clicked.connect(self.show_write_path_window)
-        main_layout.addWidget(self.show_path_button)
-        # --- Fin botón personalizado ---
+        # Verificar si hay un Write seleccionado para abrir directamente la ventana de edición
+        selected_write = None
+        for node in nuke.selectedNodes():
+            if node.Class() == "Write":
+                selected_write = node
+                break
+
+        if selected_write:
+            # Si hay un Write seleccionado, abrir directamente la ventana de edición
+            debug_print(
+                f"[Write_Presets] Write seleccionado detectado: {selected_write.name()}"
+            )
+            # Llamar a la función de edición después de un pequeño delay para asegurar que la ventana esté inicializada
+            QTimer.singleShot(10, lambda: self.show_write_path_window())
+            return  # No crear el botón ni continuar con la interfaz
+
+        # Nota: Ya no se crea el botón "Show selected Write node file path"
+        # La funcionalidad ahora es completamente automática
 
         # Layout de la ventana principal
         window_layout = QVBoxLayout(self)
@@ -1156,8 +1157,7 @@ class SelectedNodeInfo(QWidget):
         title_bar_height = 20
         height += title_bar_height
 
-        # Sumar la altura del botón extra (aprox 38px)
-        height += 42
+        # Nota: Ya no hay botón extra que sumar a la altura
 
         # Asegurarse de que la altura no supera el 80% del alto de pantalla
         max_height = screen_rect.height() * 0.8
