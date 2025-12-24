@@ -1,11 +1,13 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.69 | Lega
+  LGA_Write_Presets_Check v2.70 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 
 
+  v2.70: bug fixes.
+  
   v2.69: Mejorado manejo de paths invalidos. Agregados mensajes informativos
          y validacion previa para evitar abrir ventanas con contenido invalido.
 
@@ -1311,14 +1313,6 @@ Verifica que el Write esté conectado correctamente y que el pattern TCL sea vá
 
         self.setLayout(layout)
         self.adjustSize()
-
-        # Asegurar tamaño mínimo para casos donde no hay path válido
-        min_width = 500
-        min_height = 300
-        current_size = self.size()
-        new_width = max(current_size.width(), min_width)
-        new_height = max(current_size.height(), min_height)
-        self.resize(new_width, new_height)
 
     def keyPressEvent(self, event):
         """Maneja eventos de teclado: ESC para cancelar, Enter para aceptar."""
