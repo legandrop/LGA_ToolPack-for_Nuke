@@ -1,12 +1,14 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.69 | Lega
+  LGA_Write_Presets v2.70 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
 
+  v2.70: bug fixes.
+  
   v2.69: Mejorado manejo de Writes con paths invalidos. Ahora muestra una ventana
          de error explicativa cuando el Write seleccionado no tiene file pattern
          valido, en lugar de abrir la interfaz normal. Evita confusion del usuario.
@@ -78,7 +80,7 @@ import unicodedata
 import re
 
 # Variable global para activar o desactivar los debug_prints
-DEBUG = False
+DEBUG = True
 
 
 def debug_print(*message):
@@ -912,6 +914,7 @@ class ShiftClickTableWidget(QTableWidget):
 class SelectedNodeInfo(QWidget):
     def __init__(self, parent=None):
         super(SelectedNodeInfo, self).__init__(parent)
+        self.interface_created = False
 
         # Detectar formato del shotname y ajustar presets
         debug_print(
@@ -1062,21 +1065,6 @@ class SelectedNodeInfo(QWidget):
         # Nota: Ya no se crea el botón "Show selected Write node file path"
         # La funcionalidad ahora es completamente automática
 
-    def show_invalid_write_error(self, write_name):
-        """Muestra una ventana de error cuando el Write seleccionado no tiene file pattern válido."""
-        msg_box = QtWidgets.QMessageBox()
-        msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-        msg_box.setWindowTitle("Write Node Error")
-        msg_box.setText(
-            f"The Write node '{write_name}' does not contain a valid TCL path."
-        )
-        msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
-        msg_box.setDefaultButton(QtWidgets.QMessageBox.Ok)
-        msg_box.exec_()
-
-        # Después de mostrar el error, terminar la aplicación
-        # No hay ventana principal que cerrar ya que no se creó
-
         # Layout de la ventana principal
         window_layout = QVBoxLayout(self)
         window_layout.setContentsMargins(0, 0, 0, 0)
@@ -1097,6 +1085,22 @@ class SelectedNodeInfo(QWidget):
         if first_enabled_row >= 0:
             self.table.selectRow(first_enabled_row)
         self.table.setFocus()
+
+        self.interface_created = True
+
+    def show_invalid_write_error(self, write_name):
+        """Muestra una ventana de error cuando el Write seleccionado no tiene file pattern válido."""
+        try:
+            # Usar la función nativa de Nuke para mostrar mensajes
+            nuke.message(
+                f"Write Node Error: The Write node '{write_name}' does not contain a valid TCL path."
+            )
+        except Exception as e:
+            debug_print(f"[Write_Presets] Error mostrando mensaje: {e}")
+            # Fallback final: debug print
+            debug_print(
+                f"[Write_Presets] ERROR: Write node '{write_name}' does not contain a valid TCL path."
+            )
 
     def is_script_saved(self):
         """Verifica si el script de Nuke esta guardado."""
@@ -1166,12 +1170,13 @@ class SelectedNodeInfo(QWidget):
             )  # Un poco más de relleno entre columnas
 
         # Ajustar el ancho adicional basado en el texto más ancho
-        longest_text = max(self.options, key=len)
-        font_metrics = self.table.fontMetrics()
-        text_width = (
-            font_metrics.horizontalAdvance(longest_text) + 50
-        )  # Un poco de relleno adicional
-        width = max(width, text_width)
+        if self.options:
+            longest_text = max(self.options, key=len)
+            font_metrics = self.table.fontMetrics()
+            text_width = (
+                font_metrics.horizontalAdvance(longest_text) + 50
+            )  # Un poco de relleno adicional
+            width = max(width, text_width)
 
         # Asegurarse de que el ancho no supera el 80% del ancho de pantalla
         screen = QApplication.primaryScreen()
@@ -1329,7 +1334,11 @@ class SelectedNodeInfo(QWidget):
             debug_print("[Write_Presets] No hay ningun nodo Write seleccionado.")
             return
 
-        # El file_pattern ya fue verificado antes de llamar a esta función
+        # Obtener el file_pattern del Write seleccionado
+        file_pattern = selected_write["file"].value()
+        if not file_pattern:
+            debug_print("[Write_Presets] El Write seleccionado no tiene file pattern.")
+            return
 
         self.close()
 
@@ -1446,7 +1455,10 @@ def main():
 
     app = QApplication.instance() or QApplication([])
     window = SelectedNodeInfo()
-    window.show()
+
+    # Solo mostrar la ventana si se creó la interfaz
+    if hasattr(window, "interface_created") and window.interface_created:
+        window.show()
 
 
 # Llamar a main() para iniciar la aplicacion
