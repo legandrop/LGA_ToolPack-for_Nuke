@@ -64,9 +64,9 @@ Los cambios se aplican al Write seleccionado mediante undo/redo, manteniendo la 
 
 La ventana muestra en orden:
 
-1. **Controles de edición**: Dos controles en la misma sección (siempre visibles):
-   - **Naming Segments**: Control para editar índices ajustables en expresiones `lrange`. Si el preset no tiene índices ajustables, aparece deshabilitado mostrando "N/A"
-   - **FOLDER UP LEVELS**: Control para ajustar la cantidad de niveles de directorio hacia arriba (`../`, `../../`, etc.). Siempre habilitado
+1. **Controles de edición**: Controles en la misma sección (visibilidad condicional):
+   - **Naming Segments**: Control para editar índices ajustables en expresiones `lrange`. Solo se muestra cuando el preset tiene índices ajustables
+   - **FOLDER UP LEVELS**: Control para ajustar la cantidad de niveles de directorio hacia arriba (`../`, `../../`, etc.). Siempre visible y habilitado
 2. **Original TCL Path**: El `file_pattern` tal como está configurado, dividido en 3 o 4 líneas visuales según corresponda
 3. **Final Path**: El path resuelto y normalizado con colores por nivel de directorio, dividido en 3 o 4 líneas visuales
 
@@ -111,6 +111,8 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 - **Enter**: Acepta y crea el Write node con la configuración (modificada si se editaron índices o niveles de directorio)
 - **Cancel**: Cierra la ventana sin crear el Write
 - **OK**: Crea el Write node con la configuración
+
+**Nota**: El control "Naming Segments" solo aparece cuando el preset contiene expresiones `lrange` con índices ajustables. Si no hay índices ajustables, este control no se muestra y solo aparece "FOLDER UP LEVELS".
 
 ### Archivos y Funciones Relacionadas
 

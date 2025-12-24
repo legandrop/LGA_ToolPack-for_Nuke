@@ -1,11 +1,12 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.70 | Lega
+  LGA_Write_Presets_Check v2.71 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 
 
+  v2.71: bug fixes.
   v2.70: bug fixes.
   
   v2.69: Mejorado manejo de paths invalidos. Agregados mensajes informativos
@@ -875,29 +876,29 @@ class PathCheckWindow(QDialog):
         index_layout.setSpacing(12)
         index_layout.setContentsMargins(12, 10, 12, 10)
 
-        # Primera columna: Naming Segments (siempre visible)
-        naming_title_color = "#E8E8E8" if self.has_adjustable else "#666666"
-        naming_title = QLabel(
-            f"<span style='color:{naming_title_color}; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>Naming Segments</span>"
-        )
-        naming_title.setStyleSheet("font-size:13px;")
-        index_layout.addWidget(naming_title)
+        # Primera columna: Naming Segments (siempre presente, pero puede estar vacío)
+        naming_column = QWidget()
+        naming_layout = QHBoxLayout(naming_column)
+        naming_layout.setContentsMargins(0, 0, 0, 0)
+        naming_layout.setSpacing(8)
 
-        # Contenedor para el numero y botones de Naming Segments
-        naming_control_layout = QHBoxLayout()
-        naming_control_layout.setSpacing(2)
-        naming_control_layout.setContentsMargins(0, 0, 0, 0)
-
-        # Label con el numero (muestra N/A si no hay indices ajustables)
-        naming_display_value = (
-            str(self.current_index)
-            if self.has_adjustable and self.current_index is not None
-            else "N/A"
-        )
-        self.index_label = QLabel(naming_display_value)
-        self.index_label.setFixedSize(28, 24)
-        # Estilo diferente si esta deshabilitado
         if self.has_adjustable:
+            # Título Naming Segments
+            naming_title = QLabel(
+                "<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>Naming Segments</span>"
+            )
+            naming_title.setStyleSheet("font-size:13px;")
+            naming_layout.addWidget(naming_title)
+
+            # Contenedor para el numero y botones de Naming Segments
+            naming_control_layout = QHBoxLayout()
+            naming_control_layout.setSpacing(2)
+            naming_control_layout.setContentsMargins(0, 0, 0, 0)
+
+            # Label con el numero
+            naming_display_value = str(self.current_index)
+            self.index_label = QLabel(naming_display_value)
+            self.index_label.setFixedSize(28, 24)
             index_label_style = """
                 QLabel {
                     background-color: #3e3e3e;
@@ -912,35 +913,19 @@ class PathCheckWindow(QDialog):
                     font-weight: bold;
                 }
             """
-        else:
-            index_label_style = """
-                QLabel {
-                    background-color: #2a2a2a;
-                    color: #666666;
-                    border: none;
-                    border-top-left-radius: 4px;
-                    border-bottom-left-radius: 4px;
-                    border-top-right-radius: 0px;
-                    border-bottom-right-radius: 0px;
-                    padding: 0px;
-                    font-size: 13px;
-                    font-weight: bold;
-                }
-            """
-        self.index_label.setStyleSheet(index_label_style)
-        self.index_label.setAlignment(Qt.AlignCenter)
-        naming_control_layout.addWidget(self.index_label)
+            self.index_label.setStyleSheet(index_label_style)
+            self.index_label.setAlignment(Qt.AlignCenter)
+            naming_control_layout.addWidget(self.index_label)
 
-        # Contenedor vertical para los botones
-        naming_buttons_container = QWidget()
-        naming_buttons_layout = QVBoxLayout(naming_buttons_container)
-        naming_buttons_layout.setSpacing(0)
-        naming_buttons_layout.setContentsMargins(0, 0, 0, 0)
+            # Contenedor vertical para los botones
+            naming_buttons_container = QWidget()
+            naming_buttons_layout = QVBoxLayout(naming_buttons_container)
+            naming_buttons_layout.setSpacing(0)
+            naming_buttons_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Boton triangulo arriba
-        self.up_button = QPushButton("▲")
-        self.up_button.setFixedSize(24, 12)
-        if self.has_adjustable:
+            # Boton triangulo arriba
+            self.up_button = QPushButton("▲")
+            self.up_button.setFixedSize(24, 12)
             up_button_style = """
                 QPushButton {
                     background-color: #3e3e3e;
@@ -961,30 +946,13 @@ class PathCheckWindow(QDialog):
                     background-color: #2e2e2e;
                 }
             """
-        else:
-            up_button_style = """
-                QPushButton {
-                    background-color: #2a2a2a;
-                    color: #666666;
-                    border: none;
-                    border-top-left-radius: 0px;
-                    border-top-right-radius: 4px;
-                    border-bottom-left-radius: 0px;
-                    border-bottom-right-radius: 0px;
-                    font-size: 8px;
-                    font-weight: bold;
-                    padding: 0px;
-                }
-            """
-        self.up_button.setStyleSheet(up_button_style)
-        self.up_button.setEnabled(self.has_adjustable)
-        self.up_button.clicked.connect(self.increment_index)
-        naming_buttons_layout.addWidget(self.up_button)
+            self.up_button.setStyleSheet(up_button_style)
+            self.up_button.clicked.connect(self.increment_index)
+            naming_buttons_layout.addWidget(self.up_button)
 
-        # Boton triangulo abajo
-        self.down_button = QPushButton("▼")
-        self.down_button.setFixedSize(24, 12)
-        if self.has_adjustable:
+            # Boton triangulo abajo
+            self.down_button = QPushButton("▼")
+            self.down_button.setFixedSize(24, 12)
             down_button_style = """
                 QPushButton {
                     background-color: #3e3e3e;
@@ -1005,42 +973,40 @@ class PathCheckWindow(QDialog):
                     background-color: #2e2e2e;
                 }
             """
+            self.down_button.setStyleSheet(down_button_style)
+            self.down_button.clicked.connect(self.decrement_index)
+            naming_buttons_layout.addWidget(self.down_button)
+
+            naming_control_layout.addWidget(naming_buttons_container)
+
+            # Widget contenedor para el control de Naming Segments
+            naming_control_widget = QWidget()
+            naming_control_widget.setLayout(naming_control_layout)
+            naming_layout.addWidget(naming_control_widget)
+
+            # Agregar stretch para ocupar el espacio restante en la columna
+            naming_layout.addStretch()
         else:
-            down_button_style = """
-                QPushButton {
-                    background-color: #2a2a2a;
-                    color: #666666;
-                    border: none;
-                    border-top-left-radius: 0px;
-                    border-top-right-radius: 0px;
-                    border-bottom-left-radius: 0px;
-                    border-bottom-right-radius: 4px;
-                    font-size: 8px;
-                    font-weight: bold;
-                    padding: 0px;
-                }
-            """
-        self.down_button.setStyleSheet(down_button_style)
-        self.down_button.setEnabled(self.has_adjustable)
-        self.down_button.clicked.connect(self.decrement_index)
-        naming_buttons_layout.addWidget(self.down_button)
+            # Espacio vacío para mantener la estructura del layout
+            naming_layout.addStretch()
 
-        naming_control_layout.addWidget(naming_buttons_container)
-
-        # Widget contenedor para el control de Naming Segments
-        naming_control_widget = QWidget()
-        naming_control_widget.setLayout(naming_control_layout)
-        index_layout.addWidget(naming_control_widget)
+        index_layout.addWidget(naming_column)
 
         # Agregar stretch para separar las dos columnas
         index_layout.addStretch()
 
         # Segunda columna: Folder Up Levels (siempre visible y habilitada)
+        upward_column = QWidget()
+        upward_layout = QHBoxLayout(upward_column)
+        upward_layout.setContentsMargins(0, 0, 0, 0)
+        upward_layout.setSpacing(8)
+
+        # Título Folder Up Levels
         upward_title = QLabel(
             "<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>FOLDER UP LEVELS</span>"
         )
         upward_title.setStyleSheet("font-size:13px;")
-        index_layout.addWidget(upward_title)
+        upward_layout.addWidget(upward_title)
 
         # Contenedor para el numero y botones de Upward Levels
         upward_control_layout = QHBoxLayout()
@@ -1136,7 +1102,12 @@ class PathCheckWindow(QDialog):
         # Widget contenedor para el control de Upward Levels
         upward_control_widget = QWidget()
         upward_control_widget.setLayout(upward_control_layout)
-        index_layout.addWidget(upward_control_widget)
+        upward_layout.addWidget(upward_control_widget)
+
+        # Agregar stretch para ocupar el espacio restante en la columna
+        upward_layout.addStretch()
+
+        index_layout.addWidget(upward_column)
 
         # Guardar valores minimo y maximo para Naming Segments
         self.min_index = 0
@@ -1313,6 +1284,13 @@ Verifica que el Write esté conectado correctamente y que el pattern TCL sea vá
 
         self.setLayout(layout)
         self.adjustSize()
+
+    def showEvent(self, event):
+        """Se llama cuando la ventana se muestra. Activa la ventana y le da foco."""
+        super().showEvent(event)
+        self.activateWindow()  # Activar la ventana
+        self.raise_()  # Traer al frente
+        self.setFocus()  # Dar foco a la ventana
 
     def keyPressEvent(self, event):
         """Maneja eventos de teclado: ESC para cancelar, Enter para aceptar."""
