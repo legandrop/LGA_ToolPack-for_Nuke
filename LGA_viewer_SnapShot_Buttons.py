@@ -9,7 +9,7 @@ ______________________________________________________
 
 import nuke
 import os
-from qt_compat import QtGui, QtCore, QtWidgets
+from LGA_QtAdapter_ToolPack import QtGui, QtCore, QtWidgets
 
 # Obtener la ruta de los iconos
 KS_DIR = os.path.dirname(__file__)

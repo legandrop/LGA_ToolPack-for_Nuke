@@ -6,7 +6,7 @@ import nuke
 def OnViewerCreate(node=None):
     """Callback que se ejecuta cuando se crea un viewer"""
     import LGA_viewer_SnapShot_Buttons
-    from qt_compat import QtCore
+    from LGA_QtAdapter_ToolPack import QtCore
 
     # Usar un timer para retrasar la ejecucion hasta que el widget Qt este listo
     QTimer = QtCore.QTimer

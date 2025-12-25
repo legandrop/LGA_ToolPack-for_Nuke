@@ -11,7 +11,7 @@ _____________________________________________________________________________
 """
 
 import nuke
-from qt_compat import QtGui, QtWidgets, QtCore
+from LGA_QtAdapter_ToolPack import QtGui, QtWidgets, QtCore
 
 QCursor = QtGui.QCursor
 QMouseEvent = QtGui.QMouseEvent

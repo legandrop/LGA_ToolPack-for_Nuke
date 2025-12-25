@@ -49,7 +49,7 @@ ________________________________________________________________________________
 import nuke
 import os
 import re
-from qt_compat import QtWidgets, QtCore
+from LGA_QtAdapter_ToolPack import QtWidgets, QtCore
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget

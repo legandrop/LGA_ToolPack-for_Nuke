@@ -1,7 +1,7 @@
 # Plan de migración Nuke 15 → Nuke 16 (PySide2 → PySide6)
 
 ## Estrategia
-- Capa de compatibilidad de imports (`qt_compat.py`) con funciones helper avanzadas y fallback PySide6 → PySide2.
+- Capa de compatibilidad de imports (`LGA_QtAdapter_ToolPack.py`) con funciones helper avanzadas y fallback PySide6 → PySide2.
 - Funciones helper automatizan cambios de API Qt5/Qt6: `horizontal_advance()`, `primary_screen_geometry()`, `set_layout_margin()`.
 - Reemplazar APIs Qt5 deprecadas: `QDesktopWidget`, `QtOpenGL.QGLWidget`, `QAction` en `QtWidgets`, enums de `QSizePolicy` en instancias, `QSound`.
 - Ajustar accesos a DAG: ya es `QWidget`, no OpenGL; usar `objectName` y `render()`.
@@ -9,66 +9,66 @@
 
 ## Resultado de revisión en ESTE ToolPack
 ### Cambios funcionales (API Qt deprecada o mezcla de bindings)
-- [x] `channel_hotbox.py` — ahora usa `qt_compat` (sin mezcla PySide/PySide2).
-- [x] `init.py` — timers via `qt_compat.QtCore.QTimer`.
-- [x] `menu.py` — timers via `qt_compat.QtCore.QTimer`.
-- [x] `LGA_ToolPack_settings.py` — geometría via `qt_compat.primary_screen_geometry()`.
-- [x] `LGA_Write_Presets.py` — geometría via `qt_compat.primary_screen_geometry()`.
+- [x] `channel_hotbox.py` — ahora usa `LGA_QtAdapter_ToolPack` (sin mezcla PySide/PySide2).
+- [x] `init.py` — timers via `LGA_QtAdapter_ToolPack.QtCore.QTimer`.
+- [x] `menu.py` — timers via `LGA_QtAdapter_ToolPack.QtCore.QTimer`.
+- [x] `LGA_ToolPack_settings.py` — geometría via `LGA_QtAdapter_ToolPack.primary_screen_geometry()`.
+- [x] `LGA_Write_Presets.py` — geometría via `LGA_QtAdapter_ToolPack.primary_screen_geometry()`.
 - [x] `LGA_Write_RenderComplete.py` — audio: PySide6 usa `QMediaPlayer+QAudioOutput`, PySide2 mantiene `QSound`.
 
-- [x] `qt_compat.py` (funciones helper avanzadas: `horizontal_advance`, `primary_screen_geometry`, `set_layout_margin`).
-- [x] `LGA_viewer_SnapShot.py` — ahora via `qt_compat`.
-- [x] `LGA_viewer_SnapShot_Buttons.py` — ahora via `qt_compat`, limpieza por `objectName`, detección slider robusta (N15/16).
-- [x] `LGA_viewer_SnapShot_Gallery.py` — imports via `qt_compat`.
-- [x] `LGA_mediaPathReplacer.py` — via `qt_compat`.
-- [x] `LGA_Write_Presets_Check.py` — via `qt_compat`.
-- [x] `LGA_RnW_ColorSpace_Favs.py` — via `qt_compat`.
-- [x] `LGA_disable_A_B.py` — via `qt_compat`.
-- [x] `LGA_CopyCat_Cleaner.py` — via `qt_compat`.
-- [x] `LGA_MediaManager.py` — via `qt_compat`.
-- [x] `LGA_MediaManager_utils.py` — via `qt_compat`.
-- [x] `LGA_MediaManager_settings.py` — via `qt_compat`.
-- [x] `LGA_MediaManager_FileScanner.py` — via `qt_compat`.
-- [x] `LGA_build_Grade.py` — via `qt_compat`.
-- [x] `LGA_build_Merge.py` — via `qt_compat`.
-- [x] `LGA_build_Roto.py` — via `qt_compat`.
-- [x] `LGA_build_iteration.py` — via `qt_compat`.
+- [x] `LGA_QtAdapter_ToolPack.py` (funciones helper avanzadas: `horizontal_advance`, `primary_screen_geometry`, `set_layout_margin`).
+- [x] `LGA_viewer_SnapShot.py` — ahora via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_viewer_SnapShot_Buttons.py` — ahora via `LGA_QtAdapter_ToolPack`, limpieza por `objectName`, detección slider robusta (N15/16).
+- [x] `LGA_viewer_SnapShot_Gallery.py` — imports via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_mediaPathReplacer.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_Write_Presets_Check.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_RnW_ColorSpace_Favs.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_disable_A_B.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_CopyCat_Cleaner.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_MediaManager.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_MediaManager_utils.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_MediaManager_settings.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_MediaManager_FileScanner.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_build_Grade.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_build_Merge.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_build_Roto.py` — via `LGA_QtAdapter_ToolPack`.
+- [x] `LGA_build_iteration.py` — via `LGA_QtAdapter_ToolPack`.
 
 Notas rápidas:
-- Geometría de pantalla: usar `qt_compat.primary_screen_geometry(pos)` (maneja automáticamente QDesktopWidget vs QGuiApplication).
+- Geometría de pantalla: usar `LGA_QtAdapter_ToolPack.primary_screen_geometry(pos)` (maneja automáticamente QDesktopWidget vs QGuiApplication).
 - `QSound` → `QMediaPlayer` + `QAudioOutput` en PySide6.
-- `QFontMetrics.width` → usar `qt_compat.horizontal_advance(metrics, text)` (compatible Qt5/Qt6).
-- Márgenes de layout: usar `qt_compat.set_layout_margin(layout, margin)` (compatible Qt5/Qt6).
-- Viewers/hotbox/init/menu: unificar imports con `qt_compat` para evitar mezcla PySide/PySide2.
-- Resto de scripts: solo envolver imports con `qt_compat` (QtWidgets/QtCore/QtGui); APIs Qt5 deprecadas manejadas por funciones helper.
+- `QFontMetrics.width` → usar `LGA_QtAdapter_ToolPack.horizontal_advance(metrics, text)` (compatible Qt5/Qt6).
+- Márgenes de layout: usar `LGA_QtAdapter_ToolPack.set_layout_margin(layout, margin)` (compatible Qt5/Qt6).
+- Viewers/hotbox/init/menu: unificar imports con `LGA_QtAdapter_ToolPack` para evitar mezcla PySide/PySide2.
+- Resto de scripts: solo envolver imports con `LGA_QtAdapter_ToolPack` (QtWidgets/QtCore/QtGui); APIs Qt5 deprecadas manejadas por funciones helper.
 
 ## Pasos sugeridos
-1) `qt_compat.py` ya incluye funciones helper avanzadas (`horizontal_advance`, `primary_screen_geometry`, `set_layout_margin`) con fallback PySide6 → PySide2.
-2) Cambiar imports en todos los scripts para usar `qt_compat` en lugar de imports directos de PySide.
-3) Para geometría de pantalla usar `qt_compat.primary_screen_geometry(pos)` (maneja automáticamente QDesktopWidget vs QGuiApplication).
-4) Para ancho de texto usar `qt_compat.horizontal_advance(metrics, text)` (compatible Qt5/Qt6 automáticamente).
-5) Para márgenes de layout usar `qt_compat.set_layout_margin(layout, margin)` (compatible Qt5/Qt6 automáticamente).
+1) `LGA_QtAdapter_ToolPack.py` ya incluye funciones helper avanzadas (`horizontal_advance`, `primary_screen_geometry`, `set_layout_margin`) con fallback PySide6 → PySide2.
+2) Cambiar imports en todos los scripts para usar `LGA_QtAdapter_ToolPack` en lugar de imports directos de PySide.
+3) Para geometría de pantalla usar `LGA_QtAdapter_ToolPack.primary_screen_geometry(pos)` (maneja automáticamente QDesktopWidget vs QGuiApplication).
+4) Para ancho de texto usar `LGA_QtAdapter_ToolPack.horizontal_advance(metrics, text)` (compatible Qt5/Qt6 automáticamente).
+5) Para márgenes de layout usar `LGA_QtAdapter_ToolPack.set_layout_margin(layout, margin)` (compatible Qt5/Qt6 automáticamente).
 6) Sustituir `QtOpenGL.QGLWidget` en `scale_widget.py`; si no se usa GL real, eliminar dependencia y usar DAG como `QWidget`.
-7) Asegurar `QAction` se importe desde `QtGui` en PySide6 (ya manejado por qt_compat).
+7) Asegurar `QAction` se importe desde `QtGui` en PySide6 (ya manejado por LGA_QtAdapter_ToolPack).
 8) Si aparece audio con `QSound`, migrar a `QMediaPlayer + QAudioOutput`.
 9) Probar manualmente en Nuke 15 y 16: paneles, backdrops, zoom middle-click, selectNodes, Km NodeGraph, captura/render de DAG.
 
 ## Cambios ya aplicados en el otro ToolPack (referencia)
-- `qt_compat.py` agregado con fallback PySide6 → PySide2.
-- `LGA_StickyNote.py` v1.92: usa `qt_compat`, tooltips se cierran en cerrar/OK/Cancel, debug off, auto-run comentado.
-- `LGA_NodeLabel.py` v0.83: usa `qt_compat`, tooltips con parent y cierre garantizado en OK/Cancel/cierre, namespace/version actualizado.
-- `LGA_StickyNote_Utils.py` v1.01: usa `qt_compat` para PySide6/2.
-- `LGA_backdrop.py` v0.81: usa `qt_compat`, tooltips con parent/cierre en OK/Cancel/closeEvent, `QDesktopWidget` → `QGuiApplication.primaryScreen().availableGeometry()`, namespace/version actualizado.
-- `LGA_BD_knobs.py`: imports con `qt_compat`.
-- `LGA_BD_fit.py`: imports con `qt_compat` (`QFont/QFontMetrics`).
+- `LGA_QtAdapter_ToolPack.py` agregado con fallback PySide6 → PySide2.
+- `LGA_StickyNote.py` v1.92: usa `LGA_QtAdapter_ToolPack`, tooltips se cierran en cerrar/OK/Cancel, debug off, auto-run comentado.
+- `LGA_NodeLabel.py` v0.83: usa `LGA_QtAdapter_ToolPack`, tooltips con parent y cierre garantizado en OK/Cancel/cierre, namespace/version actualizado.
+- `LGA_StickyNote_Utils.py` v1.01: usa `LGA_QtAdapter_ToolPack` para PySide6/2.
+- `LGA_backdrop.py` v0.81: usa `LGA_QtAdapter_ToolPack`, tooltips con parent/cierre en OK/Cancel/closeEvent, `QDesktopWidget` → `QGuiApplication.primaryScreen().availableGeometry()`, namespace/version actualizado.
+- `LGA_BD_knobs.py`: imports con `LGA_QtAdapter_ToolPack`.
+- `LGA_BD_fit.py`: imports con `LGA_QtAdapter_ToolPack` (`QFont/QFontMetrics`).
 - `LGA_BD_callbacks.py`: callback inline prueba PySide6 y luego PySide2 en `QFont/QFontMetrics`.
-- `scale_widget.py`: usa `qt_compat`, DAG `QWidget` (sin QtOpenGL), wheel reenviado al DAG.
-- `distributeNodes.py` y `dag.py`: usan `qt_compat`.
-- `LGA_zoom.py`: usa `qt_compat` y alias para mantener API original.
-- `LGA_selectNodes.py.panel`: usa `qt_compat`.
-- `LGA_scriptChecker.py`: usa `qt_compat`.
-- `Km_NodeGraphEN/PysideImport.py`: usa `qt_compat` y exporta nombres.
-- `Km_NodeGraphEN/Km_NodeGraph_Easy_Navigate.py`: usa `qt_compat`, `QDesktopWidget` → `QGuiApplication.primaryScreen()`.
+- `scale_widget.py`: usa `LGA_QtAdapter_ToolPack`, DAG `QWidget` (sin QtOpenGL), wheel reenviado al DAG.
+- `distributeNodes.py` y `dag.py`: usan `LGA_QtAdapter_ToolPack`.
+- `LGA_zoom.py`: usa `LGA_QtAdapter_ToolPack` y alias para mantener API original.
+- `LGA_selectNodes.py.panel`: usa `LGA_QtAdapter_ToolPack`.
+- `LGA_scriptChecker.py`: usa `LGA_QtAdapter_ToolPack`.
+- `Km_NodeGraphEN/PysideImport.py`: usa `LGA_QtAdapter_ToolPack` y exporta nombres.
+- `Km_NodeGraphEN/Km_NodeGraph_Easy_Navigate.py`: usa `LGA_QtAdapter_ToolPack`, `QDesktopWidget` → `QGuiApplication.primaryScreen()`.
 
 ## Nota de problema y solución (imports LGA_backdrop en Nuke)
 - Síntoma: `ImportError: attempted relative import with no known parent package` al iniciar Nuke y crash.
@@ -80,7 +80,7 @@ Notas rápidas:
 
 ## Notas sobre tooltips persistentes (NodeLabel/StickyNote)
 ## Incidencias encontradas hoy (Nuke 16, Viewer SnapShot)
-- PySide2 no disponible en N16 → `LGA_viewer_SnapShot.py` y Buttons migrados a `qt_compat`.
+- PySide2 no disponible en N16 → `LGA_viewer_SnapShot.py` y Buttons migrados a `LGA_QtAdapter_ToolPack`.
 - Botones duplicados en Viewer (Qt6) → limpiar instancias por `objectName` antes de insertar.
 - Detección de frameslider fallaba (layouts/AAction) → BFS ignorando `QAction`/`QLayout` y detección por tooltip/objectName/clase o `QSlider`.
 - `LGA_disable_A_B`: en PySide6 los eventos `QChildEvent` no tienen `MouseButtonPress`; se usa `QEvent.MouseButton*` y se valida `pos()` antes de usarlo.

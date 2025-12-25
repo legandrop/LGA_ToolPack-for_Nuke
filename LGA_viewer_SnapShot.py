@@ -11,7 +11,7 @@ import nuke
 import nukescripts
 import os
 import tempfile
-from qt_compat import QtGui, QtCore, QtWidgets
+from LGA_QtAdapter_ToolPack import QtGui, QtCore, QtWidgets
 
 QImage = QtGui.QImage
 QClipboard = QtGui.QClipboard

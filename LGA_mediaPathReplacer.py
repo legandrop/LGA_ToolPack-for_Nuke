@@ -7,7 +7,7 @@ _______________________________________________
 
 """
 
-from qt_compat import QtWidgets, QtGui, QtCore
+from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget

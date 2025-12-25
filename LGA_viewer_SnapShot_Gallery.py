@@ -13,7 +13,7 @@ import glob
 import shutil
 import subprocess  # Importar subprocess para abrir archivos en macOS/Linux
 import platform  # Importar platform para detectar el SO
-from qt_compat import QtWidgets, QtCore, QtGui
+from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget

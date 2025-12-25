@@ -12,7 +12,7 @@ import configparser
 import typing  # Importar typing
 from typing import Optional, Tuple
 
-from qt_compat import QtWidgets, QtCore, QtGui, QGuiApplication
+from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui, QGuiApplication
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget

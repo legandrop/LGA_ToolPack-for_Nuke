@@ -552,7 +552,7 @@ def menu_f9_hold():
         _f9_menu_timer = None
 
     # Crear nuevo timer para detectar release - USAR QTimer en lugar de threading.Timer
-    from qt_compat import QtCore
+    from LGA_QtAdapter_ToolPack import QtCore
 
     _f9_menu_timer = QtCore.QTimer()
     _f9_menu_timer.setSingleShot(True)

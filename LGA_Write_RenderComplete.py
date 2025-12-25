@@ -11,7 +11,7 @@ ________________________________________________________________________________
 import nuke
 import os
 import datetime
-from qt_compat import QtCore
+from LGA_QtAdapter_ToolPack import QtCore
 
 try:
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer

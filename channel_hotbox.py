@@ -38,7 +38,7 @@ __version__ = 2.01
 
 import math
 import nuke  # pylint: disable=import-error
-from qt_compat import QtCore, QtGui, QtWidgets as QtGuiWidgets
+from LGA_QtAdapter_ToolPack import QtCore, QtGui, QtWidgets as QtGuiWidgets
 
 HOTBOX = None
 
