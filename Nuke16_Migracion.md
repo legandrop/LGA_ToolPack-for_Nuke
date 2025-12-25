@@ -1,7 +1,8 @@
 # Plan de migración Nuke 15 → Nuke 16 (PySide2 → PySide6)
 
 ## Estrategia
-- Capa de compatibilidad de imports (`qt_compat.py` o `qtpy`) con fallback PySide6 → PySide2.
+- Capa de compatibilidad de imports (`qt_compat.py`) con funciones helper avanzadas y fallback PySide6 → PySide2.
+- Funciones helper automatizan cambios de API Qt5/Qt6: `horizontal_advance()`, `primary_screen_geometry()`, `set_layout_margin()`.
 - Reemplazar APIs Qt5 deprecadas: `QDesktopWidget`, `QtOpenGL.QGLWidget`, `QAction` en `QtWidgets`, enums de `QSizePolicy` en instancias, `QSound`.
 - Ajustar accesos a DAG: ya es `QWidget`, no OpenGL; usar `objectName` y `render()`.
 - Mantener compatibilidad con Nuke 15 mediante `try/except` o helper único.
@@ -11,11 +12,11 @@
 - [x] `channel_hotbox.py` — ahora usa `qt_compat` (sin mezcla PySide/PySide2).
 - [x] `init.py` — timers via `qt_compat.QtCore.QTimer`.
 - [x] `menu.py` — timers via `qt_compat.QtCore.QTimer`.
-- [x] `LGA_ToolPack_settings.py` — `QDesktopWidget` → `QGuiApplication.primaryScreen().availableGeometry()`.
-- [x] `LGA_Write_Presets.py` — `QDesktopWidget` → `screenAt/primaryScreen().availableGeometry()`.
+- [x] `LGA_ToolPack_settings.py` — geometría via `qt_compat.primary_screen_geometry()`.
+- [x] `LGA_Write_Presets.py` — geometría via `qt_compat.primary_screen_geometry()`.
 - [x] `LGA_Write_RenderComplete.py` — audio: PySide6 usa `QMediaPlayer+QAudioOutput`, PySide2 mantiene `QSound`.
 
-- [x] `qt_compat.py` (copiado, fallback PySide6→PySide2).
+- [x] `qt_compat.py` (funciones helper avanzadas: `horizontal_advance`, `primary_screen_geometry`, `set_layout_margin`).
 - [x] `LGA_viewer_SnapShot.py` — ahora via `qt_compat`.
 - [x] `LGA_viewer_SnapShot_Buttons.py` — ahora via `qt_compat`, limpieza por `objectName`, detección slider robusta (N15/16).
 - [x] `LGA_viewer_SnapShot_Gallery.py` — imports via `qt_compat`.
@@ -34,19 +35,23 @@
 - [x] `LGA_build_iteration.py` — via `qt_compat`.
 
 Notas rápidas:
-- `QDesktopWidget` → `QGuiApplication.primaryScreen().availableGeometry()`; para posicionar relativo al cursor usar `screenAt(pos) or primaryScreen()`.
+- Geometría de pantalla: usar `qt_compat.primary_screen_geometry(pos)` (maneja automáticamente QDesktopWidget vs QGuiApplication).
 - `QSound` → `QMediaPlayer` + `QAudioOutput` en PySide6.
+- `QFontMetrics.width` → usar `qt_compat.horizontal_advance(metrics, text)` (compatible Qt5/Qt6).
+- Márgenes de layout: usar `qt_compat.set_layout_margin(layout, margin)` (compatible Qt5/Qt6).
 - Viewers/hotbox/init/menu: unificar imports con `qt_compat` para evitar mezcla PySide/PySide2.
-- Resto de scripts: solo envolver imports con `qt_compat` (QtWidgets/QtCore/QtGui); no se detectaron APIs Qt5 deprecadas.
+- Resto de scripts: solo envolver imports con `qt_compat` (QtWidgets/QtCore/QtGui); APIs Qt5 deprecadas manejadas por funciones helper.
 
 ## Pasos sugeridos
-1) Crear `qt_compat.py` que exporte `QtWidgets`, `QtGui`, `QtCore`, `QAction`, `QGuiApplication`, `PYSIDE_VER` con fallback PySide6 → PySide2.
-2) Cambiar imports en todos los scripts de la lista para usar el helper.
-3) Reemplazar `QDesktopWidget` por `QGuiApplication.primaryScreen().geometry()` o `.availableGeometry()`. Para coords relativas usar `screenAt(cursor_pos) or primaryScreen()`.
-4) Sustituir `QtOpenGL.QGLWidget` en `scale_widget.py`; si no se usa GL real, eliminar dependencia y usar DAG como `QWidget`.
-5) Asegurar `QAction` se importe desde `QtGui` en PySide6.
-6) Si aparece audio con `QSound`, migrar a `QMediaPlayer + QAudioOutput`.
-7) Probar manualmente en Nuke 15 y 16: paneles, backdrops, zoom middle-click, selectNodes, Km NodeGraph, captura/render de DAG.
+1) `qt_compat.py` ya incluye funciones helper avanzadas (`horizontal_advance`, `primary_screen_geometry`, `set_layout_margin`) con fallback PySide6 → PySide2.
+2) Cambiar imports en todos los scripts para usar `qt_compat` en lugar de imports directos de PySide.
+3) Para geometría de pantalla usar `qt_compat.primary_screen_geometry(pos)` (maneja automáticamente QDesktopWidget vs QGuiApplication).
+4) Para ancho de texto usar `qt_compat.horizontal_advance(metrics, text)` (compatible Qt5/Qt6 automáticamente).
+5) Para márgenes de layout usar `qt_compat.set_layout_margin(layout, margin)` (compatible Qt5/Qt6 automáticamente).
+6) Sustituir `QtOpenGL.QGLWidget` en `scale_widget.py`; si no se usa GL real, eliminar dependencia y usar DAG como `QWidget`.
+7) Asegurar `QAction` se importe desde `QtGui` en PySide6 (ya manejado por qt_compat).
+8) Si aparece audio con `QSound`, migrar a `QMediaPlayer + QAudioOutput`.
+9) Probar manualmente en Nuke 15 y 16: paneles, backdrops, zoom middle-click, selectNodes, Km NodeGraph, captura/render de DAG.
 
 ## Cambios ya aplicados en el otro ToolPack (referencia)
 - `qt_compat.py` agregado con fallback PySide6 → PySide2.
