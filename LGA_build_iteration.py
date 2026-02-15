@@ -1,7 +1,7 @@
 """
 __________________________________________________________
 
-  LGA_build_iteration v1.23 | Lega
+  LGA_build_iteration v1.24 | Lega
   Genera un arbol de nodos usado para generar variaciones
   de una imagen.
 
@@ -31,6 +31,93 @@ DEFAULT_DOT_WIDTH = 12
 def debug_print(message):
     if DEBUG:
         print(message)
+
+
+def _is_iteration_recall_selection(selected_nodes):
+    if len(selected_nodes) != 4:
+        return False
+    class_counts = {}
+    for node in selected_nodes:
+        node_class = node.Class()
+        class_counts[node_class] = class_counts.get(node_class, 0) + 1
+    if class_counts.get("Dot", 0) != 3:
+        return False
+    return class_counts.get("Merge2", 0) == 1 or class_counts.get("Keymix", 0) == 1
+
+
+def _replace_iteration_mix_node(selected_nodes):
+    mix_node = None
+    for node in selected_nodes:
+        if node.Class() in ("Merge2", "Keymix"):
+            mix_node = node
+            break
+    if mix_node is None:
+        return False
+
+    source_class = mix_node.Class()
+    target_class = "Keymix" if source_class == "Merge2" else "Merge2"
+
+    xpos = mix_node.xpos()
+    ypos = mix_node.ypos()
+    mix_center_y = mix_node.ypos() + (mix_node.screenHeight() / 2.0)
+
+    # Buscar el Dot lateral al nodo mix (el más cercano en Y) para alinear centros.
+    selected_dots = [node for node in selected_nodes if node.Class() == "Dot"]
+    reference_dot = None
+    if selected_dots:
+        reference_dot = min(
+            selected_dots,
+            key=lambda dot: abs((dot.ypos() + (dot.screenHeight() / 2.0)) - mix_center_y),
+        )
+
+    # Guardar dependientes para reconectar salida al nuevo Keymix
+    output_links = []
+    for dependent in mix_node.dependent(nuke.INPUTS):
+        for input_index in range(dependent.inputs()):
+            if dependent.input(input_index) == mix_node:
+                output_links.append((dependent, input_index))
+
+    if target_class == "Keymix":
+        new_mix_node = nuke.nodes.Keymix()
+    else:
+        new_mix_node = nuke.nodes.Merge2()
+
+    new_mix_node.setXpos(xpos)
+    new_mix_node.setYpos(ypos)
+
+    # Copiar conexiones de entrada del nodo anterior al nuevo nodo.
+    for input_index in range(mix_node.inputs()):
+        source = mix_node.input(input_index)
+        if source is None:
+            continue
+        try:
+            new_mix_node.setInput(input_index, source)
+        except Exception:
+            # Algunos nodos no exponen todos los índices; ignoramos esos casos.
+            pass
+
+    if target_class == "Merge2":
+        new_mix_node["operation"].setValue("over")
+        new_mix_node["bbox"].setValue("union")
+
+    if reference_dot is not None:
+        dot_center_y = reference_dot.ypos() + (reference_dot.screenHeight() / 2.0)
+        new_mix_node.setYpos(int(round(dot_center_y - (new_mix_node.screenHeight() / 2.0))))
+
+    for dependent, input_index in output_links:
+        dependent.setInput(input_index, new_mix_node)
+
+    nuke.delete(mix_node)
+
+    for node in nuke.allNodes():
+        node["selected"].setValue(False)
+    for node in selected_nodes:
+        if node != mix_node:
+            node["selected"].setValue(True)
+    new_mix_node["selected"].setValue(True)
+
+    debug_print(f"Rellamado detectado: {source_class} reemplazado por {target_class}")
+    return True
 
 
 def simulate_dag_click():
@@ -264,6 +351,11 @@ def gen_iteration():
 
 
 def gen_iteration_simple():
+    selected_nodes = nuke.selectedNodes()
+    if _is_iteration_recall_selection(selected_nodes):
+        if _replace_iteration_mix_node(selected_nodes):
+            return
+
     # Distancia entre nodos
     distanciaY = 70
     distanciaY_columna_lateral = (
