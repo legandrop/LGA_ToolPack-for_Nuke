@@ -413,7 +413,7 @@ class SelectedNodeInfo(QWidget):
                 padding-right: 0px;
                 padding-top: 5px;
                 padding-bottom: 5px;
-                color: #f0f0f0;
+                color: #cccccc;
             }
             QTableView::item:hover {
                 background-color: #2f2f2f;
