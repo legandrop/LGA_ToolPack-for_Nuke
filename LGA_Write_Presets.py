@@ -1,14 +1,18 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.72 | Lega
+  LGA_Write_Presets v2.73 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
 
+  v2.73: Ajustes UI.
+  
   v2.72: Detecta OCIO 1.3+/v2 y ajusta los presets Output Rec.709 para usar transformType=display con el display/view del proyecto.
+  
   v2.71: bug fixes.
+  
   v2.70: bug fixes.
   
   v2.69: Mejorado manejo de Writes con paths invalidos. Ahora muestra una ventana
@@ -850,18 +854,23 @@ class ColoredItemDelegate(QStyledItemDelegate):
         if text:
             painter.save()
 
+            row = index.row()
+            is_hovered = (
+                hasattr(self.table_widget, "hovered_row")
+                and self.table_widget.hovered_row == row
+            )
+
             # Verificar si el item esta deshabilitado
             is_enabled = True
             if self.table_widget:
-                row = index.row()
                 col = index.column()
                 item = self.table_widget.item(row, col)
                 if item:
                     # Verificar si el item tiene el flag ItemIsEnabled
                     is_enabled = bool(item.flags() & Qt.ItemIsEnabled)
 
-            if option.state & QStyle.State_Selected:
-                painter.fillRect(option.rect, QColor("#424242"))
+            base_color = "#2f2f2f" if is_hovered else "#222222"
+            painter.fillRect(option.rect, QColor(base_color))
 
             padding_left = 5
             adjusted_rect = option.rect.adjusted(padding_left, 0, 0, 0)
@@ -931,7 +940,11 @@ class ColoredItemDelegate(QStyledItemDelegate):
                     break
             else:
                 # Si no encuentra formato, dibujar texto normal
-                painter.drawText(remaining_rect, Qt.AlignLeft | Qt.AlignVCenter, name)
+                painter.drawText(
+                    remaining_rect,
+                    Qt.AlignLeft | Qt.AlignVCenter,
+                    name,
+                )
 
             painter.restore()
 
@@ -944,6 +957,7 @@ class ShiftClickTableWidget(QTableWidget):
     def __init__(self, rows, columns, parent=None):
         super().__init__(rows, columns, parent)
         self.shift_click_callback = None  # type: ignore
+        self.hovered_row = -1
 
     def mousePressEvent(self, event):
         """Detecta Shift+Click y llama al callback si esta definido."""
@@ -991,6 +1005,21 @@ class ShiftClickTableWidget(QTableWidget):
         # Si no es Shift+Click, procesar normalmente
         debug_print("[ShiftClickTableWidget] No es Shift+Click, procesando normalmente")
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        index = self.indexAt(event.pos())
+        new_row = index.row() if index.isValid() else -1
+        if new_row != self.hovered_row:
+            self.hovered_row = new_row
+            self.viewport().update()
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        if self.hovered_row != -1:
+            self.hovered_row = -1
+            self.viewport().update()
+        super().leaveEvent(event)
+
 
 
 class SelectedNodeInfo(QWidget):
@@ -1046,17 +1075,8 @@ class SelectedNodeInfo(QWidget):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.close()
-        elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
-            current_row = self.table.currentRow()
-            if current_row >= 0:
-                # Verificar si el item esta habilitado antes de procesar
-                item = self.table.item(current_row, 0)
-                if item and (item.flags() & Qt.ItemIsEnabled):
-                    self.handle_render_option(current_row, 0)
-        elif event.key() in (Qt.Key_Up, Qt.Key_Down):
-            QWidget.keyPressEvent(self, event)
         else:
-            event.ignore()
+            QWidget.keyPressEvent(self, event)
 
     def initUI(self):
         # Si hay un Write para editar, abrir directamente la ventana de edición
@@ -1130,15 +1150,17 @@ class SelectedNodeInfo(QWidget):
         self.table.horizontalHeader().setVisible(False)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.setFocusPolicy(Qt.StrongFocus)
+        self.table.setFocusPolicy(Qt.NoFocus)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SingleSelection)
+        self.table.setSelectionMode(QTableWidget.NoSelection)
+        self.table.setMouseTracking(True)
 
         # Cargar datos en la tabla
         self.load_render_options()
 
         # Conectar eventos de clic
         self.table.cellClicked.connect(self.handle_render_option)
+        self.table.cellEntered.connect(self.handle_cell_hover)
         # Conectar Shift+Click
         self.table.shift_click_callback = self.handle_render_option_shift  # type: ignore
 
@@ -1223,15 +1245,26 @@ class SelectedNodeInfo(QWidget):
                 border: none;
                 border-bottom-left-radius: 4px;
                 border-bottom-right-radius: 4px;
+                gridline-color: #1c1c1c;
             }
             QTableView::item {
                 padding-left: 0px;    /* Aumentado el padding izquierdo */
                 padding-right: 0px;   /* Aumentado el padding derecho */
                 padding-top: 5px;      /* Mantener padding vertical */
                 padding-bottom: 5px;
+                color: #f0f0f0;
             }
             QTableView::item:selected {
                 background-color: #212121;
+                color: #f0f0f0;
+            }
+            QTableView::item:!selected:hover {
+                background-color: #2f2f2f;
+                color: #ffffff;
+            }
+            QTableView::item:selected:hover {
+                background-color: #252525;
+                color: #ffffff;
             }
         """
         )
@@ -1384,6 +1417,11 @@ class SelectedNodeInfo(QWidget):
                 create_write_from_preset(preset, user_text)
         else:
             create_write_from_preset(preset)
+
+    def handle_cell_hover(self, row, column):
+        if hasattr(self.table, "hovered_row"):
+            self.table.hovered_row = row
+            self.table.viewport().update()
 
     def _create_write_from_pending(self, modified_file_pattern=None):
         """
