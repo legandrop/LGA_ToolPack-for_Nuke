@@ -1026,6 +1026,7 @@ class SelectedNodeInfo(QWidget):
     def __init__(self, parent=None):
         super(SelectedNodeInfo, self).__init__(parent)
         self.interface_created = False
+        self.drag_position = None
 
         # Detectar formato del shotname y ajustar presets
         debug_print(
@@ -1089,7 +1090,7 @@ class SelectedNodeInfo(QWidget):
             return  # No crear la interfaz normal
 
         self.setWindowFlags(Qt.FramelessWindowHint)
-        self.setWindowTitle("RENDER TYPE")
+        self.setWindowTitle("WRITE PRESETS")
 
         # Crear un widget contenedor principal
         main_container = QWidget(self)
@@ -1108,10 +1109,10 @@ class SelectedNodeInfo(QWidget):
         main_layout.setContentsMargins(10, 6, 10, 8)
 
         # Crear la barra de título
-        title_bar = QWidget(self)
-        title_bar.setFixedHeight(20)
-        title_bar.setAutoFillBackground(True)
-        title_bar.setStyleSheet(
+        self.title_bar = QWidget(self)
+        self.title_bar.setFixedHeight(20)
+        self.title_bar.setAutoFillBackground(True)
+        self.title_bar.setStyleSheet(
             """
             QWidget {
                 background-color: #282828;
@@ -1121,16 +1122,15 @@ class SelectedNodeInfo(QWidget):
         """
         )
 
-        title_bar_layout = QHBoxLayout(title_bar)
+        title_bar_layout = QHBoxLayout(self.title_bar)
         title_bar_layout.setContentsMargins(0, 0, 0, 0)
         title_bar_layout.addStretch(1)
 
-        title_label = QPushButton(self.windowTitle(), self)
-        title_label.setStyleSheet(
-            "background-color: none; color: #B0B0B0; border: none; font-weight: bold;"
+        self.title_label = QLabel(self.windowTitle(), self)
+        self.title_label.setStyleSheet(
+            "color: #B0B0B0; border: none; font-weight: bold;"
         )
-        title_label.setEnabled(False)
-        title_bar_layout.addWidget(title_label)
+        title_bar_layout.addWidget(self.title_label, alignment=Qt.AlignCenter)
 
         title_bar_layout.addStretch(1)
 
@@ -1143,7 +1143,9 @@ class SelectedNodeInfo(QWidget):
         title_bar_layout.addWidget(close_button)
         title_bar_layout.setSpacing(0)
 
-        main_layout.addWidget(title_bar)
+        main_layout.addWidget(self.title_bar)
+        self.title_bar.installEventFilter(self)
+        self.title_label.installEventFilter(self)
 
         # Crear y configurar la tabla (una sola vez)
         self.table = ShiftClickTableWidget(len(self.options), 1, self)
@@ -1422,6 +1424,22 @@ class SelectedNodeInfo(QWidget):
         if hasattr(self.table, "hovered_row"):
             self.table.hovered_row = row
             self.table.viewport().update()
+
+    def eventFilter(self, obj, event):
+        if obj in (self.title_bar, self.title_label):
+            if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
+                event.accept()
+                return True
+            if event.type() == QtCore.QEvent.MouseMove and self.drag_position and event.buttons() & Qt.LeftButton:
+                self.move(event.globalPos() - self.drag_position)
+                event.accept()
+                return True
+            if event.type() == QtCore.QEvent.MouseButtonRelease:
+                self.drag_position = None
+                event.accept()
+                return True
+        return super().eventFilter(obj, event)
 
     def _create_write_from_pending(self, modified_file_pattern=None):
         """
