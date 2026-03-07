@@ -1,7 +1,7 @@
 """
 ________________________________________________________________________
 
-  LGA_RnW_ColorSpace_Favs v1.44 | Lega
+  LGA_RnW_ColorSpace_Favs v1.45 | Lega
   Tool for applying OCIO color spaces to selected Read and Write nodes
 ________________________________________________________________________
 
@@ -36,10 +36,59 @@ import platform
 # Variable global para controlar el debug
 DEBUG = False  # Poner en False para desactivar los mensajes de debug
 
+DEFAULT_DISPLAY_NAME = "sRGB - Display"
+DEFAULT_VIEW_NAME = "ACES 1.0 - SDR Video"
+OCIO_REC709_FALLBACK = "Camera Rec.709"
+
 
 def debug_print(*message):
     if DEBUG:
         print(*message)
+
+
+def get_root_knob_value(knob_name, default_value=""):
+    root = nuke.root()
+    knob = root.knob(knob_name)
+    if not knob:
+        return default_value
+    try:
+        value = knob.value()
+    except AttributeError:
+        return default_value
+    if isinstance(value, str):
+        return value.strip()
+    return value if value is not None else default_value
+
+
+def is_ocio_v2_config(config_name):
+    if not config_name:
+        return False
+    lowered = config_name.lower()
+    return "v2." in lowered or "aces-v1.3" in lowered or "1.3" in lowered
+
+
+def get_color_management_context():
+    config_name = get_root_knob_value("OCIO_config")
+    return {
+        "ocio_config": config_name,
+        "is_ocio_v2": is_ocio_v2_config(config_name),
+    }
+
+
+def resolve_colorspace_for_context(requested_name, color_context):
+    normalized = requested_name.strip()
+    if (
+        normalized == "Output - Rec.709"
+        and color_context
+        and color_context.get("is_ocio_v2")
+    ):
+        debug_print(
+            "[ColorSpace_Favs] Remapeando Output - Rec.709 a",
+            OCIO_REC709_FALLBACK,
+            "por OCIO 2.x",
+        )
+        return OCIO_REC709_FALLBACK
+    return normalized
 
 
 def get_user_config_dir():
@@ -233,6 +282,7 @@ class SelectedNodeInfo(QWidget):
             else self.load_color_spaces_wrapper()  # Usar el wrapper
         )
         self.selected_nodes = selected_nodes
+        self.color_context = get_color_management_context()
         if self.color_spaces:  # initUI solo si hay color spaces
             self.initUI()
         else:
@@ -431,8 +481,13 @@ class SelectedNodeInfo(QWidget):
     def change_color_space(self, row, column):
         # Asegurarse de que el indice de fila sea valido
         if 0 <= row < len(self.color_spaces):
-            selected_color_space = self.color_spaces[row]
-            debug_print(f"Aplicando colorspace: {selected_color_space}")  # Debug
+            requested_color_space = self.color_spaces[row]
+            resolved_color_space = resolve_colorspace_for_context(
+                requested_color_space, self.color_context
+            )
+            debug_print(
+                f"Aplicando colorspace: {requested_color_space} -> {resolved_color_space}"
+            )
 
             # Volver a obtener nodos seleccionados por si cambio
             selected_nodes = nuke.selectedNodes()
@@ -442,7 +497,7 @@ class SelectedNodeInfo(QWidget):
                 for node in selected_nodes:
                     if node.Class() in ["Read", "Write"]:
                         try:
-                            node["colorspace"].setValue(selected_color_space)
+                            node["colorspace"].setValue(resolved_color_space)
                             nodes_changed += 1
                             debug_print(f"  - Aplicado a {node.name()}")
                         except Exception as e:

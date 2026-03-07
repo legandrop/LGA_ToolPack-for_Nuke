@@ -8,20 +8,20 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
             <dock id="" hideTitles="1" activePageId="Toolbar.1">
                 <page id="Toolbar.1"/>
             </dock>
-            <split size="1106" stretch="1"/>
+            <split size="1175" stretch="1"/>
             <splitter orientation="2">
                 <split size="1001"/>
-                <dock id="" activePageId="DAG.1" focus="true">
+                <dock id="" activePageId="DAG.1">
                     <page id="DAG.1"/>
                 </dock>
                 <split size="323"/>
                 <splitter orientation="1">
-                    <split size="350"/>
+                    <split size="372"/>
                     <dock id="" activePageId="Progress.1">
                         <page id="Progress.1"/>
                         <page id="com.lega.perfTime"/>
                     </dock>
-                    <split size="752"/>
+                    <split size="799"/>
                     <dock id="" activePageId="DopeSheet.1">
                         <page id="DopeSheet.1"/>
                         <page id="Curve Editor.1"/>
@@ -30,7 +30,7 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
                     </dock>
                 </splitter>
             </splitter>
-            <split size="705"/>
+            <split size="636"/>
             <splitter orientation="2">
                 <split size="1328"/>
                 <dock id="" activePageId="Properties.1">
@@ -49,7 +49,6 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
 Root {
  inputs 0
  name C:/Users/leg4-pc/.nuke/LGA_ToolPack/test_ocio_2.nk
- frame 1100
  first_frame 1001
  last_frame 1177
  lock_range true
@@ -201,7 +200,7 @@ Write {
  mov64_codec appr
  mov_prores_codec_profile "ProRes 4:2:2 LT 10-bit"
  mov_h264_codec_profile "High 4:2:0 8-bit"
- mov64_pixel_format {{0}}
+ mov64_pixel_format {{0} "yuv420p\tYCbCr 4:2:0 8-bit"}
  mov64_quality High
  mov64_fast_start true
  mov64_write_timecode true
@@ -215,6 +214,8 @@ Write {
  colorspace rec709
  create_directories true
  checkHashOnRead false
+ in_colorspace scene_linear
+ out_colorspace scene_linear
  ocioColorspace scene_linear
  display "sRGB - Display"
  view "ACES 1.0 - SDR Video"
@@ -282,22 +283,23 @@ Read {
  origlast 1177
  origset true
  version 30
- colorspace "ARRI LogC4"
+ colorspace ACES2065-1
  name Read6
- xpos 2209
+ selected true
+ xpos 2208
  ypos 724
 }
 push 0
 push 0
 Viewer {
  inputs 3
+ frame 1
  frame_range 1001-1177
  input_number 2
  viewerProcess "ACES 1.0 - SDR Video (sRGB - Display)"
  monitorOutNDISenderName "NukeX - test_ocio_2 - Viewer1"
  name Viewer1
  tile_color 0x323232ff
- selected true
  xpos 2319
  ypos 511
 }
