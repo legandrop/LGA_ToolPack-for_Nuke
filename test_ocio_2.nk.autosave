@@ -244,8 +244,9 @@ Read {
  sonyWallKelvin 3200
  sonyLightBlend 100
  name Read1
- xpos 2385
- ypos 730
+ selected true
+ xpos 2381
+ ypos 735
 }
 set N2d53f400 [stack 0]
 Write {
@@ -274,19 +275,6 @@ Write {
  addUserKnob {1 render_time l "Render Time"}
  render_time 00:00:33
 }
-push $N2d53f400
-push 0
-push 0
-Viewer {
- inputs 3
- frame_range 1001-1177
- viewerProcess "ACES 1.0 - SDR Video (sRGB - Display)"
- monitorOutNDISenderName "NukeX - test_ocio_2 - Viewer1"
- name Viewer1
- tile_color 0x323232ff
- xpos 2319
- ypos 511
-}
 Read {
  inputs 0
  file_type exr
@@ -302,4 +290,18 @@ Read {
  name Read6
  xpos 2208
  ypos 724
+}
+push $N2d53f400
+push 0
+push 0
+Viewer {
+ inputs 3
+ frame_range 1001-1177
+ input_number 2
+ viewerProcess "ACES 1.0 - SDR Video (sRGB - Display)"
+ monitorOutNDISenderName "NukeX - test_ocio_2 - Viewer1"
+ name Viewer1
+ tile_color 0x323232ff
+ xpos 2319
+ ypos 511
 }

@@ -1,9 +1,10 @@
 """
 ________________________________________________________________________
 
-  LGA_RnW_ColorSpace_Favs v1.46 | Lega
+  LGA_RnW_ColorSpace_Favs v1.47 | Lega
   Tool for applying OCIO color spaces to selected Read and Write nodes
   
+  v1.47: Ajustes UI.
   v1.46: Agregado botón "Save Current" para guardar el colorspace activo como favorito.
 ________________________________________________________________________
 
@@ -325,7 +326,19 @@ class SelectedNodeInfo(QWidget):
             self.setWindowTitle("Node Information")
             header_label = "Transform"
 
+        self.setObjectName("colorFavWindow")
+        self.setStyleSheet(
+            """
+            QWidget#colorFavWindow {
+                background-color: #282828;
+                border: none;
+                border-radius: 9px;
+            }
+        """
+        )
+
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 6, 10, 8)
 
         # Crear una barra de titulo personalizada con el titulo y el boton de cierre en la misma linea
         title_bar = QWidget(self)
@@ -334,7 +347,7 @@ class SelectedNodeInfo(QWidget):
             True
         )  # Asegurar que el fondo se llene con el color especificado
         title_bar.setStyleSheet(
-            "background-color: #323232;"
+            "background-color: #282828;"
         )  # Establecer el color de fondo
 
         title_bar_layout = QHBoxLayout(title_bar)
@@ -388,9 +401,27 @@ class SelectedNodeInfo(QWidget):
         # Configurar el estilo de la tabla
         self.table.setStyleSheet(
             """
+            QTableView {
+                background-color: #222222;
+                border: none;
+                border-bottom-left-radius: 4px;
+                border-bottom-right-radius: 4px;
+                gridline-color: #1c1c1c;
+            }
+            QTableView::item {
+                padding-left: 0px;
+                padding-right: 0px;
+                padding-top: 5px;
+                padding-bottom: 5px;
+                color: #f0f0f0;
+            }
+            QTableView::item:hover {
+                background-color: #2f2f2f;
+                color: #ffffff;
+            }
             QTableView::item:selected {
-                background-color: rgb(230, 230, 230);  # Gris claro
-                color: black;
+                background-color: #212121;
+                color: #f0f0f0;
             }
         """
         )
@@ -475,12 +506,12 @@ class SelectedNodeInfo(QWidget):
         final_width = min(width, max_width)
 
         # Calcular la altura basada en la altura de los headers y las filas
-        height = self.table.horizontalHeader().height() + 20
+        height = self.table.horizontalHeader().height() + 10
         for i in range(self.table.rowCount()):
             height += self.table.rowHeight(i)
 
-        # Agregar un relleno amplio para el botón inferior y espaciado extra
-        height += 52
+        # Agregar un relleno justo para el botón inferior y espaciado extra
+        height += 40
 
         # Incluir la altura de la barra de titulo personalizada
         title_bar_height = 20
