@@ -1,12 +1,13 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.71 | Lega
+  LGA_Write_Presets v2.72 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
 
+  v2.72: Detecta OCIO 1.3+/v2 y ajusta los presets Output Rec.709 para usar transformType=display con el display/view del proyecto.
   v2.71: bug fixes.
   v2.70: bug fixes.
   
@@ -164,6 +165,87 @@ def get_unique_node_name(base_name):
         node_name = f"{base_name}{index}"
         index += 1
     return node_name
+
+
+DEFAULT_DISPLAY_NAME = "sRGB - Display"
+DEFAULT_VIEW_NAME = "ACES 1.0 - SDR Video"
+
+
+def get_root_knob_value(knob_name, default_value=""):
+    """Obtiene y normaliza el valor de un knob del Root."""
+    root = nuke.root()
+    knob = root.knob(knob_name)
+    if not knob:
+        return default_value
+    try:
+        value = knob.value()
+    except AttributeError:
+        return default_value
+    if isinstance(value, str):
+        return value.strip()
+    return value if value is not None else default_value
+
+
+def is_ocio_v2_config(config_name):
+    """Detecta si el config pertenece a OCIO 2.x / ACES 1.3+."""
+    if not config_name:
+        return False
+    lowered = config_name.lower()
+    return "v2." in lowered or "aces-v1.3" in lowered or "1.3" in lowered
+
+
+def parse_display_view(raw_value):
+    """
+    Convierte strings tipo 'ACES 1.0 - SDR Video (sRGB - Display)' en (display, view).
+    """
+    if raw_value and "(" in raw_value and raw_value.endswith(")"):
+        view = raw_value.split("(")[0].strip()
+        display = raw_value.split("(")[1].rstrip(")").strip()
+        if display and view:
+            return display, view
+    return DEFAULT_DISPLAY_NAME, DEFAULT_VIEW_NAME
+
+
+def get_color_management_context():
+    """Retorna la info de OCIO necesaria para configurar Writes."""
+    config_name = get_root_knob_value("OCIO_config")
+    monitor_lut = get_root_knob_value("monitorLut")
+    monitor_out = get_root_knob_value("monitorOutLUT")
+    display, view = parse_display_view(monitor_lut or monitor_out)
+    return {
+        "ocio_config": config_name,
+        "is_ocio_v2": is_ocio_v2_config(config_name),
+        "display": display,
+        "view": view,
+    }
+
+
+def apply_colorspace_settings(write_node, preset, color_context):
+    """Aplica colorspace/display siguiendo la lógica del proyecto."""
+    preset_colorspace = preset.get("colorspace", "default")
+    transform_knob = write_node.knob("transformType")
+    display_knob = write_node.knob("display")
+    view_knob = write_node.knob("view")
+
+    use_display_transform = (
+        preset_colorspace == "Output - Rec.709" and color_context["is_ocio_v2"]
+    )
+
+    if use_display_transform and transform_knob and display_knob and view_knob:
+        transform_knob.setValue("display")
+        display_knob.setValue(color_context["display"])
+        view_knob.setValue(color_context["view"])
+        write_node["colorspace"].setValue("rec709")
+        debug_print(
+            "[Write_Presets] Aplicando display/view del proyecto:",
+            color_context["display"],
+            "|",
+            color_context["view"],
+        )
+    else:
+        if transform_knob:
+            transform_knob.setValue("colorspace")
+        write_node["colorspace"].setValue(preset_colorspace)
 
 
 class NameInputDialog(QDialog):
@@ -628,6 +710,8 @@ def create_write_from_preset(preset, user_text=None, modified_file_pattern=None)
                     if node.input(i) == current_node:
                         node.setInput(i, write_node)
 
+    color_context = get_color_management_context()
+
     # Configurar Write node
     write_node["file_type"].setValue(preset["file_type"])
     write_node["channels"].setValue(preset["channels"])
@@ -635,7 +719,6 @@ def create_write_from_preset(preset, user_text=None, modified_file_pattern=None)
     # Configurar parámetros específicos según el tipo de archivo
     if preset["file_type"] == "tiff":
         write_node["datatype"].setValue(preset["datatype"])
-        write_node["colorspace"].setValue(preset["colorspace"])
     elif preset["file_type"] == "mov":
         write_node["mov64_format"].setValue(preset["mov64_format"])
         write_node["mov64_codec"].setValue(preset["mov64_codec"])
@@ -658,24 +741,22 @@ def create_write_from_preset(preset, user_text=None, modified_file_pattern=None)
         )
         write_node["mov64_quality_min"].setValue(int(preset["mov64_quality_min"]))
         write_node["mov64_quality_max"].setValue(int(preset["mov64_quality_max"]))
-        write_node["colorspace"].setValue(preset["colorspace"])
     elif preset["file_type"] == "mxf":
         write_node["mxf_codec_profile_knob"].setValue(preset["mxf_codec_profile_knob"])
         write_node["mxf_advanced"].setValue(preset["mxf_advanced"].lower() == "true")
         write_node["dataRange"].setValue(preset.get("dataRange"))
-        write_node["colorspace"].setValue(preset["colorspace"])
     elif preset["file_type"] == "png":
         write_node["datatype"].setValue(
             "16 bit" if preset.get("datatype", "16 bit") == "16 bit" else "8 bit"
         )
-        write_node["colorspace"].setValue(preset["colorspace"])
     else:
         if preset["file_type"] == "exr":
             write_node["compression"].setValue(preset["compression"])
             write_node["dw_compression_level"].setValue(
                 int(preset["compression_level"])
             )
-            write_node["colorspace"].setValue(preset["colorspace"])
+
+    apply_colorspace_settings(write_node, preset, color_context)
 
     write_node["create_directories"].setValue(create_directories)
 

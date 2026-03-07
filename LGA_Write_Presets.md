@@ -36,6 +36,12 @@ Las fórmulas TCL en los presets se ajustan automáticamente según el formato d
 - `create_write_from_preset(preset, user_text=None, modified_file_pattern=None)`: Crea el Write node con toda la configuración
 - `detect_shotname_format_from_script()`: Detecta el formato del shotname usando el módulo compartido `LGA_ToolPack_NamingUtils`
 
+## Compatibilidad con OCIO
+
+- **Writes float**: los presets EXR/TIFF de 32 bits usan `colorspace = default`, por lo que siempre heredan el `floatLut` configurado en el proyecto (ej. `ACES - ACES2065-1`, `scene_linear`, `ARRI LogC4`). No requieren ajustes adicionales.
+- **Writes con Output Rec.709**: los presets de review/entrega que usan `Output - Rec.709` se adaptarán según la versión del config. En OCIO/ACES 1.2 se mantiene el knob `colorspace`. Cuando se detecte un config ACES 1.3 / OCIO v2.1, el Write cambiará a `transformType = display` y copiará `display/view` del proyecto (por ejemplo `sRGB - Display` + `ACES 1.0 - SDR Video`).
+- **Fallback seguro**: si el espacio detectado no existe en el Write del usuario, se usará el working space actual como respaldo y se notificará para que el preset pueda ajustarse.
+
 ## Verificación y Edición de Paths
 
 Al hacer **click normal** sobre un preset, se muestra una ventana de verificación (`PathCheckWindow`) que permite revisar y editar el path antes de crear el Write node.
