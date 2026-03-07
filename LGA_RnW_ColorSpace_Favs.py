@@ -337,51 +337,37 @@ class SelectedNodeInfo(QWidget):
         """
         )
 
+        self.drag_position = None
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 6, 10, 8)
 
-        # Crear una barra de titulo personalizada con el titulo y el boton de cierre en la misma linea
-        title_bar = QWidget(self)
-        title_bar.setFixedHeight(20)  # Ajustar el alto de la barra de titulo
-        title_bar.setAutoFillBackground(
-            True
-        )  # Asegurar que el fondo se llene con el color especificado
-        title_bar.setStyleSheet(
-            "background-color: #282828;"
-        )  # Establecer el color de fondo
-
-        title_bar_layout = QHBoxLayout(title_bar)
-        title_bar_layout.setContentsMargins(0, 0, 0, 0)  # Ajustar los margenes a cero
-
-        # Anadir un expansor para centrar el titulo
+        self.title_bar = QWidget(self)
+        self.title_bar.setFixedHeight(20)
+        self.title_bar.setAutoFillBackground(True)
+        self.title_bar.setStyleSheet("background-color: #282828; border: none;")
+        title_bar_layout = QHBoxLayout(self.title_bar)
+        title_bar_layout.setContentsMargins(0, 0, 0, 0)
         title_bar_layout.addStretch(1)
 
-        # Crear el titulo de la ventana
-        title_label = QPushButton(self.windowTitle(), self)
-        title_label.setStyleSheet(
-            "background-color: none; color: white; border: none; font-weight: bold;"
-        )
-        title_label.setEnabled(False)  # Hacer que el boton no sea clickeable
-        title_bar_layout.addWidget(title_label)
-
-        # Anadir otro expansor para centrar el titulo
+        self.title_label = QLabel(self.windowTitle(), self)
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setStyleSheet("color: #B0B0B0; font-weight: bold;")
+        title_bar_layout.addWidget(self.title_label, alignment=Qt.AlignCenter)
         title_bar_layout.addStretch(1)
 
-        # Agregar el boton de cierre personalizado al final
         close_button = QPushButton("X", self)
-        close_button.setFixedSize(
-            20, 20
-        )  # Ajustar el tamano de la X para que sea consistente con la altura de la barra
+        close_button.setFixedSize(20, 20)
         close_button.setStyleSheet(
-            "background-color: none; color: white; border: none;"
+            "background-color: none; color: #B0B0B0; border: none;"
         )
         close_button.clicked.connect(self.close)
         title_bar_layout.addWidget(close_button)
 
-        # Mover el boton de cierre al final con espaciado
-        title_bar_layout.setSpacing(0)
+        self.title_bar.installEventFilter(self)
+        self.title_label.installEventFilter(self)
 
-        layout.addWidget(title_bar)
+        layout.addWidget(self.title_bar)
 
         # Crear la tabla sin el horizontal header
         self.table = QTableWidget(len(self.color_spaces), 1, self)
@@ -628,6 +614,26 @@ class SelectedNodeInfo(QWidget):
             self.close()
         else:
             debug_print(f"Error: Fila invalida seleccionada ({row}).")
+
+    def eventFilter(self, obj, event):
+        if obj in (self.title_bar, self.title_label):
+            if event.type() == QtCore.QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
+                event.accept()
+                return True
+            if (
+                event.type() == QtCore.QEvent.MouseMove
+                and self.drag_position
+                and event.buttons() & Qt.LeftButton
+            ):
+                self.move(event.globalPos() - self.drag_position)
+                event.accept()
+                return True
+            if event.type() == QtCore.QEvent.MouseButtonRelease:
+                self.drag_position = None
+                event.accept()
+                return True
+        return super().eventFilter(obj, event)
 
 
 app = None
