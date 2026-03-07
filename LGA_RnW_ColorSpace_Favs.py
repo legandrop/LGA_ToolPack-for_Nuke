@@ -1,8 +1,10 @@
 """
 ________________________________________________________________________
 
-  LGA_RnW_ColorSpace_Favs v1.45 | Lega
+  LGA_RnW_ColorSpace_Favs v1.46 | Lega
   Tool for applying OCIO color spaces to selected Read and Write nodes
+  
+  v1.46: Agregado botón "Save Current" para guardar el colorspace activo como favorito.
 ________________________________________________________________________
 
 """
@@ -273,7 +275,9 @@ def save_colorspaces_to_ini(
 
 
 class SelectedNodeInfo(QWidget):
-    def __init__(self, selected_nodes, parent=None, initial_color_spaces=None):
+    def __init__(
+        self, selected_nodes, parent=None, initial_color_spaces=None, ini_path=None
+    ):
         super(SelectedNodeInfo, self).__init__(parent)
         # Usar la lista pre-cargada si se paso, sino cargarla usando las nuevas funciones
         self.color_spaces = (
@@ -282,6 +286,7 @@ class SelectedNodeInfo(QWidget):
             else self.load_color_spaces_wrapper()  # Usar el wrapper
         )
         self.selected_nodes = selected_nodes
+        self.ini_path = ini_path
         self.color_context = get_color_management_context()
         if self.color_spaces:  # initUI solo si hay color spaces
             self.initUI()
@@ -400,12 +405,41 @@ class SelectedNodeInfo(QWidget):
         self.table.cellClicked.connect(self.change_color_space)
 
         layout.addWidget(self.table)
+
+        self.save_button = QPushButton("Save Current")
+        self.save_button.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #443a91;
+                color: #cccccc;
+                border: none;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 8px 0px;
+                margin-top: 4px;
+                margin-bottom: 0px;
+            }
+            QPushButton:hover {
+                background-color: #372e7a;
+            }
+            QPushButton:pressed {
+                background-color: #2d265e;
+            }
+        """
+        )
+        self.save_button.setCursor(Qt.PointingHandCursor)
+        self.save_button.clicked.connect(self.save_current_colorspace)
+        layout.addWidget(self.save_button)
+
         self.setLayout(layout)
 
         # Ajustar el tamano de la ventana y posicionarla en el centro
         self.adjust_window_size()
 
     def load_data(self):
+        self.table.setRowCount(len(self.color_spaces))
+        self.table.clearContents()
         for row, name in enumerate(self.color_spaces):
             node_item = QTableWidgetItem(name)
             self.table.setItem(row, 0, node_item)
@@ -445,8 +479,8 @@ class SelectedNodeInfo(QWidget):
         for i in range(self.table.rowCount()):
             height += self.table.rowHeight(i)
 
-        # Agregar un relleno total de 6 pixeles
-        height += 10
+        # Agregar un relleno amplio para el botón inferior y espaciado extra
+        height += 52
 
         # Incluir la altura de la barra de titulo personalizada
         title_bar_height = 20
@@ -477,6 +511,46 @@ class SelectedNodeInfo(QWidget):
                 self.change_color_space(current_row, 0)
         else:
             super(SelectedNodeInfo, self).keyPressEvent(event)
+
+    def save_current_colorspace(self):
+        selected_nodes = nuke.selectedNodes()
+        target_node = None
+        for node in selected_nodes:
+            if node.Class() == "Read":
+                target_node = node
+                break
+        if not target_node:
+            for node in selected_nodes:
+                if node.Class() == "Write":
+                    target_node = node
+                    break
+
+        if not target_node:
+            nuke.message("Select a Read or Write node to capture its colorspace.")
+            return
+
+        colorspace_knob = target_node.knob("colorspace")
+        if not colorspace_knob:
+            nuke.message("Selected node does not expose a colorspace knob.")
+            return
+
+        current_value = colorspace_knob.value().strip()
+        if not current_value:
+            nuke.message("Selected node has an empty colorspace value.")
+            return
+
+        if current_value in self.color_spaces:
+            nuke.message(f"'{current_value}' is already in favorites.")
+            return
+
+        self.color_spaces.append(current_value)
+        ini_path = self.ini_path or get_colorspace_ini_path(create_if_missing=True)
+        if not save_colorspaces_to_ini(ini_path, self.color_spaces):
+            nuke.message("Failed to save favorites. Check file permissions.")
+            return
+
+        self.load_data()
+        nuke.message(f"Saved '{current_value}' to favorites.")
 
     def change_color_space(self, row, column):
         # Asegurarse de que el indice de fila sea valido
@@ -560,7 +634,9 @@ def main():
 
         app = QApplication.instance() or QApplication([])
         # Pasar los nodos validos y los color spaces ya cargados
-        window = SelectedNodeInfo(valid_nodes, initial_color_spaces=color_spaces)
+        window = SelectedNodeInfo(
+            valid_nodes, initial_color_spaces=color_spaces, ini_path=ini_path
+        )
         window.show()
     else:
         nuke.message("Por favor seleccione al menos un nodo Read o Write.")

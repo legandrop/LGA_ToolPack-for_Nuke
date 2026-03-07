@@ -8,7 +8,7 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
             <dock id="" hideTitles="1" activePageId="Toolbar.1">
                 <page id="Toolbar.1"/>
             </dock>
-            <split size="1175" stretch="1"/>
+            <split size="1317" stretch="1"/>
             <splitter orientation="2">
                 <split size="1001"/>
                 <dock id="" activePageId="DAG.1">
@@ -16,12 +16,12 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
                 </dock>
                 <split size="323"/>
                 <splitter orientation="1">
-                    <split size="372"/>
+                    <split size="417"/>
                     <dock id="" activePageId="Progress.1">
                         <page id="Progress.1"/>
                         <page id="com.lega.perfTime"/>
                     </dock>
-                    <split size="799"/>
+                    <split size="896"/>
                     <dock id="" activePageId="DopeSheet.1">
                         <page id="DopeSheet.1"/>
                         <page id="Curve Editor.1"/>
@@ -30,7 +30,7 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
                     </dock>
                 </splitter>
             </splitter>
-            <split size="636"/>
+            <split size="494"/>
             <splitter orientation="2">
                 <split size="1328"/>
                 <dock id="" activePageId="Properties.1">
@@ -49,6 +49,7 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
 Root {
  inputs 0
  name C:/Users/leg4-pc/.nuke/LGA_ToolPack/test_ocio_2.nk
+ frame 1001
  first_frame 1001
  last_frame 1177
  lock_range true
@@ -231,7 +232,7 @@ Read {
  container_codec 1274
  file_type mxf
  file T:/VFX-BRDA/010-350/BRDA_020_010/Comp/3_review/BRDA_020_010_comp_v011.mxf
- format "3840 1920 0 0 3840 1920 1 "
+ format "3840 1920 0 0 3840 1920 1 3840x1920"
  last 169
  origlast 169
  origset true
@@ -243,9 +244,10 @@ Read {
  sonyWallKelvin 3200
  sonyLightBlend 100
  name Read1
- xpos 2389
+ xpos 2385
  ypos 730
 }
+set N2d53f400 [stack 0]
 Write {
  file "\[file dir \[value root.name]]/../3_review/\[file tail \[file rootname \[value root.name]]].mxf"
  file_type mxf
@@ -272,6 +274,19 @@ Write {
  addUserKnob {1 render_time l "Render Time"}
  render_time 00:00:33
 }
+push $N2d53f400
+push 0
+push 0
+Viewer {
+ inputs 3
+ frame_range 1001-1177
+ viewerProcess "ACES 1.0 - SDR Video (sRGB - Display)"
+ monitorOutNDISenderName "NukeX - test_ocio_2 - Viewer1"
+ name Viewer1
+ tile_color 0x323232ff
+ xpos 2319
+ ypos 511
+}
 Read {
  inputs 0
  file_type exr
@@ -285,21 +300,6 @@ Read {
  version 30
  colorspace ACES2065-1
  name Read6
- selected true
  xpos 2208
  ypos 724
-}
-push 0
-push 0
-Viewer {
- inputs 3
- frame 1
- frame_range 1001-1177
- input_number 2
- viewerProcess "ACES 1.0 - SDR Video (sRGB - Display)"
- monitorOutNDISenderName "NukeX - test_ocio_2 - Viewer1"
- name Viewer1
- tile_color 0x323232ff
- xpos 2319
- ypos 511
 }

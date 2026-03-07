@@ -12,6 +12,7 @@ Herramienta para aplicar rápidamente espacios de color favoritos a nodos Read/W
 - Cuando se ejecuta sobre un proyecto **OCIO 2.x / ACES 1.3+**, los favoritos que aún usan `Output - Rec.709` se remapean automáticamente a `Camera Rec.709`, que es el equivalente válido en esos configs.  
 - En proyectos OCIO 1.2 la herramienta aplica los nombres originales sin cambios.
 - Si necesitas otros remapeos, basta con añadirlos en el código siguiendo el mismo patrón.
+- Botón **Save Current**: copia el `colorspace` del Read/Write seleccionado y lo agrega al archivo INI si no existía, usando el mismo estilo de botón que usábamos en Write Presets.
 
 ## Configuración
 El archivo `.ini` sólo requiere las claves de cada colorspace; no se guardan valores extra:
