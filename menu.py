@@ -336,60 +336,6 @@ if is_enabled("Rotate_Commands"):
 
 
 # -----------------------------------------------------------------------------
-#                              COPY n PASTE TOOLS
-# -----------------------------------------------------------------------------
-# Crea separador y titulo
-n.addSeparator()
-n.addCommand("COPY n PASTE", lambda: None)
-# Define el icono para los items de Frame Range
-icon_CnP = _get_icon("TP_CnP")
-
-
-add_tool(
-    n,
-    label="  Paste To Selected",
-    key="Paste_To_Selected",
-    module="pasteToSelected",
-    attr="pasteToSelected",
-    shortcut="ctrl+shift+v",
-    icon=icon_CnP,
-    context=2,
-)
-
-
-add_tool(
-    n,
-    label="  Copy with inputs",
-    key="Copy_with_inputs",
-    module="duplicateWithInputs",
-    attr="copyWithInputs",
-    shortcut="ctrl+alt+c",
-    icon=icon_CnP,
-    context=2,
-)
-add_tool(
-    n,
-    label="  Paste with inputs",
-    key="Paste_with_inputs",
-    module="duplicateWithInputs",
-    attr="pasteWithInputs",
-    shortcut="ctrl+alt+v",
-    icon=icon_CnP,
-    context=2,
-)
-add_tool(
-    n,
-    label="  Duplicate with inputs",
-    key="Duplicate_with_inputs",
-    module="duplicateWithInputs",
-    attr="duplicateWithInputs",
-    shortcut="ctrl+alt+k",
-    icon=icon_CnP,
-    context=2,
-)
-
-
-# -----------------------------------------------------------------------------
 #                                 KNOBS TOOLS
 # -----------------------------------------------------------------------------
 # Crea separador y titulo

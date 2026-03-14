@@ -286,46 +286,6 @@ Shortcuts (usando las teclas / y * del teclado numérico):
 
 <br><br>
 
-## <span style="color:#4dcb9d;">COPY n PASTE</span>
-
-## <img src="Doc_Media/image18.png" alt="" width="7" height="12"> Paste to selected v1.1 - Frank Rueter | *Ctrl + Shift + V*
-
-[http://www.nukepedia.com/python/nodegraph/pastetoselected](http://www.nukepedia.com/python/nodegraph/pastetoselected)
-
-Pega los nodos del portapapeles a todos los nodos seleccionados.
-
-![](Doc_Media/image30.png)
-
-![](Doc_Media/image26.png)
-
-
-
-
-
-<br><br>
-
-## <img src="Doc_Media/image18.png" alt="" width="7" height="12"> Duplicate with inputs v1.3 - Marcel Pichert
-
-[http://www.nukepedia.com/python/nodegraph/duplicate-with-inputs](http://www.nukepedia.com/python/nodegraph/duplicate-with-inputs)
-
-Duplica los nodos seleccionados y mantiene todas sus conexiones con nodos que no están en la selección. Se pueden duplicar los nodos directamente o copiarlos primero y pegarlos en otro lugar del script más tarde.
-
-![](Doc_Media/image20.png)
-
-![](Doc_Media/image10.png)
-
-
-
-**Shortcut**
-
-Ctrl + Alt + C Copy with inputs
-
-Ctrl + Alt + V Paste with inputs
-
-Ctrl + Alt + K Duplicate with inputs
-
-<br><br>
-
 ## <span style="color:#cb944d;">NODE BUILDS</span>
 
 Esta sección es para armar setups de nodos que se usan repetidamente usando shortcuts.
