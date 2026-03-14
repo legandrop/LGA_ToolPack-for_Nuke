@@ -73,6 +73,28 @@ La versión actual del Markdown:
 - todavía no aplica una etapa final de limpieza editorial/visual fina
 - todavía no está preparada para copiarse directamente a la raíz de `LGA_ToolPack`
 
+## Reglas de estructuración acordadas
+
+Estas reglas ya pasan a formar parte del criterio del `README.md` de `LGA_ToolPack`:
+
+- El encabezado principal debe usar el mismo patrón visual que `LGA_ToolPack-Layout`: bloque HTML con imagen a la izquierda, título a la derecha y `br clear="left"`.
+- La sección `Instalación` debe copiar el formato base del README de layout, adaptando solamente el nombre del pack y la línea de `pluginAddPath`.
+- Los títulos de sección deben conservar el color del Google Doc.
+- Cada tool debe ir como encabezado grande con un icono chico a la izquierda, usando la imagen embebida que traiga el `.docx`.
+- Los iconos chicos de tool se están respetando con el tamaño aproximado detectado en el documento: `7x12`.
+- Cuando el atajo aparece integrado en el título del Google Doc, debe mantenerse dentro del heading en cursiva.
+- Entre tools debe agregarse espacio explícito con `<br><br>`, como en el README de layout, para separar visualmente cada bloque.
+
+## Colores de sección detectados en el docx
+
+- `READ n WRITE`: `#a9ab13`
+- `FRAME RANGE`: `#135eab`
+- `ROTATE TRANSFORM`: `#914dcb`
+- `COPY n PASTE`: `#4dcb9d`
+- `NODE BUILDS`: `#cb944d`
+- `KNOBS`: `#cb944d`
+- `VA`: `#cb4d82`
+
 ## Próximo criterio acordado
 
 Por ahora todo queda dentro de [DocToMD](/Users/leg4/.nuke/LGA_ToolPack/DocToMD).
