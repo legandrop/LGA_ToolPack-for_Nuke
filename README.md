@@ -34,8 +34,6 @@
 
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
 
-## READ n WRITE
-
 
 
 ## <img src="Doc_Media/image7.png" alt="" width="7" height="12"> Media manager v1.6 - Lega | *Alt + M*
