@@ -67,7 +67,7 @@ Escanea la media de la carpeta del shot y de los nodos Read del proyecto, permit
 
 
 
-### Media path replacer v1.6 - Lega | Ctrl + Alt + M
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Media path replacer v1.6 - Lega | *Ctrl + Alt + M*
 
 Para cuando hay missing media porque se cambió la ubicación del proyecto y su media.
 
@@ -83,7 +83,7 @@ Permite buscar y reemplazar rutas en los nodos Read y Write. Da la opción de fi
 
 
 
-### CopyCat Cleaner v1.0 – Lega
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> CopyCat Cleaner v1.0 - Lega
 
 Analiza todos los nodos Inference del script, compara el modelo .cat usado con el más reciente disponible en su carpeta y permite limpiar versiones antiguas junto con sus imágenes de entrenamiento.
 
@@ -97,7 +97,7 @@ Muestra los resultados en una tabla con estado (Match / Outdated / Missing) y un
 
 
 
-### Read from Write v2.3 - Fredrik Averpil Shift + R
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Read from Write v2.3 - Fredrik Averpil | *Shift + R*
 
 [https://www.nukepedia.com/python/misc/readfromwrite](https://www.nukepedia.com/python/misc/readfromwrite)
 
@@ -107,7 +107,7 @@ Genera un nodo Read a partir de la ruta y archivo del nodo Write seleccionado.
 
 
 
-### Write Presets v1.9 - Lega Shift + W
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Write Presets v1.9 - Lega | *Shift + W*
 
 Para crear nodos Write con configuraciones predefinidas para diferentes tipos de render.
 
@@ -133,7 +133,7 @@ También incluye un botón para poder previsualizar un path TCL como una ruta ab
 
 
 
-### Write focus v1.0 - Lega Ctrl + Alt + Shift + W
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Write focus v1.0 - Lega | *Ctrl + Alt + Shift + W*
 
 Para ir rápidamente al nodo Wirte principal.
 
@@ -143,7 +143,7 @@ Busca un nodo Write con un nombre definido en los settings del ToolPack, lo pone
 
 
 
-### Write send mail v1.0 - Lega Ctrl + Shift + W
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Write send mail v1.0 - Lega | *Ctrl + Shift + W*
 
 Útil para renders largos, permite mandar un mail cuando termina el render.
 
@@ -161,7 +161,7 @@ Funciona en conjunto con la herramienta Render Complete (a continuación).
 
 
 
-### Render complete v1.1 - Lega
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Render complete v1.1 - Lega
 
 Ejecuta las acciones siguientes cuando termina el render:
 
@@ -174,13 +174,13 @@ Ejecuta las acciones siguientes cuando termina el render:
 
 
 
-### Show in Explorer v1.0 - Lega Shift + E
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Show in Explorer v1.0 - Lega | *Shift + E*
 
 Revela la ubicación del archivo de un nodo Read o Write seleccionado en el Explorador de Windows. Si no hay ningún nodo seleccionado, revela la ubicación del script/proyecto actual.
 
 
 
-### Show in Flow v2.0 - 2024 - Lega Ctrl + Shift + E
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Show in Flow v2.0 - 2024 - Lega | *Ctrl + Shift + E*
 
 Abre la URL, revela en el internet browser la ubicación de la task comp del shot que pertenece al script/proyecto actual. Se puede elegir si hacerlo desde el browser por defecto o desde uno específico.
 
@@ -190,7 +190,7 @@ Para el login completar la información en los settings del ToolPack.
 
 
 
-### RnW ColorSpace favs v1.1 - Lega Shift + C
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> RnW ColorSpace favs v1.1 - Lega | *Shift + C*
 
 Para cambiar rapidamente el espacio de color de un Read, Write, etc.
 
@@ -222,23 +222,23 @@ Esta lista se puede editar en los settings del ToolPack.
 
 
 
-## FRAME RANGE
+## <span style="color:#135eab;">FRAME RANGE</span>
 
-### Frame range | Read to Project v1.0 - Lega Shift + F
+## <img src="media_converted/image8.png" alt="" width="7" height="12"> Frame range | Read to Project v1.0 - Lega | *Shift + F*
 
 Útil para cuando se empieza un proyecto nuevo y se quiere usar el frame range de un nodo Read en los settings del proyecto.
 
 
 
-### Frame range | Read to Project (+Res) v1.0 - Lega Ctrl + Shift + F
+## <img src="media_converted/image8.png" alt="" width="7" height="12"> Frame range | Read to Project (+Res) v1.0 - Lega | *Ctrl + Shift + F*
 
 Igual que el anterior, pero además de copiar el frame range del Read, también se copia la resolución a los settings del proyecto.
 
 
 
-## ROTATE TRANSFORM
+## <span style="color:#914dcb;">ROTATE TRANSFORM</span>
 
-### Rotate Transform v1.0 - Lega
+## <img src="media_converted/image21.png" alt="" width="7" height="12"> Rotate Transform v1.0 - Lega
 
 Cambia los valores de rotación de los nodos Transform seleccionados.
 
@@ -258,9 +258,9 @@ Shortcuts (usando las teclas / y * del teclado numérico):
 
 
 
-## COPY n PASTE
+## <span style="color:#4dcb9d;">COPY n PASTE</span>
 
-### Paste to selected v1.1 - Frank Rueter Ctrl + Shift + V
+## <img src="media_converted/image18.png" alt="" width="7" height="12"> Paste to selected v1.1 - Frank Rueter | *Ctrl + Shift + V*
 
 [http://www.nukepedia.com/python/nodegraph/pastetoselected](http://www.nukepedia.com/python/nodegraph/pastetoselected)
 
@@ -274,7 +274,7 @@ Pega los nodos del portapapeles a todos los nodos seleccionados.
 
 
 
-### Duplicate with inputs v1.3 - Marcel Pichert
+## <img src="media_converted/image18.png" alt="" width="7" height="12"> Duplicate with inputs v1.3 - Marcel Pichert
 
 [http://www.nukepedia.com/python/nodegraph/duplicate-with-inputs](http://www.nukepedia.com/python/nodegraph/duplicate-with-inputs)
 
@@ -294,7 +294,7 @@ Ctrl + Alt + V Paste with inputs
 
 Ctrl + Alt + K Duplicate with inputs
 
-## NODE BUILDS
+## <span style="color:#cb944d;">NODE BUILDS</span>
 
 Esta sección es para armar setups de nodos que se usan repetidamente usando shortcuts.
 
@@ -302,7 +302,7 @@ Similar al uso de toolSets, pero más ágil y con más posibilidades.
 
 
 
-### Build Iteration v1.1 - Lega Shift + i
+## <img src="media_converted/image5.png" alt="" width="7" height="12"> Build Iteration v1.1 - Lega | *Shift + i*
 
 ![](media_converted/image14.png)
 
@@ -312,7 +312,7 @@ Similar al uso de toolSets, pero más ágil y con más posibilidades.
 
 
 
-### Build Roto Blur in mask input v1.1 - Lega Shift + O
+## <img src="media_converted/image5.png" alt="" width="7" height="12"> Build Roto Blur in mask input v1.1 - Lega | *Shift + O*
 
 Agrega un nodo Roto y un Blur en el input mask del nodo seleccionado.
 
@@ -328,7 +328,7 @@ Agrega un nodo Roto y un Blur en el input mask del nodo seleccionado.
 
 
 
-### Build Merge | Switch Merge operations v1.31 - Lega Shift + M
+## <img src="media_converted/image5.png" alt="" width="7" height="12"> Build Merge | Switch Merge operations v1.31 - Lega | *Shift + M*
 
 Si NO hay un nodo Merge seleccionado, crea un nodo Merge con operación en Mask y bbx en ‘A’, y en el input A suma un nodo Roto y un Blur.
 
@@ -342,7 +342,7 @@ Si en cambio se ejecuta con un nodo Merge seleccionado, cambia sus operaciones y
 
 
 
-### Build Grade v1.1 - Lega Shift + G
+## <img src="media_converted/image5.png" alt="" width="7" height="12"> Build Grade v1.1 - Lega | *Shift + G*
 
 Crea un nodo Grade y en el input Mask suma un nodo Roto y un Blur.
 
@@ -352,7 +352,7 @@ Crea un nodo Grade y en el input Mask suma un nodo Roto y un Blur.
 
 
 
-### Build Grade Highlights v1.1 - Lega Ctrl + Shift + G
+## <img src="media_converted/image5.png" alt="" width="7" height="12"> Build Grade Highlights v1.1 - Lega | *Ctrl + Shift + G*
 
 Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del grade y un Shuffle para poder evaluar el canal alpha con el viewer en RGB.
 
@@ -366,17 +366,17 @@ Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del
 
 
 
-## KNOBS
+## <span style="color:#cb944d;">KNOBS</span>
 
 
 
-### Channels Cycle v1.1 - Lega Ctrl + Shift + A
+## <img src="media_converted/image5.png" alt="" width="7" height="12"> Channels Cycle v1.1 - Lega | *Ctrl + Shift + A*
 
 Cambia el valor del knob 'channels' de un nodo seleccionado. Rota el valor entre 'rgb', 'alpha' y 'rgba'.
 
 ![](media_converted/image12.png)
 
-### Disable A/B v1.0 - Lega Shift + D
+## <img src="media_converted/image5.png" alt="" width="7" height="12"> Disable A/B v1.0 - Lega | *Shift + D*
 
 Útil para comparar rápidamente dos grupos de nodos (grupo A vs grupo B) o dos nodos iguales con distintos valores.
 
@@ -406,7 +406,7 @@ Una vez creado el grupo, si se ejecuta Shift+D seleccionado en nodo master Disab
 
 
 
-### Channel Hotbox v2.0 - Falk Hofmann
+## <img src="media_converted/image5.png" alt="" width="7" height="12"> Channel Hotbox v2.0 - Falk Hofmann
 
 [http://www.nukepedia.com/python/ui/channel-hotbox](http://www.nukepedia.com/python/ui/channel-hotbox)
 
@@ -430,9 +430,9 @@ Shortcuts con la GUI abierta:
 - Shift+Click Shufflea todos los canales seleccionados.
 - Ctrl+Click Crea un nodo Grade con el canal configurado al seleccionado.
 - Alt Cambia el visor de vuelta a RGBA.
-## VA
+## <span style="color:#cb4d82;">VA</span>
 
-### Viewer Rec709 v1.0 - Lega Shift + V
+## <img src="media_converted/image13.png" alt="" width="7" height="12"> Viewer Rec709 v1.0 - Lega | *Shift + V*
 
 Cambia el viewer a Rec709.
 
@@ -440,7 +440,7 @@ Cambia el viewer a Rec709.
 
 
 
-### Take/Show Snapshot v1.0 - Lega Shift + F9 [take] / F9 [show]
+## <img src="media_converted/image13.png" alt="" width="7" height="12"> Take/Show Snapshot v1.0 - Lega | *Shift + F9 [take] / F9 [show]*
 
 Take: Toma un snapshot (jpg), lo guarda en la carpeta de archivos temporales, y también lo guarda en una galería.
 
@@ -458,7 +458,7 @@ El último botón abre una galería con todos los snapshots que se guardan, sepa
 
 
 
-### Reset workspace v1.0 - Checho Ctrl + Alt + W
+## <img src="media_converted/image13.png" alt="" width="7" height="12"> Reset workspace v1.0 - Checho | *Ctrl + Alt + W*
 
 Reinicia el workspace.
 
@@ -466,7 +466,7 @@ Reinicia el workspace.
 
 
 
-### Restart NukeX v1.12 - Lega Ctrl + Alt + Shift + Q
+## <img src="media_converted/image13.png" alt="" width="7" height="12"> Restart NukeX v1.12 - Lega | *Ctrl + Alt + Shift + Q*
 
 Reinicia NukeX. Antes de hacerlo espera a que se guarde o no el proyecto actual, busca cual es la versión actual de Nuke abierta y lo reinicia usando la misma consola que se estaba usando.
 
