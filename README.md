@@ -5,6 +5,35 @@
 </p>
 <br clear="left">
 
+## Pruebas de color en GitHub
+
+Estas líneas son temporales para comprobar qué variantes renderiza GitHub en un `README.md`.
+
+- `span + style + named color`: <span style="color:red;">Rojo con span/style/named</span>
+- `span + style + hex`: <span style="color:#ff0000;">Rojo con span/style/hex</span>
+- `span + style + rgb`: <span style="color:rgb(255,0,0);">Rojo con span/style/rgb</span>
+- `span + style + olive`: <span style="color:#a9ab13;">Olive con span/style/hex</span>
+- `font + color named`: <font color="red">Rojo con font/color/named</font>
+- `font + color hex`: <font color="#ff0000">Rojo con font/color/hex</font>
+- `font + color olive`: <font color="#a9ab13">Olive con font/color/hex</font>
+- `mark`: <mark>Texto con mark</mark>
+- `span + background-color`: <span style="background-color:yellow;">Texto con fondo amarillo</span>
+- `svg + fill`: <svg width="240" height="20"><text x="0" y="15" fill="red">Rojo con svg/fill</text></svg>
+- `math inline`: $\color{red}{\text{Rojo con math inline}}$
+- `math display`:
+
+$$
+\color{#a9ab13}{\text{Olive con math display}}
+$$
+
+- `diff fence`:
+
+```diff
++ Verde con diff
+- Rojo con diff
+! Naranja/otro según tema
+```
+
 
 
 
