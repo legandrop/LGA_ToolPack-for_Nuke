@@ -1,6 +1,10 @@
 import os
 import nuke
 
+ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
+PY_DIR = os.path.join(ROOT_DIR, "py")
+nuke.pluginAddPath(PY_DIR.replace("\\", "/"))
+
 
 # Parte del LGA_viewer_SnapShot_Buttons
 def OnViewerCreate(node=None):
