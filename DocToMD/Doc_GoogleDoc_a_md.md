@@ -9,10 +9,10 @@ Dejar documentado el flujo actualizado para convertir el Google Doc de `LGA_Tool
 En esta carpeta ya existen:
 
 - [LGA_ToolPack.docx](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/LGA_ToolPack.docx): export del Google Doc.
-- [README.md](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/README.md): primera conversión preliminar a Markdown.
+- [README.md](/Users/leg4/.nuke/LGA_ToolPack/README.md): README actual ya movido a la raíz del pack.
 - [convert_docx_to_md.py](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/convert_docx_to_md.py): script usado para generar esa primera versión.
-- [media_original](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/media_original): imágenes extraídas del `.docx`.
-- [media_converted](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/media_converted): copia de trabajo para las imágenes referenciadas por el `.md`.
+- [Doc_Media/Originals](/Users/leg4/.nuke/LGA_ToolPack/Doc_Media/Originals): imágenes originales extraídas del `.docx`.
+- [Doc_Media](/Users/leg4/.nuke/LGA_ToolPack/Doc_Media): imágenes que usa el README final.
 
 ## Primer paso
 
@@ -28,18 +28,21 @@ Ese es el punto de partida del flujo actual.
 
 1. Se partió del archivo [LGA_ToolPack.docx](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/LGA_ToolPack.docx).
 2. Se inspeccionó el contenido interno del `.docx` directamente, sin depender de la conversión HTML de macOS.
-3. Se extrajeron las imágenes embebidas del documento y se copiaron a dos carpetas:
-   - [media_original](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/media_original)
-   - [media_converted](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/media_converted)
-4. Se recorrió el XML del documento para reconstruir:
+3. Se extrajeron las imágenes embebidas del documento.
+4. Primero se trabajó dentro de `DocToMD` con carpetas temporales de media.
+5. Una vez validada la estructura, el resultado se movió a destino final:
+   - [Doc_Media/Originals](/Users/leg4/.nuke/LGA_ToolPack/Doc_Media/Originals)
+   - [Doc_Media](/Users/leg4/.nuke/LGA_ToolPack/Doc_Media)
+   - [README.md](/Users/leg4/.nuke/LGA_ToolPack/README.md)
+6. Se recorrió el XML del documento para reconstruir:
    - título
    - versión
    - bloques de instalación
    - secciones
    - herramientas
    - imágenes en su orden aproximado dentro del documento
-5. Se generó un Markdown preliminar en [README.md](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/README.md).
-6. Se limpiaron los temporales usados durante la exploración para que `DocToMD` quedara sólo con los archivos relevantes.
+7. Se generó un Markdown preliminar y luego se lo adaptó visualmente hasta llegar al [README.md](/Users/leg4/.nuke/LGA_ToolPack/README.md) final de raíz.
+8. Se conservaron en `DocToMD` los archivos de proceso y documentación del flujo.
 
 ## Por qué se hizo así
 
@@ -60,9 +63,14 @@ python3 /Users/leg4/.nuke/LGA_ToolPack/DocToMD/convert_docx_to_md.py
 
 Esto vuelve a:
 
-- recrear `media_original`
-- recrear `media_converted`
-- regenerar [README.md](/Users/leg4/.nuke/LGA_ToolPack/DocToMD/README.md)
+- recrear la media de trabajo dentro de `DocToMD`
+- regenerar una versión base del Markdown
+
+Después de correrlo, si se quiere publicar el resultado final, hay que volver a mover manualmente la salida aprobada hacia:
+
+- [README.md](/Users/leg4/.nuke/LGA_ToolPack/README.md)
+- [Doc_Media](/Users/leg4/.nuke/LGA_ToolPack/Doc_Media)
+- [Doc_Media/Originals](/Users/leg4/.nuke/LGA_ToolPack/Doc_Media/Originals)
 
 ## Alcance de esta primera conversión
 
