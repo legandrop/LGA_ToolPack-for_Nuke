@@ -7,7 +7,7 @@ WORKING_DIR="${2:-}"
 
 if [[ -z "${GIT_SAFE_MERGE_TEMP_RUN:-}" ]]; then
   ORIG_SCRIPT_PATH="${0:A}"
-  TEMP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/git-safe-merge.XXXXXX.sh")" || exit 1
+  TEMP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/git-safe-merge.XXXXXX")" || exit 1
   cp "$ORIG_SCRIPT_PATH" "$TEMP_SCRIPT" || exit 1
   chmod +x "$TEMP_SCRIPT" || exit 1
   export GIT_SAFE_MERGE_TEMP_RUN=1
