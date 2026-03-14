@@ -5,6 +5,15 @@ set -u
 TARGET_BRANCH="${1:-main}"
 WORKING_DIR="${2:-}"
 
+if [[ -z "${GIT_SAFE_MERGE_TEMP_RUN:-}" ]]; then
+  ORIG_SCRIPT_PATH="${0:A}"
+  TEMP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/git-safe-merge.XXXXXX.sh")" || exit 1
+  cp "$ORIG_SCRIPT_PATH" "$TEMP_SCRIPT" || exit 1
+  chmod +x "$TEMP_SCRIPT" || exit 1
+  export GIT_SAFE_MERGE_TEMP_RUN=1
+  exec "$TEMP_SCRIPT" "$TARGET_BRANCH" "${WORKING_DIR:-$(pwd)}"
+fi
+
 if [[ -n "$WORKING_DIR" && -d "$WORKING_DIR" ]]; then
   cd "$WORKING_DIR" || exit 1
 else
@@ -31,9 +40,9 @@ write_info() {
 invoke_git() {
   local output
   output="$(git "$@" 2>&1)"
-  local status=$?
+  local exit_code=$?
   printf '%s' "$output"
-  return $status
+  return $exit_code
 }
 
 separator="  ----------------------------------------"
