@@ -32,7 +32,7 @@
 
 <br><br>
 
-<img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="235" height="28">
+<img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="255" height="32">
 
 ## READ n WRITE
 
