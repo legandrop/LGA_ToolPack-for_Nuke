@@ -1,35 +1,42 @@
-![](media_converted/image1.png)
-
-# LGA TOOL PACK
-
-Lega | v2.44
-
-
-
-
-
-**Instalación**
-
-- Copiar la carpeta LGA_ToolPack que contiene todos los archivos .py a %USERPROFILE%/.nuke.
-- Con un editor de texto, agregar esta línea de código al archivo init.py que está dentro de la carpeta .nuke:
-```python
-nuke.pluginAddPath('./LGA_ToolPack')
-```
+<p>
+  <img src="media_converted/image1.png" alt="LGA Tool Pack logo" width="56" height="56" align="left" style="margin-right:8px;">
+  <span style="font-size:1.6em;font-weight:700;line-height:1;">LGA TOOL PACK</span><br>
+  <span style="font-style:italic;line-height:1;">Lega | v2.44</span>
+</p>
+<br clear="left">
 
 
 
-- El ToolPack permite activar/desactivar herramientas sin tocar código El ToolPack permite activar/desactivar herramientas sin tocar código. Editando el archivo _LGA_ToolPack_Enabled.ini (dentro de LGA_ToolPack/). Por defecto todas las herramientas están en True. Cambiar a False las oculta y evita cargar su script.
-Para conservar la configuración en futuras actualizaciones, se puede copiar el archivo a ~/.nuke/_LGA_ToolPack_Enabled.ini
-
-Si existen ambos, tiene prioridad el de ~/.nuke/.
 
 
+## Instalación
 
-## READ n WRITE
+- Copiar la carpeta **LGA_ToolPack** que contiene todos los
+  archivos **.py** a **%USERPROFILE%/.nuke**.
+
+- Con un editor de texto, agregar esta línea de código al archivo
+  **init.py** que está dentro de la carpeta **.nuke**:
+
+  ```
+  nuke.pluginAddPath('./LGA_ToolPack')
+  ```
+
+- El ToolPack permite **activar/desactivar** herramientas sin tocar
+  código editando el archivo **\_LGA_ToolPack_Enabled.ini**
+  (dentro de **LGA_ToolPack**/).\
+  Por defecto todas las herramientas están en **True**. Cambiar a
+  **False** las oculta y evita cargar su script.\
+  Para conservar la configuración en futuras actualizaciones, se puede
+  copiar el archivo a **\~/.nuke/\_LGA_ToolPack_Enabled.ini**. Si
+  existen ambos, tiene prioridad el de **\~/.nuke/.**
 
 
 
-### Media manager v1.6 - Lega | Alt + M
+## <span style="color:#a9ab13;">READ n WRITE</span>
+
+
+
+## <img src="media_converted/image7.png" alt="" width="7" height="12"> Media manager v1.6 - Lega | *Alt + M*
 
 Para verificar que toda la media usada en el script esté guardada en la ubicación correcta, y si no lo está copiarla a donde corresponda.
 
