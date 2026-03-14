@@ -244,7 +244,7 @@ Esta lista se puede editar en los settings del ToolPack.
 
 <br><br>
 
-## <span style="color:#135eab;">FRAME RANGE</span>
+<img src="Doc_Media/frame_range.svg" alt="FRAME RANGE" width="245" height="33">
 
 ## <img src="Doc_Media/image8.png" alt="" width="6" height="16" style="margin-right:3px;"> Frame range | Read to Project v1.0 - Lega | *Shift + F*
 
@@ -262,7 +262,7 @@ Igual que el anterior, pero además de copiar el frame range del Read, también 
 
 <br><br>
 
-## <span style="color:#914dcb;">ROTATE TRANSFORM</span>
+<img src="Doc_Media/rotate_transform.svg" alt="ROTATE TRANSFORM" width="335" height="33">
 
 ## <img src="Doc_Media/image21.png" alt="" width="6" height="16" style="margin-right:3px;"> Rotate Transform v1.0 - Lega
 
@@ -286,7 +286,7 @@ Shortcuts (usando las teclas / y * del teclado numérico):
 
 <br><br>
 
-## <span style="color:#cb944d;">NODE BUILDS</span>
+<img src="Doc_Media/node_builds.svg" alt="NODE BUILDS" width="235" height="33">
 
 Esta sección es para armar setups de nodos que se usan repetidamente usando shortcuts.
 
@@ -368,7 +368,7 @@ Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del
 
 <br><br>
 
-## <span style="color:#cb944d;">KNOBS</span>
+<img src="Doc_Media/knobs.svg" alt="KNOBS" width="120" height="33">
 
 
 
@@ -438,7 +438,7 @@ Shortcuts con la GUI abierta:
 - Alt Cambia el visor de vuelta a RGBA.
 <br><br>
 
-## <span style="color:#cb4d82;">VA</span>
+<img src="Doc_Media/va.svg" alt="VA" width="55" height="33">
 
 ## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Viewer Rec709 v1.0 - Lega | *Shift + V*
 
