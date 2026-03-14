@@ -32,9 +32,7 @@
 
 <br><br>
 
-<svg width="235" height="28" viewBox="0 0 235 28" role="img" aria-label="READ n WRITE">
-  <text x="0" y="21" fill="#a9ab13" font-size="20" font-weight="700" font-family="Segoe UI, Arial, sans-serif">READ n WRITE</text>
-</svg>
+<img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="235" height="28">
 
 ## READ n WRITE
 
