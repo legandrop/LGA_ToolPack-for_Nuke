@@ -1,3 +1,6 @@
+> **Regla de documentacion**: este archivo describe el estado actual del codigo. No es un historial de cambios, changelog ni bitacora temporal.
+> **Regla de documentacion**: este archivo debe incluir una seccion de referencias tecnicas con rutas completas a los archivos mas importantes relacionados, y para cada archivo nombrar las funciones, clases o metodos clave vinculados a este tema.
+
 # LGA_RnW_ColorSpace_Favs
 
 Herramienta para aplicar rápidamente espacios de color favoritos a nodos Read/Write seleccionados en Nuke.

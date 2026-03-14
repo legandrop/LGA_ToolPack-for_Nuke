@@ -1,3 +1,6 @@
+> **Regla de documentacion**: este archivo describe el estado actual del codigo. No es un historial de cambios, changelog ni bitacora temporal.
+> **Regla de documentacion**: este archivo debe incluir una seccion de referencias tecnicas con rutas completas a los archivos mas importantes relacionados, y para cada archivo nombrar las funciones, clases o metodos clave vinculados a este tema.
+
 # Planificación y Documentación: Settings de Nomenclatura de Archivos (Shot Naming)
 
 Este documento describe el funcionamiento del script `LGA_showInlFlow.py` y planifica la creación de un sistema de configuración centralizado para manejar las convenciones de nombres de archivo en los scripts de LGA_ToolPack.
