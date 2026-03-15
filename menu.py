@@ -583,8 +583,7 @@ n.addSeparator()
 def _documentation_runner():
     import webbrowser
 
-    TP_pdf_path = os.path.join(DOCS_DIR, "LGA_ToolPack.pdf")
-    webbrowser.open("file://" + TP_pdf_path)
+    webbrowser.open("https://github.com/legandrop/LGA_ToolPack-for_Nuke")
 
 
-n.addCommand("Documentation v2.46", _documentation_runner)
+n.addCommand("Documentation v2.50", _documentation_runner)
