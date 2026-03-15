@@ -27,14 +27,9 @@
   nuke.pluginAddPath('./LGA_ToolPack')
   ```
 
-- El ToolPack permite **activar/desactivar** herramientas sin tocar
-  código editando el archivo **\_LGA_ToolPack_Enabled.ini**<br>
-  (dentro de **LGA_ToolPack**/).\<br>
-  Por defecto todas las herramientas están en **True**. Cambiar a
-  **False** las oculta y evita cargar su script.\
-  Para conservar la configuración en futuras actualizaciones, se puede<br>
-  copiar el archivo a **\~/.nuke/\_LGA_ToolPack_Enabled.ini**. Si<br>
-  existen ambos, tiene prioridad el de **\~/.nuke/.**
+- El ToolPack permite **activar/desactivar** herramientas editando el archivo **\_LGA_ToolPack_Enabled.ini**<br>
+  Por defecto todas las herramientas están en **True**. Las que se cambian a **False**, se ocultan y evitan cargarse.<br>
+  Para conservar la configuración en futuras actualizaciones, se puede copiar el archivo **.ini** a la carpeta **\~/.nuke/**
 
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
