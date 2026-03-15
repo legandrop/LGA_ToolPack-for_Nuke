@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="68" viewBox="0 0 380 68" role="img" aria-label="Take Show Snapshot shortcuts">
+  <text x="0" y="18" fill="#8a8a8a" font-size="16" font-weight="700" font-family="Segoe UI, Arial, Helvetica, sans-serif">Shortcuts:</text>
+  <text x="0" y="42" fill="#8a8a8a" font-size="16" font-family="Segoe UI, Arial, Helvetica, sans-serif">
+    <tspan font-weight="700" font-style="italic">Shift + F9</tspan>
+    <tspan> [take]</tspan>
+  </text>
+  <text x="0" y="66" fill="#8a8a8a" font-size="16" font-family="Segoe UI, Arial, Helvetica, sans-serif">
+    <tspan font-weight="700" font-style="italic">F9</tspan>
+    <tspan> [show]</tspan>
+  </text>
+</svg>
