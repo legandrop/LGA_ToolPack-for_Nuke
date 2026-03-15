@@ -27,7 +27,6 @@
 - [x] `LGA_Write_Presets_Check.py` — via `LGA_QtAdapter_ToolPack`.
 - [x] `LGA_RnW_ColorSpace_Favs.py` — via `LGA_QtAdapter_ToolPack`.
 - [x] `LGA_disable_A_B.py` — via `LGA_QtAdapter_ToolPack`.
-- [x] `LGA_CopyCat_Cleaner.py` — via `LGA_QtAdapter_ToolPack`.
 - [x] `LGA_MediaManager.py` — via `LGA_QtAdapter_ToolPack`.
 - [x] `LGA_MediaManager_utils.py` — via `LGA_QtAdapter_ToolPack`.
 - [x] `LGA_MediaManager_settings.py` — via `LGA_QtAdapter_ToolPack`.

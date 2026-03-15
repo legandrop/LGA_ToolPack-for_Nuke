@@ -47,7 +47,6 @@ El **Sistema de Configuración de Herramientas** es una funcionalidad avanzada d
 
 Media_Manager = True
 Media_Path_Replacer = True
-CopyCat_Cleaner = True
 Read_From_Write = True
 ; ... todas las demás herramientas
 ```
@@ -57,7 +56,6 @@ Read_From_Write = True
 ### READ n WRITE TOOLS
 - **Media_Manager**: Gestor de medios multimedia
 - **Media_Path_Replacer**: Reemplazador de rutas de medios
-- **CopyCat_Cleaner**: Limpiador de CopyCat
 - **Read_From_Write**: Leer desde Write
 - **Write_Presets**: Preajustes de Write
 - **Write_Focus**: Enfoque de Write
@@ -123,7 +121,6 @@ Rotate_Commands = False
 Snapshot_Tools = False
 
 ; Mantener las que sí uso
-CopyCat_Cleaner = True
 Read_From_Write = True
 Viewer_Rec709 = True
 ```
@@ -172,7 +169,6 @@ Color_Space_Favs = False
 ```ini
 [Tools]
 ; Configuración básica
-CopyCat_Cleaner = True
 Read_From_Write = True
 Viewer_Rec709 = True
 ; Deshabilitar comandos complejos
@@ -212,7 +208,6 @@ Build_Grade_Highlights = True
 ; Todas las herramientas disponibles
 Media_Manager = True
 Media_Path_Replacer = True
-CopyCat_Cleaner = True
 ; ... todas en True
 ```
 
@@ -252,7 +247,6 @@ FR_Read_to_Project_Res = False
 ```ini
 [Tools]
 ; Solo lo esencial
-CopyCat_Cleaner = True
 Read_From_Write = True
 Write_Presets = True
 

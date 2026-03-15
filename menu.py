@@ -153,16 +153,6 @@ add_tool(
 
 add_tool(
     n,
-    label="  CopyCat Cleaner",
-    key="CopyCat_Cleaner",
-    module="LGA_CopyCat_Cleaner",
-    attr="run_copycat_cleaner",
-    icon=icon_RnW,
-)
-
-
-add_tool(
-    n,
     label="  Read from Write",
     key="Read_From_Write",
     module="readFromWrite",

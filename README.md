@@ -11,8 +11,14 @@
 
 ## Instalación
 
-- Copiar la carpeta **LGA_ToolPack** que contiene todos los
-  archivos **.py** a **%USERPROFILE%/.nuke**.
+- Copiar la carpeta **LGA_ToolPack** que contiene todos los archivos del ToolPack a **%USERPROFILE%/.nuke**.<br> Debería quedar así:
+   ```
+   .nuke/
+   └─ LGA_ToolPack/
+      ├─ menu.py
+      ├─ py/
+      └─ ...
+  ```
 
 - Con un editor de texto, agregar esta línea de código al archivo
   **init.py** que está dentro de la carpeta **.nuke**:
@@ -71,16 +77,6 @@ Permite buscar y reemplazar rutas en los nodos Read y Write. Da la opción de fi
 Útil para actualizar rutas de archivos cuando se mueven proyectos a otras carpetas o discos.
 <br><br>
 <img src="Doc_Media/media_path_replacer_shortcut.svg" alt="Media path replacer shortcut" width="195" height="43">
-
-<br>
-
-
-
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> CopyCat Cleaner v1.0 | Lega
-
-Analiza todos los nodos Inference del script, compara el modelo .cat usado con el más reciente disponible en su carpeta y permite limpiar versiones antiguas junto con sus imágenes de entrenamiento.<br>
-Muestra los resultados en una tabla con estado (Match / Outdated / Missing) y un botón Clean para mover los archivos no usados a una carpeta “clean” paralela.<br><br>
-![](Doc_Media/image2.png)
 
 <br>
 

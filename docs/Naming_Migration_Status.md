@@ -133,13 +133,6 @@ Este documento rastrea el estado de migración de los scripts de LGA ToolPack pa
 
 ---
 
-### 9. LGA_CopyCat_Cleaner.py
-**Estado:** ➖ **No Aplica**  
-**Descripción:** Limpieza de archivos CopyCat  
-**Análisis:** No trabaja con shotnames directamente
-
----
-
 ## Resumen de Migración
 
 ### Estadísticas
