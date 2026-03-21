@@ -38,7 +38,7 @@
 
 Para revisar y ordenar toda la media del proyecto de forma rápida.<br>
 Al ejecutarlo escanea toda la media de la carpeta del shot y todas las rutas de los nodos Read del script, mostrando el estado de cada archivo como OK, Offline, Outside o Unused para poder decidir si relinkear, copiar o borrar.<br><br>
-![](Doc_Media/image3.png)
+![](Doc_Media/lga_mediamanager_v01.gif)
 
 
 
@@ -68,7 +68,7 @@ Al ejecutarlo escanea toda la media de la carpeta del shot y todas las rutas de 
 
 Para cuando hay missing media porque se cambió la ubicación del proyecto y su media.<br>
 Permite buscar y reemplazar rutas en los nodos Read y Write. Da la opción de filtrar listas, incluir sólo nodos Read o Write, y tiene un sistema de presets para guardar y cargar configuraciones frecuentes.<br>
-![](Doc_Media/image17.png)<br>
+![](Doc_Media/MediaPathReplacer.gif)<br>
 Útil para actualizar rutas de archivos cuando se mueven proyectos a otras carpetas o discos.
 <br><br>
 <img src="Doc_Media/media_path_replacer_shortcut.svg" alt="Media path replacer shortcut" width="195" height="43">
