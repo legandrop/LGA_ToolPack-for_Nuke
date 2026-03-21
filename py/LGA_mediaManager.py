@@ -1,8 +1,9 @@
 """
 _______________________________________
 
-  LGA_mediaManager v2.23 | Lega
+  LGA_mediaManager v2.24 | Lega
 
+  v2.24: fix altura de la ventana
   v2.23: se agrega el nuevo logging system
 _______________________________________
 

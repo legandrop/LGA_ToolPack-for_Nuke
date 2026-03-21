@@ -502,6 +502,11 @@ class FileScanner(QWidget):
             self.close()
 
     def adjust_window_size(self):
+        self.logger.debug("[Altura] ===============================================")
+        self.logger.debug("[Altura] Iniciando adjust_window_size()")
+        self.logger.debug(f"[Altura] Filas en tabla: {self.table.rowCount()}")
+        self.logger.debug(f"[Altura] Columnas en tabla: {self.table.columnCount()}")
+
         # Desactivar temporalmente el estiramiento de la ultima columna
         self.table.horizontalHeader().setStretchLastSection(False)
 
@@ -516,29 +521,156 @@ class FileScanner(QWidget):
             width += self.table.columnWidth(i) + 4
         width += self.table.verticalScrollBar().width()
 
+        self.logger.debug(
+            f"[Altura] Ancho header vertical + margen: {self.table.verticalHeader().width() + 4}"
+        )
+        for i in range(self.table.columnCount()):
+            self.logger.debug(
+                f"[Altura] Ancho columna {i}: {self.table.columnWidth(i) + 4}"
+            )
+        self.logger.debug(
+            f"[Altura] Ancho reservado para scroll vertical: {self.table.verticalScrollBar().width()}"
+        )
+        self.logger.debug(f"[Altura] Ancho total calculado: {width}")
+
         # Calcular la altura basada en la altura de los headers y las filas
         height = self.table.horizontalHeader().height() + 4
+        self.logger.debug(
+            f"[Altura] Alto header horizontal + margen: {self.table.horizontalHeader().height() + 4}"
+        )
         for i in range(self.table.rowCount()):
-            height += self.table.rowHeight(i)
-        height += self.table.horizontalScrollBar().height()
+            row_height = self.table.rowHeight(i)
+            height += row_height
+            self.logger.debug(f"[Altura] Alto fila {i}: {row_height}")
+
+        horizontal_scrollbar = self.table.horizontalScrollBar()
+        horizontal_scrollbar_height = horizontal_scrollbar.height()
+        reserve_horizontal_scrollbar = horizontal_scrollbar.isVisible()
+        reserved_horizontal_scrollbar_height = (
+            horizontal_scrollbar_height if reserve_horizontal_scrollbar else 0
+        )
+        height += reserved_horizontal_scrollbar_height
+        self.logger.debug(
+            f"[Altura] Alto reservado para scroll horizontal: {horizontal_scrollbar_height}"
+        )
+        self.logger.debug(
+            f"[Altura] Scroll horizontal visible al calcular: {reserve_horizontal_scrollbar}"
+        )
+        self.logger.debug(
+            f"[Altura] Alto realmente sumado por scroll horizontal: {reserved_horizontal_scrollbar_height}"
+        )
 
         # Agregar el alto del layout de botones al tamano de la ventana
-        height += self.layout.itemAt(0).sizeHint().height()
+        top_layout_height = self.layout.itemAt(0).sizeHint().height()
+        height += top_layout_height
+        self.logger.debug(f"[Altura] Alto layout superior: {top_layout_height}")
+
+        layout_margins = self.layout.contentsMargins()
+        margins_height = layout_margins.top() + layout_margins.bottom()
+        spacing_total = self.layout.spacing()
+        height += margins_height
+        height += spacing_total
+        self.logger.debug(
+            f"[Altura] Margenes layout principal top/bottom: {layout_margins.top()}/{layout_margins.bottom()} total={margins_height}"
+        )
+        self.logger.debug(f"[Altura] Spacing layout principal: {spacing_total}")
+        self.logger.debug(f"[Altura] Alto total calculado antes del limite: {height}")
 
         # Obtener la altura del monitor
         screen_height = QApplication.primaryScreen().geometry().height()
+        available_screen_height = QApplication.primaryScreen().availableGeometry().height()
+        self.logger.debug(f"[Altura] Alto total de pantalla: {screen_height}")
+        self.logger.debug(f"[Altura] Alto disponible de pantalla: {available_screen_height}")
 
         # Establecer un limite para la altura, por ejemplo, el 80% de la altura del monitor
         max_height = screen_height * 0.8
+        self.logger.debug(f"[Altura] Alto maximo permitido (80%): {max_height}")
 
         # Usar el menor entre la altura calculada y el maximo permitido
         final_height = min(height, max_height)
+        self.logger.debug(f"[Altura] Alto final aplicado: {final_height}")
+        self.logger.debug(f"[Altura] El limite maximo recorto el alto: {height > max_height}")
 
         # Reactivar el estiramiento de la ultima columna
         self.table.horizontalHeader().setStretchLastSection(True)
 
         # Ajustar el tamano de la ventana
         self.resize(width, final_height)
+        QApplication.processEvents()
+        self.logger.debug(
+            "[Altura] Resize aplicado. Se agenda validacion post-layout para medir geometria real."
+        )
+        QTimer.singleShot(
+            0,
+            lambda: self._log_height_post_layout(
+                calculated_width=width,
+                calculated_height=height,
+                final_height=final_height,
+                max_height=max_height,
+                reserved_horizontal_scrollbar=reserve_horizontal_scrollbar,
+                reserved_horizontal_scrollbar_height=reserved_horizontal_scrollbar_height,
+            ),
+        )
+
+    def _log_height_post_layout(
+        self,
+        calculated_width,
+        calculated_height,
+        final_height,
+        max_height,
+        reserved_horizontal_scrollbar,
+        reserved_horizontal_scrollbar_height,
+    ):
+        vertical_scrollbar = self.table.verticalScrollBar()
+        horizontal_scrollbar = self.table.horizontalScrollBar()
+        vertical_scroll_visible = vertical_scrollbar.isVisible()
+        horizontal_scroll_visible = horizontal_scrollbar.isVisible()
+        window_rect = self.rect()
+        contents_rect = self.contentsRect()
+        table_geometry = self.table.geometry()
+        viewport_geometry = self.table.viewport().geometry()
+
+        self.logger.debug("[Altura] ---------- Validacion post-layout ----------")
+        self.logger.debug(
+            f"[Altura] Geometria final ventana: width={self.width()} height={self.height()}"
+        )
+        self.logger.debug(
+            f"[Altura] rect ventana: width={window_rect.width()} height={window_rect.height()}"
+        )
+        self.logger.debug(
+            f"[Altura] contentsRect ventana: width={contents_rect.width()} height={contents_rect.height()}"
+        )
+        self.logger.debug(
+            f"[Altura] sizeHint ventana: width={self.sizeHint().width()} height={self.sizeHint().height()}"
+        )
+        self.logger.debug(
+            f"[Altura] minimumSizeHint ventana: width={self.minimumSizeHint().width()} height={self.minimumSizeHint().height()}"
+        )
+        self.logger.debug(
+            f"[Altura] Geometria tabla: x={table_geometry.x()} y={table_geometry.y()} width={table_geometry.width()} height={table_geometry.height()}"
+        )
+        self.logger.debug(
+            f"[Altura] Geometria viewport tabla: x={viewport_geometry.x()} y={viewport_geometry.y()} width={viewport_geometry.width()} height={viewport_geometry.height()}"
+        )
+        self.logger.debug(
+            f"[Altura] Scroll vertical visible: {vertical_scroll_visible} max={vertical_scrollbar.maximum()} pageStep={vertical_scrollbar.pageStep()}"
+        )
+        self.logger.debug(
+            f"[Altura] Scroll horizontal visible: {horizontal_scroll_visible} max={horizontal_scrollbar.maximum()} pageStep={horizontal_scrollbar.pageStep()}"
+        )
+        self.logger.debug(
+            f"[Altura] Resumen calculado: width={calculated_width} height={calculated_height} final_height={final_height} max_height={max_height}"
+        )
+        self.logger.debug(
+            f"[Altura] Resumen scroll horizontal reservado: visible_al_calcular={reserved_horizontal_scrollbar} alto_sumado={reserved_horizontal_scrollbar_height}"
+        )
+        self.logger.debug(
+            f"[Altura] Analisis: alto calculado suficiente sin scroll vertical = {not vertical_scroll_visible}"
+        )
+        self.logger.debug(
+            f"[Altura] Analisis: alto final coincide con alto calculado = {final_height == calculated_height}"
+        )
+        self.logger.debug("[Altura] ===============================================")
 
     def toggle_columns(self, state):
 
