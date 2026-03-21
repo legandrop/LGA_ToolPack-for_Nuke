@@ -96,6 +96,8 @@ Estas reglas ya pasan a formar parte del criterio del `README.md` de `LGA_ToolPa
 - Cuando el atajo aparece integrado en el título del Google Doc, debe mantenerse dentro del heading en cursiva.
 - Entre tools debe agregarse espacio explícito con `<br><br>`, como en el README de layout, para separar visualmente cada bloque.
 
+- Cuando una captura fija del README se reemplaza por un GIF animado, el archivo final que se usa en `Doc_Media` debe exportarse o regenerarse al `80%` del tamaño del original guardado en `Doc_Media/Originals`.
+
 ## Colores de sección detectados en el docx
 
 - `READ n WRITE`: `#a9ab13`

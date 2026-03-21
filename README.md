@@ -93,12 +93,11 @@ Genera un nodo Read a partir de la ruta y archivo del nodo Write seleccionado.
 
 Para crear nodos Write con configuraciones predefinidas para diferentes tipos de render.<br>
 Abre una ventana con opciones de render pre configuradas que se cargan desde un archivo .ini. Permite crear Writes basados en el nombre del script o en el nombre del nodo Read más alto. Según la configuración, puede abrir un diálogo para nombrar el render y crear automáticamente un backdrop con Write y Switch. Los presets incluyen configuraciones específicas para diferentes formatos (mov, tiff, exr) con parámetros optimizados para cada caso.<br>
-![](Doc_Media/image6.png)
-![](Doc_Media/image19.png)
+![](Doc_Media/write_presetsA_v01.gif)
 
-También incluye un botón para poder previsualizar un path TCL como una ruta absoluta, seleccionando primero el nodo Write a inspeccionar:<br>
-![](Doc_Media/image4.png)
-![](Doc_Media/image22.png)
+Si se ejecuta sobre un write existente se abre el editor de TLC:<br>
+![](Doc_Media/write_presetsB_v01.gif)
+
 <br><br>
 <img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcut" width="150" height="43">
 
