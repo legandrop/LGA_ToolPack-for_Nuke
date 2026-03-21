@@ -82,6 +82,7 @@ Permite buscar y reemplazar rutas en los nodos Read y Write. Da la opción de fi
 [https://www.nukepedia.com/python/misc/readfromwrite](https://www.nukepedia.com/python/misc/readfromwrite)<br>
 Genera un nodo Read a partir de la ruta y archivo del nodo Write seleccionado.
 <br><br>
+![](Doc_Media/readfromwrite_v01.gif)
 <img src="Doc_Media/read_from_write_shortcut.svg" alt="Read from Write shortcut" width="150" height="43">
 
 <br>
@@ -110,6 +111,7 @@ También incluye un botón para poder previsualizar un path TCL como una ruta ab
 Para ir rápidamente al nodo Wirte principal.<br>
 Busca un nodo Write con un nombre definido en los settings del ToolPack, lo pone en foco y lo abre en el panel de propiedades.
 <br><br>
+![](Doc_Media/Write_Focus_v01.gif)
 <img src="Doc_Media/write_focus_shortcut.svg" alt="Write focus shortcut" width="225" height="43">
 
 <br>
