@@ -249,9 +249,10 @@ Agrega un nodo Roto y un Blur en el input mask del nodo seleccionado.<br>
 ## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Merge | Switch Merge operations v1.31 | Lega
 
 Si NO hay un nodo Merge seleccionado, crea un nodo Merge con operación en Mask y bbx en ‘A’, y en el input A suma un nodo Roto y un Blur.<br>
-![](Doc_Media/image16.png)<br>
+![](Doc_Media/build_mergeMaskA_v01.gif)<br>
 Si en cambio se ejecuta con un nodo Merge seleccionado, cambia sus operaciones y va rotando entre 'over' con bbox 'B', 'mask' con bbox 'A' y 'stencil' con bbox 'B'.
-<br><br>
+<br>
+![](Doc_Media/build_mergeMaskB_v01.gif)<br><br>
 <img src="Doc_Media/build_merge_shortcut.svg" alt="Build Merge shortcut" width="150" height="43">
 
 <br>
@@ -262,7 +263,7 @@ Si en cambio se ejecuta con un nodo Merge seleccionado, cambia sus operaciones y
 ## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Grade v1.1 | Lega
 
 Crea un nodo Grade y en el input Mask suma un nodo Roto y un Blur.<br>
-![](Doc_Media/image24.png)
+![](Doc_Media/build_grade_v01.gif)
 <br><br>
 <img src="Doc_Media/build_grade_shortcut.svg" alt="Build Grade shortcut" width="150" height="43">
 
@@ -274,7 +275,7 @@ Crea un nodo Grade y en el input Mask suma un nodo Roto y un Blur.<br>
 ## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Grade Highlights v1.1 | Lega
 
 Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del grade y un Shuffle para poder evaluar el canal alpha con el viewer en RGB.<br>
-![](Doc_Media/image28.png)
+![](Doc_Media/Build+Grade_Highlights_v01.gif)
 <br><br>
 <img src="Doc_Media/build_grade_highlights_shortcut.svg" alt="Build Grade Highlights shortcut" width="205" height="43">
 
