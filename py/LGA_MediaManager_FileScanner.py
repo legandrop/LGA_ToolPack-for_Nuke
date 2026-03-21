@@ -368,7 +368,7 @@ class FileScanner(QWidget):
         self.settings_button.clicked.connect(self.show_settings_window)
 
         # Crear y configurar el QLabel para el texto de la version
-        version_label = QLabel("v2.23  ")
+        version_label = QLabel("v2.24  ")
         version_label.setToolTip("Lega | 2023")
         version_label.setAlignment(
             Qt.AlignRight | Qt.AlignVCenter
