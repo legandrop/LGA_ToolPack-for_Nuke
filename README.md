@@ -168,7 +168,7 @@ Para el login completar la información en los settings del ToolPack.
 
 Para cambiar rapidamente el espacio de color de un Read, Write, etc.<br>
 Abre una ventana con una lista de espacios de color que se pueden aplicar sobre todos los nodos Read y/o Write seleccionados.<br>
-![](Doc_Media/image31.png)<br>
+![](Doc_Media/Color_SpaceFav_v01.gif)<br>
 Esta lista se puede editar en los settings del ToolPack.
 <br><br>
 <img src="Doc_Media/rnw_colorspace_favs_shortcut.svg" alt="RnW ColorSpace favs shortcut" width="150" height="43">
@@ -183,6 +183,7 @@ Esta lista se puede editar en los settings del ToolPack.
 
 Útil para cuando se empieza un proyecto nuevo y se quiere usar el frame range de un nodo Read en los settings del proyecto.
 <br><br>
+![](Doc_Media/Frame_range_ReadtoProject_v01.gif)<br>
 <img src="Doc_Media/frame_range_read_to_project_shortcut.svg" alt="Frame range Read to Project shortcut" width="150" height="43">
 
 <br>
@@ -193,6 +194,7 @@ Esta lista se puede editar en los settings del ToolPack.
 
 Igual que el anterior, pero además de copiar el frame range del Read, también se copia la resolución a los settings del proyecto.
 <br><br>
+![](Doc_Media/Frame_range_ReadtoProjectRes_v01.gif)<br>
 <img src="Doc_Media/frame_range_read_to_project_res_shortcut.svg" alt="Frame range Read to Project res shortcut" width="205" height="43">
 
 <br><br>
@@ -211,6 +213,7 @@ Shortcuts (usando las teclas / y * del teclado numérico):
 - Ctrl + / gira 0.1 grados hacia la izquierda
 - Ctrl + shift + / gira 0.1 grados hacia la izquierda
 
+![](Doc_Media/Rotate_Transform_v01.gif)
 <br><br>
 
 
@@ -224,7 +227,7 @@ Similar al uso de toolSets, pero más ágil y con más posibilidades.
 
 ## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Iteration v1.1 | Lega
 
-![](Doc_Media/image14.png)
+![](Doc_Media/Build_Iteration_v01.gif)
 <br><br>
 <img src="Doc_Media/build_iteration_shortcut.svg" alt="Build Iteration shortcut" width="135" height="43">
 
@@ -232,11 +235,10 @@ Similar al uso de toolSets, pero más ágil y con más posibilidades.
 
 
 
-## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Roto Blur in mask input v1.1 | Lega
+## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build RotoBlur in input mask v1.1 | Lega
 
 Agrega un nodo Roto y un Blur en el input mask del nodo seleccionado.<br>
-![](Doc_Media/image32.png)
-![](Doc_Media/image33.png)
+![](Doc_Media/Build_RotoBlur_v01.gif)
 <br><br>
 <img src="Doc_Media/build_roto_blur_shortcut.svg" alt="Build Roto Blur shortcut" width="135" height="43">
 
