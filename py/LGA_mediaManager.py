@@ -1,7 +1,9 @@
 """
 _______________________________________
 
-  LGA_mediaManager v2.22 | Lega
+  LGA_mediaManager v2.23 | Lega
+
+  v2.23: se agrega el nuevo logging system
 _______________________________________
 
 """
@@ -55,106 +57,7 @@ import sys
 import configparser
 import logging
 QThreadPool = QtCore.QThreadPool
-import inspect
-
-# Variables de estado globales para el tiempo de inicio
-_start_time = time.time()
-
-DEBUG = False
-
-
-def configure_logger():
-    # Si ya existe un logger configurado, lo retornamos sin crear uno nuevo
-    if hasattr(configure_logger, "logger"):
-        return configure_logger.logger
-
-    # Crear un logger principal para toda la aplicacion
-    logger = logging.getLogger("LGA_MediaManager")
-    logger.setLevel(logging.DEBUG)
-
-    # Eliminar cualquier manejador que ya este configurado en el logger
-    if logger.hasHandlers():
-        logger.handlers.clear()
-
-    # Evitar que los mensajes se propaguen al logger raiz
-    logger.propagate = False
-
-    # Crear un handler para escribir en archivo
-    log_dir = os.path.dirname(os.path.realpath(__file__))
-    log_file = os.path.join(log_dir, "LGA_mediaManager.log")
-
-    # Limpiar el archivo al inicio
-    with open(log_file, "w") as f:
-        f.write("")  # Sobrescribe el contenido del archivo, limpiandolo
-
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.DEBUG)
-
-    # Crear un formatter personalizado que incluya [tiempo] [clase::metodo]
-    class CustomFormatter(logging.Formatter):
-        def format(self, record):
-            elapsed = time.time() - _start_time
-
-            # Obtener el frame de donde se llamo el log
-            frame = inspect.currentframe()
-            caller_frame = None
-            caller_class = None
-            caller_method = None
-
-            # Recorrer los frames hasta encontrar el llamador real
-            try:
-                # Saltar los frames internos del logging
-                while frame:
-                    frame = frame.f_back
-                    if frame is None:
-                        break
-
-                    # Saltear frames internos del logging
-                    filename = frame.f_code.co_filename
-                    if "logging" in filename.lower():
-                        continue
-
-                    # Obtener informacion del metodo
-                    caller_method = frame.f_code.co_name
-
-                    # Intentar obtener la clase
-                    if "self" in frame.f_locals:
-                        caller_class = frame.f_locals["self"].__class__.__name__
-                    elif "cls" in frame.f_locals:
-                        caller_class = frame.f_locals["cls"].__name__
-                    else:
-                        # Si no hay clase, usar el nombre del modulo
-                        module_name = os.path.basename(filename).replace(".py", "")
-                        if module_name.startswith("LGA_"):
-                            caller_class = module_name
-                        else:
-                            caller_class = "Unknown"
-
-                    break
-            except:
-                caller_class = "Unknown"
-                caller_method = "unknown_method"
-
-            # Formatear el mensaje
-            timestamp = f"[{elapsed:.3f}s]"
-            location = f"[{caller_class}::{caller_method}]"
-
-            return f"{timestamp} {location} {record.getMessage()}"
-
-    formatter = CustomFormatter()
-    file_handler.setFormatter(formatter)
-
-    # Agregar el handler al logger
-    logger.addHandler(file_handler)
-
-    # Guardar una referencia al logger para no duplicarlo
-    configure_logger.logger = logger
-    return logger
-
-
-def debug_print(*message):
-    if DEBUG:
-        print(*message)
+from LGA_MediaManager_logging import configure_logger, debug_print
 
 
 def normalize_path_for_comparison(file_path):
@@ -192,6 +95,7 @@ from LGA_MediaManager_FileScanner import FileScanner
 
 
 def main():
+    configure_logger(reset=True)
     app = QApplication.instance() or QApplication(sys.argv)
 
     # Verificar si el script está guardado

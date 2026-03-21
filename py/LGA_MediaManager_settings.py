@@ -56,28 +56,7 @@ import sys
 import configparser
 import logging
 
-start_time = time.time()
-
-DEBUG = False
-
-
-def configure_logger():
-    # Importar la configuracion centralizada del archivo principal
-    try:
-        from LGA_mediaManager import configure_logger as main_configure_logger
-
-        return main_configure_logger()
-    except ImportError:
-        # Fallback en caso de problemas de importacion
-        import logging
-
-        logger = logging.getLogger("LGA_MediaManager")
-        return logger
-
-
-def debug_print(*message):
-    if DEBUG:
-        print(*message)
+from LGA_MediaManager_logging import configure_logger, debug_print
 
 
 def normalize_path_for_comparison(file_path):

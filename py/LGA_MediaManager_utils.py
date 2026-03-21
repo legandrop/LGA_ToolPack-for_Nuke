@@ -56,50 +56,7 @@ import configparser
 import logging
 QThreadPool = QtCore.QThreadPool
 
-# Importar el tiempo de inicio global del archivo principal
-try:
-    from LGA_mediaManager import _start_time
-except ImportError:
-    _start_time = time.time()
-
-start_time = time.time()
-
-
-def get_log_prefix(caller_class=None, caller_method=None):
-    """
-    Genera el prefijo para logs con formato [tiempo] [clase::metodo]
-    """
-    elapsed = time.time() - _start_time
-    timestamp = f"[{elapsed:.3f}s]"
-
-    if caller_class and caller_method:
-        location = f"[{caller_class}::{caller_method}]"
-        return f"{timestamp} {location}"
-    else:
-        return timestamp
-
-
-def configure_logger():
-    # Importar la configuracion centralizada del archivo principal
-    try:
-        from LGA_mediaManager import configure_logger as main_configure_logger
-
-        return main_configure_logger()
-    except ImportError:
-        # Fallback en caso de problemas de importacion
-        import logging
-
-        logger = logging.getLogger("LGA_MediaManager")
-        return logger
-
-
-# Variable global para activar o desactivar los prints
-DEBUG = False
-
-
-def debug_print(*message):
-    if DEBUG:
-        print(*message)
+from LGA_MediaManager_logging import configure_logger, debug_print, get_log_prefix
 
 
 def resolve_relative_path(file_path, project_folder):

@@ -56,28 +56,7 @@ import configparser
 import logging
 QThreadPool = QtCore.QThreadPool
 
-start_time = time.time()
-
-DEBUG = False
-
-
-def configure_logger():
-    # Importar la configuracion centralizada del archivo principal
-    try:
-        from LGA_mediaManager import configure_logger as main_configure_logger
-
-        return main_configure_logger()
-    except ImportError:
-        # Fallback en caso de problemas de importacion
-        import logging
-
-        logger = logging.getLogger("LGA_MediaManager")
-        return logger
-
-
-def debug_print(*message):
-    if DEBUG:
-        print(*message)
+from LGA_MediaManager_logging import configure_logger, debug_print
 
 
 def normalize_path_for_comparison(file_path):
@@ -389,8 +368,8 @@ class FileScanner(QWidget):
         self.settings_button.clicked.connect(self.show_settings_window)
 
         # Crear y configurar el QLabel para el texto de la version
-        version_label = QLabel("v1.6  ")
-        version_label.setToolTip("Lega | 2024")
+        version_label = QLabel("v2.23  ")
+        version_label.setToolTip("Lega | 2023")
         version_label.setAlignment(
             Qt.AlignRight | Qt.AlignVCenter
         )  # Alineacion a la derecha y verticalmente centrado
