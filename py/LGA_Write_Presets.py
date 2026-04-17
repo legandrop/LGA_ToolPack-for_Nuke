@@ -1,12 +1,13 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.73 | Lega
+  LGA_Write_Presets v2.74 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
-
+  v.274 fix presets matte script
+  
   v2.73: Ajustes UI.
   
   v2.72: Detecta OCIO 1.3+/v2 y ajusta los presets Output Rec.709 para usar transformType=display con el display/view del proyecto.
