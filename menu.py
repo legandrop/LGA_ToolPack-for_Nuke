@@ -229,6 +229,18 @@ add_tool(
 
 add_tool(
     n,
+    label="  Show Flow Notes",
+    key="Show_Flow_Notes",
+    module="LGA_showFlowNotes",
+    attr="main",
+    shortcut="ctrl+alt+shift+f",
+    icon=icon_RnW,
+    context=2,
+)
+
+
+add_tool(
+    n,
     label="  Color Space Favs",
     key="Color_Space_Favs",
     module="LGA_RnW_ColorSpace_Favs",

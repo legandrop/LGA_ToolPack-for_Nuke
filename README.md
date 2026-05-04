@@ -164,6 +164,18 @@ Para el login completar la información en los settings del ToolPack.
 
 
 
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Show Flow Notes v1.0 | Lega
+
+Muestra en una ventana la informacion del shot y los comentarios/versiones de la task correspondiente, tomando el shot desde el nombre del script/proyecto actual de Nuke.<br>
+Si el nombre del script incluye `_roto_` o `_cleanup_`, usa esa task. Si no, busca la task comp por defecto.<br>
+Esta herramienta solo funciona leyendo la DB local de la app PipeSync, que es propietaria del estudio. Fuera de ese entorno no tiene datos para consultar.
+<br><br>
+<img src="Doc_Media/show_flow_notes_shortcut.svg" alt="Show Flow Notes shortcut" width="265" height="43">
+
+<br>
+
+
+
 ## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> RnW ColorSpace favs v1.1 | Lega
 
 Para cambiar rapidamente el espacio de color de un Read, Write, etc.<br>
