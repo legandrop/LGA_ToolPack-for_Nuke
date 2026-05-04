@@ -1,7 +1,7 @@
 ﻿"""
 ____________________________________________________________________
 
-  LGA_showFlowNotes v1.00 | Lega
+  LGA_showFlowNotes v1.01 | Lega
 
   Muestra informacion del shot y notas/versiones desde la DB local de PipeSync.
   El shot se determina desde el nombre del script abierto en Nuke.
@@ -45,8 +45,16 @@ QLabel = QtWidgets.QLabel
 QFrame = QtWidgets.QFrame
 QPushButton = QtWidgets.QPushButton
 QSizePolicy = QtWidgets.QSizePolicy
+QDialog = QtWidgets.QDialog
+QFileDialog = QtWidgets.QFileDialog
+QMessageBox = QtWidgets.QMessageBox
 QIcon = QtGui.QIcon
 QColor = QtGui.QColor
+
+try:
+    import LGA_showFlowNotes_AddComment as AddCommentHelper
+except Exception as exc:
+    AddCommentHelper = None
 
 DEBUG = True
 DEBUG_CONSOLE = False
@@ -250,6 +258,22 @@ QLabel#flowVersionInfo {
 }
 QLabel#flowVersionTimeLogged {
     background-color: transparent; font-size: 13px; font-weight: 400;
+}
+QPushButton#flowVersionAddCommentButton {
+    background-color: rgba(35, 35, 35, 0.85);
+    color: %(txt_principal_strong)s;
+    border: 1px solid rgba(178, 178, 178, 0.28);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 12px;
+}
+QPushButton#flowVersionAddCommentButton:hover {
+    background-color: rgba(50, 50, 50, 0.95);
+    border-color: rgba(178, 178, 178, 0.5);
+}
+QPushButton#flowVersionAddCommentButton:disabled {
+    color: %(txt_secundario)s;
+    border-color: rgba(178, 178, 178, 0.12);
 }
 QLabel#flowVersionDescriptionTitle,
 QLabel#flowVersionDescriptionContent {
@@ -785,7 +809,7 @@ class ShotGridManager:
         cur = self.conn.cursor()
         cur.execute(
             """
-            SELECT s.* FROM shots s
+            SELECT s.*, p.project_sg_id FROM shots s
             JOIN projects p ON s.project_id = p.id
             WHERE p.project_name = ? AND s.shot_name = ?
             """,
@@ -798,6 +822,7 @@ class ShotGridManager:
         shot_dict = {
             "shot_name": shot["shot_name"],
             "sequence": shot["sequence"],
+            "project_sg_id": shot["project_sg_id"] if "project_sg_id" in shot.keys() else None,
             "tasks": [],
         }
         # Obtener las tasks asociadas a este shot
@@ -805,6 +830,7 @@ class ShotGridManager:
         tasks = cur.fetchall()
         for task in tasks:
             task_dict = {
+                "task_db_id": task["id"],
                 "task_type": task["task_type"],
                 "task_description": task["task_description"],
                 "task_status": task["task_status"],
@@ -903,6 +929,9 @@ class ShotGridManager:
                         }
                     )
                 version_dict = {
+                    "project_sg_id": shot_dict.get("project_sg_id"),
+                    "version_db_id": v["id"],
+                    "version_sg_id": v["version_sg_id"] if "version_sg_id" in v.keys() else None,
                     "version_number": f"v{v['version_number']:03d}",
                     "version_number_int": int(v["version_number"]),
                     "version_description": v["description"] or "",
@@ -1053,6 +1082,9 @@ class HieroOperations:
                             "comments": v.get("comments", []),
                             "created_by": v.get("created_by", "Unknown"),
                             "logged_minutes": v.get("logged_minutes", 0.0),
+                            "project_sg_id": v.get("project_sg_id"),
+                            "version_db_id": v.get("version_db_id"),
+                            "version_sg_id": v.get("version_sg_id"),
                         }
                     )
 
@@ -1158,6 +1190,9 @@ class NukeOperations:
                     "comments": version.get("comments", []),
                     "created_by": version.get("created_by", "Unknown"),
                     "logged_minutes": version.get("logged_minutes", 0.0),
+                    "project_sg_id": version.get("project_sg_id"),
+                    "version_db_id": version.get("version_db_id"),
+                    "version_sg_id": version.get("version_sg_id"),
                 }
             )
 
@@ -1177,10 +1212,193 @@ class NukeOperations:
         ]
 
 
+class AddCommentWorker(QtCore.QThread):
+    progress_changed = Signal(int, str)
+    succeeded = Signal(int)
+    failed = Signal(str)
+
+    def __init__(self, db_path, version, content, attachment_paths, parent=None):
+        super(AddCommentWorker, self).__init__(parent)
+        self.db_path = db_path
+        self.version = version
+        self.content = content
+        self.attachment_paths = attachment_paths
+
+    def run(self):
+        try:
+            if AddCommentHelper is None:
+                raise RuntimeError("No se pudo cargar LGA_showFlowNotes_AddComment.py.")
+
+            note_id = AddCommentHelper.submit_comment(
+                self.db_path,
+                self.version.get("project_sg_id"),
+                self.version.get("version_db_id"),
+                self.version.get("version_sg_id"),
+                self.content,
+                attachment_paths=self.attachment_paths,
+                progress_callback=self.progress_changed.emit,
+            )
+            self.succeeded.emit(int(note_id))
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class AddCommentDialog(QDialog):
+    comment_added = Signal()
+
+    def __init__(self, db_path, version, parent=None):
+        super(AddCommentDialog, self).__init__(parent)
+        self.db_path = db_path
+        self.version = version
+        self.attachment_paths = []
+        self.worker = None
+        self._build_ui()
+
+    def _build_ui(self):
+        self.setWindowTitle("Add Comment")
+        self.setModal(True)
+        self.setMinimumWidth(560)
+        self.setMinimumHeight(390)
+        self.setStyleSheet(SHOT_INFO_QSS)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+
+        raw_vn = self.version.get("version_number", "v???")
+        title = QLabel(f"Add Comment  |  {raw_vn}")
+        title.setObjectName("flowNotesTitle")
+        layout.addWidget(title)
+
+        label = QLabel("Comentario:")
+        label.setStyleSheet(f"color: {COLORS['txt_principal']};")
+        layout.addWidget(label)
+
+        self.comment_edit = QTextEdit()
+        self.comment_edit.setMinimumHeight(150)
+        self.comment_edit.setStyleSheet(
+            "QTextEdit { background-color: #1e1e1e; color: #dddddd; "
+            "border: 1px solid #303030; border-radius: 4px; padding: 8px; }"
+        )
+        layout.addWidget(self.comment_edit, 1)
+
+        self.attachments_label = QLabel("Sin adjuntos")
+        self.attachments_label.setStyleSheet(f"color: {COLORS['txt_secundario']};")
+        self.attachments_label.setWordWrap(True)
+        layout.addWidget(self.attachments_label)
+
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet(f"color: {COLORS['txt_secundario']};")
+        layout.addWidget(self.status_label)
+
+        buttons_layout = QHBoxLayout()
+        self.attach_button = QPushButton("Adjuntar JPG/PNG")
+        self.attach_button.clicked.connect(self.select_attachments)
+        buttons_layout.addWidget(self.attach_button)
+
+        buttons_layout.addStretch(1)
+
+        self.cancel_button = QPushButton("Cancelar")
+        self.cancel_button.clicked.connect(self.reject)
+        buttons_layout.addWidget(self.cancel_button)
+
+        self.submit_button = QPushButton("Add Comment")
+        self.submit_button.setObjectName("flowVersionAddCommentButton")
+        self.submit_button.clicked.connect(self.submit)
+        buttons_layout.addWidget(self.submit_button)
+        layout.addLayout(buttons_layout)
+
+        if QShortcut is not None:
+            shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
+            shortcut.activated.connect(self.submit)
+            shortcut2 = QShortcut(QKeySequence("Ctrl+Enter"), self)
+            shortcut2.activated.connect(self.submit)
+
+    def select_attachments(self):
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Seleccionar adjuntos",
+            "",
+            "Imagenes (*.jpg *.jpeg *.png)",
+        )
+        if not files:
+            return
+        valid_ext = {".jpg", ".jpeg", ".png"}
+        for path in files:
+            if os.path.splitext(path)[1].lower() not in valid_ext:
+                continue
+            if path not in self.attachment_paths:
+                self.attachment_paths.append(path)
+        self._update_attachments_label()
+
+    def _update_attachments_label(self):
+        if not self.attachment_paths:
+            self.attachments_label.setText("Sin adjuntos")
+            return
+        names = [os.path.basename(path) for path in self.attachment_paths]
+        self.attachments_label.setText("; ".join(names))
+
+    def _set_busy(self, busy):
+        self.comment_edit.setEnabled(not busy)
+        self.attach_button.setEnabled(not busy)
+        self.cancel_button.setEnabled(not busy)
+        self.submit_button.setEnabled(not busy)
+
+    def submit(self):
+        content = self.comment_edit.toPlainText().strip()
+        if not content:
+            QMessageBox.warning(self, "Add Comment", "Escribi un comentario.")
+            return
+
+        required = ("project_sg_id", "version_db_id", "version_sg_id")
+        missing = [key for key in required if not self.version.get(key)]
+        if missing:
+            QMessageBox.warning(
+                self,
+                "Add Comment",
+                "Faltan datos de la version: " + ", ".join(missing),
+            )
+            return
+
+        self._set_busy(True)
+        self.status_label.setText("Enviando comentario...")
+        self.worker = AddCommentWorker(
+            self.db_path,
+            self.version,
+            content,
+            list(self.attachment_paths),
+            self,
+        )
+        self.worker.progress_changed.connect(self.on_progress)
+        self.worker.succeeded.connect(self.on_success)
+        self.worker.failed.connect(self.on_error)
+        self.worker.start()
+
+    def on_progress(self, percent, message):
+        self.status_label.setText(f"{message} ({percent}%)")
+
+    def on_success(self, note_id):
+        self.status_label.setText(f"Comentario agregado. Note {note_id}")
+        self.comment_added.emit()
+        QtCore.QTimer.singleShot(500, self.accept)
+
+    def on_error(self, message):
+        self._set_busy(False)
+        self.status_label.setText("Error")
+        QMessageBox.critical(self, "Add Comment", message)
+
+
 class GUIWindow(QWidget):
     def __init__(self, hiero_ops, parent=None):
         super(GUIWindow, self).__init__(parent)
         self.hiero_ops = hiero_ops
+        self.db_path = getattr(hiero_ops.sg_manager, "db_path", "")
+        self.is_reviewer = False
+        if AddCommentHelper is not None:
+            try:
+                self.is_reviewer = AddCommentHelper.is_current_user_reviewer()
+            except Exception as exc:
+                debug_print("No se pudo leer Flow.SpecialRoles:", str(exc), level="warning")
         self.initUI()
 
     def initUI(self):
@@ -1284,6 +1502,13 @@ class GUIWindow(QWidget):
         hl.addWidget(info_label)
         hl.addStretch(1)
 
+        if self.is_reviewer:
+            add_button = QPushButton("Add Comment")
+            add_button.setObjectName("flowVersionAddCommentButton")
+            add_button.setFixedHeight(24)
+            add_button.clicked.connect(lambda checked=False, v=version: self.open_add_comment_dialog(v))
+            hl.addWidget(add_button)
+
         time_text = _format_logged_time(version.get("logged_minutes", 0.0))
         if time_text:
             time_html = (
@@ -1297,6 +1522,18 @@ class GUIWindow(QWidget):
             hl.addWidget(time_label)
 
         return header
+
+    def open_add_comment_dialog(self, version):
+        dialog = AddCommentDialog(self.db_path, version, self)
+        dialog.comment_added.connect(self.refresh_results)
+        dialog.exec_()
+
+    def refresh_results(self):
+        try:
+            results = self.hiero_ops.process_current_script()
+            self.display_results(results)
+        except Exception as exc:
+            debug_print("Error refrescando Flow Notes:", str(exc), level="error")
 
     def _build_description_section(self, version):
         section = QWidget()
