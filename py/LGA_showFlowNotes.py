@@ -165,7 +165,7 @@ from LGA_NKS_Flow_NamingUtils import (
     extract_task_name,
 )
 
-# Importar mÃ³dulo utilitario para obtener clips
+# Importar módulo utilitario para obtener clips
 utils_path = None
 HAS_CLIP_UTILS = False
 if False:
@@ -179,7 +179,7 @@ if False:
         )
         HAS_CLIP_UTILS = True
     except ImportError as e:
-        debug_print(f"Error importando mÃ³dulo LGA_NKS_GetClip: {e}")
+        debug_print(f"Error importando módulo LGA_NKS_GetClip: {e}")
 
 
 # Umbral (en segundos) para considerar que una nota fue auto-generada al subir
@@ -600,7 +600,7 @@ class ThumbnailWidget(QLabel):
         self.original_pixmap.fill(Qt.gray)
 
     def update_size(self):
-        """Actualiza el tamaÃ±o del thumbnail manteniendo la relaciÃ³n de aspecto"""
+        """Actualiza el tamaño del thumbnail manteniendo la relación de aspecto"""
         if self.original_pixmap and not self.original_pixmap.isNull():
             scaled_pixmap = self.original_pixmap.scaled(
                 self.thumbnail_size,
@@ -876,7 +876,7 @@ class ShotGridManager:
             )
             versions = cur.fetchall()
             for v in versions:
-                # Obtener comentarios/notas de la version con informaciÃ³n de attachments
+                # Obtener comentarios/notas de la version con información de attachments
                 cur.execute(
                     "SELECT content, created_by, created_on, local_attachment_paths, "
                     "attachment_info, from_playlist, playlist_name "
@@ -962,15 +962,15 @@ class HieroOperations:
 
     def __init__(self, shotgrid_manager):
         self.sg_manager = shotgrid_manager
-        # Sincronizar debug con el mÃ³dulo utilitario
+        # Sincronizar debug con el módulo utilitario
         if HAS_CLIP_UTILS:
             clip_utils.DEBUG = DEBUG
 
     def parse_exr_name(self, file_name):
         """Extrae el nombre base del archivo EXR y el numero de version."""
-        # Usar funciÃ³n compartida para limpiar el nombre base
+        # Usar función compartida para limpiar el nombre base
         base_name = clean_base_name(file_name)
-        # Buscar versiÃ³n en el nombre original (antes de limpiar)
+        # Buscar versión en el nombre original (antes de limpiar)
         version_match = re.search(r"_v(\d+)", file_name)
         version_number = version_match.group(1) if version_match else "Unknown"
         return base_name, version_number
@@ -979,14 +979,14 @@ class HieroOperations:
         """Procesa el clip del playhead resolviendo la task entre las disponibles.
 
         Si en el playhead hay clips de varias tasks (`_comp_`, `_roto_`, `_cleanup_`),
-        muestra un popover para elegir cuÃ¡l mostrar. Si hay una sola, la usa
-        automÃ¡ticamente. Si no hay clip en ninguna, cae al mÃ©todo actual con
-        TRACK_comp_EXR y selecciÃ³n como fallback.
+        muestra un popover para elegir cuál mostrar. Si hay una sola, la usa
+        automáticamente. Si no hay clip en ninguna, cae al método actual con
+        TRACK_comp_EXR y selección como fallback.
         """
         debug_print("Processing selected clips...")
 
         if not HAS_CLIP_UTILS:
-            debug_print("ERROR: MÃ³dulo LGA_NKS_GetClip no disponible. No se pueden procesar clips.")
+            debug_print("ERROR: Módulo LGA_NKS_GetClip no disponible. No se pueden procesar clips.")
             return []
 
         seq = hiero.ui.activeSequence()
@@ -1031,7 +1031,7 @@ class HieroOperations:
             except Exception:
                 clip_name = exr_name
 
-            # Usar funciones compartidas para extraer informaciÃ³n
+            # Usar funciones compartidas para extraer información
             project_name = extract_project_name(base_name)
             shot_code = extract_shot_code(base_name)
             debug_print(
@@ -1442,7 +1442,7 @@ class GUIWindow(QWidget):
             shortcut.activated.connect(self.close)
 
     def closeEvent(self, event):
-        # Cerrar la conexiÃ³n de sg_manager si existe
+        # Cerrar la conexión de sg_manager si existe
         if hasattr(self.hiero_ops, "sg_manager") and self.hiero_ops.sg_manager:
             self.hiero_ops.sg_manager.close()
             self.hiero_ops.sg_manager = None
@@ -1543,7 +1543,7 @@ class GUIWindow(QWidget):
 
         author = (version.get("created_by") or "").strip()
         title_html = (
-            f"<span style='color: {COLORS['txt_desc_title']}; font-weight: 700; font-size: 15px;'>DescripciÃ³n:</span>"
+            f"<span style='color: {COLORS['txt_desc_title']}; font-weight: 700; font-size: 15px;'>Descripción:</span>"
         )
         if author:
             title_html += (
@@ -1562,7 +1562,7 @@ class GUIWindow(QWidget):
             esc = _html_escape(desc).replace("\n", "<br/>")
             content_html = f"<span style='color: {COLORS['txt_body']};'>{esc}</span>"
         else:
-            content_html = f"<span style='color: {COLORS['txt_body']};'>Sin descripciÃ³n</span>"
+            content_html = f"<span style='color: {COLORS['txt_body']};'>Sin descripción</span>"
 
         content_label = QLabel(content_html)
         content_label.setObjectName("flowVersionDescriptionContent")
