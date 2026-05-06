@@ -1,10 +1,11 @@
 ﻿"""
 ____________________________________________________________________
 
-  LGA_showFlowNotes v1.01 | Lega
+  LGA_showFlowNotes v1.02 | Lega
 
   Muestra informacion del shot y notas/versiones desde la DB local de PipeSync.
-  El shot se determina desde el nombre del script abierto en Nuke.
+  El shot se determina priorizando un nodo Read seleccionado en Nuke.
+  Si no hay Read seleccionado, usa el nombre del script abierto.
   Si el nombre incluye _roto_ o _cleanup_, usa esa task. Si no, usa comp.
 ____________________________________________________________________
 
@@ -1132,24 +1133,45 @@ class NukeOperations:
                 return candidate
         return "comp"
 
+    def _get_source_file_name(self):
+        """
+        Determina el archivo fuente para resolver el shot.
+        Prioridad: si hay al menos un nodo Read seleccionado, usa el primero.
+        Si no, usa el nombre del script abierto en Nuke.
+        Retorna (file_name, source) donde source es 'read_node' o 'script'.
+        """
+        selected_reads = nuke.selectedNodes('Read')
+        if selected_reads:
+            read_node = selected_reads[0]
+            file_path = read_node['file'].value()
+            if file_path:
+                file_name = os.path.basename(file_path)
+                debug_print(f"Read node seleccionado — usando archivo: {file_name}")
+                return file_name, 'read_node'
+
+        file_path = nuke.root().name()
+        if not file_path or file_path == "Root":
+            return None, 'script'
+        return os.path.basename(file_path), 'script'
+
     def process_current_script(self):
         debug_print("Processing current Nuke script...")
-        file_path = nuke.root().name()
-        debug_print(f"Nuke script file path: {file_path}")
 
-        if not file_path or file_path == "Root":
+        file_name, source = self._get_source_file_name()
+        debug_print(f"Source: {source}, file_name: {file_name}")
+
+        if file_name is None:
             debug_print("No se encontro un script activo en Nuke.", level="warning")
             return []
 
-        script_name = os.path.basename(file_path)
-        base_name, version_number = self.parse_nuke_script_name(script_name)
+        base_name, version_number = self.parse_nuke_script_name(file_name)
         project_name = extract_project_name(base_name)
         shot_code = extract_shot_code(base_name)
         active_task_name = self.infer_task_name(base_name)
 
         debug_print(
-            "Nuke script context:",
-            f"script_name='{script_name}'",
+            f"{'Read node' if source == 'read_node' else 'Nuke script'} context:",
+            f"file_name='{file_name}'",
             f"base_name='{base_name}'",
             f"version='{version_number}'",
             f"project_name='{project_name}'",
