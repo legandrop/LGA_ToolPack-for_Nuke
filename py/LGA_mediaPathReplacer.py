@@ -1,8 +1,11 @@
 """
 _______________________________________________
 
-  LGA_mediaPathReplacer v2.02 | Lega
+  LGA_mediaPathReplacer v2.03 | Lega
   Search and replace for Read and Write nodes
+
+  v2.03 - Checkboxes persistentes
+
 _______________________________________________
 
 """
@@ -52,8 +55,8 @@ _PRESET_FIELDS = (
     "sr2_replace",
     "sr2_case",
 )
-_OPTIONS_SR_COL_WIDTH = 480
-_OPTIONS_PRESET_COL_WIDTH = 280
+_OPTIONS_SR_COL_WIDTH = 455
+_OPTIONS_PRESET_COL_WIDTH = 310
 _WINDOW_WIDTH = 1360
 
 _TABLE_STYLE = """
@@ -495,6 +498,9 @@ class SearchAndReplaceWidget(QWidget):
         self.pix_write = QtGui.QPixmap(os.path.join(self.icon_dir, "node_write.svg"))
         self.presets = []
         self._applying_preset = False
+        self.filter_list_enabled = True
+        self.reads_enabled = True
+        self.writes_enabled = True
         self.loadPresets()
         self.initUI()
 
@@ -627,7 +633,7 @@ class SearchAndReplaceWidget(QWidget):
         col_preset.setSpacing(8)
 
         preset_row = QHBoxLayout()
-        preset_row.setSpacing(6)
+        preset_row.setSpacing(10)
         preset_lbl = QLabel("Preset:")
         preset_lbl.setStyleSheet("color:#a7a7a7;")
         preset_row.addWidget(preset_lbl)
@@ -676,19 +682,19 @@ class SearchAndReplaceWidget(QWidget):
         footer.setSpacing(12)
 
         self.filter_checkbox = QCheckBox("Filter List")
-        self.filter_checkbox.setChecked(True)
+        self.filter_checkbox.setChecked(self.filter_list_enabled)
         self.filter_checkbox.setToolTip("Filter rows by search text.")
         footer.addWidget(self.filter_checkbox)
 
         footer.addWidget(_separator("v"))
 
         self.read_checkbox = QCheckBox("Reads")
-        self.read_checkbox.setChecked(True)
+        self.read_checkbox.setChecked(self.reads_enabled)
         self.read_checkbox.setToolTip("Include Read nodes in search and replace.")
         footer.addWidget(self.read_checkbox)
 
         self.write_checkbox = QCheckBox("Writes")
-        self.write_checkbox.setChecked(True)
+        self.write_checkbox.setChecked(self.writes_enabled)
         self.write_checkbox.setToolTip("Include Write nodes in search and replace.")
         footer.addWidget(self.write_checkbox)
 
@@ -709,9 +715,9 @@ class SearchAndReplaceWidget(QWidget):
         self.sr2_search_input.textChanged.connect(self._onSettingsChanged)
         self.sr2_replace_input.textChanged.connect(self._onSettingsChanged)
         self.sr2_case_checkbox.stateChanged.connect(self._onSettingsChanged)
-        self.filter_checkbox.stateChanged.connect(self.updatePreviews)
-        self.read_checkbox.stateChanged.connect(self.updatePreviews)
-        self.write_checkbox.stateChanged.connect(self.updatePreviews)
+        self.filter_checkbox.stateChanged.connect(self._onFooterOptionsChanged)
+        self.read_checkbox.stateChanged.connect(self._onFooterOptionsChanged)
+        self.write_checkbox.stateChanged.connect(self._onFooterOptionsChanged)
         self.preset_combo.currentIndexChanged.connect(self.onPresetSelected)
 
         self.run_button.setShortcut(QKeySequence(Qt.Key_Return))
@@ -734,6 +740,12 @@ class SearchAndReplaceWidget(QWidget):
     def loadPresets(self):
         config = configparser.ConfigParser()
         config.read(self.ini_path)
+
+        self.filter_list_enabled = self._configBool(
+            config, "Options", "filter_list", True
+        )
+        self.reads_enabled = self._configBool(config, "Options", "reads", True)
+        self.writes_enabled = self._configBool(config, "Options", "writes", True)
 
         presets_by_index = {}
         if config.has_section("Presets"):
@@ -769,8 +781,28 @@ class SearchAndReplaceWidget(QWidget):
                 presets_by_index[index]["name"] = "Preset %d" % index
             self.presets.append(presets_by_index[index])
 
+    @staticmethod
+    def _configBool(config, section, option, default):
+        if not config.has_option(section, option):
+            return default
+        try:
+            return config.getboolean(section, option)
+        except ValueError:
+            return default
+
+    def _writeOptions(self, config):
+        config.add_section("Options")
+        if hasattr(self, "filter_checkbox"):
+            self.filter_list_enabled = self.filter_checkbox.isChecked()
+            self.reads_enabled = self.read_checkbox.isChecked()
+            self.writes_enabled = self.write_checkbox.isChecked()
+        config.set("Options", "filter_list", str(self.filter_list_enabled).lower())
+        config.set("Options", "reads", str(self.reads_enabled).lower())
+        config.set("Options", "writes", str(self.writes_enabled).lower())
+
     def _writePresets(self):
         config = configparser.ConfigParser()
+        self._writeOptions(config)
         config.add_section("Presets")
         for i, preset in enumerate(self.presets, 1):
             config.set("Presets", "name_preset_%d" % i, preset.get("name", "Preset %d" % i))
@@ -902,6 +934,10 @@ class SearchAndReplaceWidget(QWidget):
         self.updatePreviews()
         if not self._applying_preset:
             self._updatePresetComboSelection()
+
+    def _onFooterOptionsChanged(self, *_):
+        self.updatePreviews()
+        self._writePresets()
 
     def _swap_sr(self, search_edit, replace_edit):
         a = search_edit.text()
