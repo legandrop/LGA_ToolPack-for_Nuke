@@ -1,7 +1,7 @@
 """
 _______________________________________________
 
-  LGA_mediaPathReplacer v1.8 | Lega
+  LGA_mediaPathReplacer v2.01 | Lega
   Search and replace for Read and Write nodes
 _______________________________________________
 
@@ -14,567 +14,958 @@ QWidget = QtWidgets.QWidget
 QVBoxLayout = QtWidgets.QVBoxLayout
 QLineEdit = QtWidgets.QLineEdit
 QPushButton = QtWidgets.QPushButton
-QTextEdit = QtWidgets.QTextEdit
 QCheckBox = QtWidgets.QCheckBox
 QHBoxLayout = QtWidgets.QHBoxLayout
 QLabel = QtWidgets.QLabel
-QSpacerItem = QtWidgets.QSpacerItem
-QSizePolicy = QtWidgets.QSizePolicy
 QTableWidget = QtWidgets.QTableWidget
-QTableWidgetItem = QtWidgets.QTableWidgetItem
-QDialog = QtWidgets.QDialog
-QHeaderView = QtWidgets.QHeaderView
 QFrame = QtWidgets.QFrame
-QFontMetrics = QtGui.QFontMetrics
+QComboBox = QtWidgets.QComboBox
+QListView = QtWidgets.QListView
+QStyledItemDelegate = QtWidgets.QStyledItemDelegate
+QStyle = QtWidgets.QStyle
+QHeaderView = QtWidgets.QHeaderView
 QKeySequence = QtGui.QKeySequence
-QColor = QtGui.QColor
 Qt = QtCore.Qt
-import nuke
-import re
-import os
+
 import configparser
+import os
+import re
+
+import nuke
 
 # Solo se necesita una instancia de QApplication por script
 app = QApplication.instance() or QApplication([])
+
+
+_PRESET_TRASH_W = 26
+_PRESET_PLACEHOLDER_NOMATCH = "----"
+_PRESET_PLACEHOLDER_EMPTY = "(sin presets)"
+_PRESET_FIELDS = (
+    "sr1_search",
+    "sr1_replace",
+    "sr1_case",
+    "sr2_search",
+    "sr2_replace",
+    "sr2_case",
+    "prefix",
+    "suffix",
+)
+
+_TABLE_STYLE = """
+QTableWidget {
+    background-color: #272727;
+    border: 1px solid #333333;
+    color: #a7a7a7;
+    gridline-color: #333333;
+    outline: none;
+}
+QHeaderView::section {
+    background-color: #2B2B2B;
+    color: #999999;
+    padding: 4px 8px;
+    border: 0px;
+    border-bottom: 1px solid #444444;
+    font-weight: bold;
+}
+QTableWidget::item { padding-left: 6px; padding-right: 6px; }
+QTableWidget::item:selected { background-color: #353535; color: #cccccc; }
+"""
+
+_BTN_PRIMARY = """
+QPushButton {
+    background-color: #443a91;
+    border: none;
+    color: #B2B2B2;
+    padding: 7px 18px;
+    border-radius: 5px;
+    font-weight: bold;
+}
+QPushButton:hover { background-color: #774dcb; color: #ffffff; }
+QPushButton:disabled { background-color: #2a2540; color: #666666; border: none; }
+"""
+
+_BTN_SMALL = """
+QPushButton {
+    background-color: #2e2e2e;
+    border: 1px solid #444444;
+    color: #999999;
+    padding: 3px 10px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+QPushButton:hover { background-color: #383838; color: #cccccc; }
+QPushButton:disabled { background-color: #272727; color: #555555; }
+"""
+
+_LINE_STYLE = (
+    "QLineEdit { background-color:#272727; border:1px solid #444;"
+    " color:#a7a7a7; padding:4px 8px; border-radius:3px;"
+    " selection-background-color:#505060; selection-color:#d0d0d0; }"
+    "QLineEdit:focus { border:1px solid #555555; }"
+)
+
+_COMBO_STYLE = """
+QComboBox {
+    background-color: #272727;
+    color: #a7a7a7;
+    border: 1px solid #444444;
+    border-radius: 3px;
+    padding: 4px 8px;
+}
+QComboBox:hover { border-color: #555555; }
+QComboBox:disabled { color: #666666; border-color: #3a3a3a; }
+QComboBox::drop-down { border: none; width: 22px; }
+QComboBox::down-arrow { image: none; width: 0; height: 0; }
+QComboBox QAbstractItemView {
+    background-color: #272727;
+    color: #a7a7a7;
+    border: 1px solid #333333;
+    selection-background-color: #353535;
+    selection-color: #cccccc;
+}
+"""
+
+
+def _section_label(text):
+    lbl = QLabel(text)
+    lbl.setStyleSheet("color: #CCCCCC; font-weight: bold; padding-top: 4px;")
+    return lbl
+
+
+def _separator(orientation="h"):
+    sep = QFrame()
+    sep.setFrameShape(QFrame.HLine if orientation == "h" else QFrame.VLine)
+    sep.setFrameShadow(QFrame.Sunken)
+    sep.setStyleSheet("color: #444444; margin: 0px;")
+    return sep
+
+
+def _html_escape(text):
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def _cell_html_label(html, bg="#272727"):
+    lbl = QLabel()
+    lbl.setTextFormat(Qt.RichText)
+    lbl.setText(html)
+    lbl.setStyleSheet("background:%s; padding:2px 6px;" % bg)
+    lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+    return lbl
+
+
+def _preset_is_deletable(text):
+    t = (text or "").strip()
+    if not t:
+        return False
+    if t == _PRESET_PLACEHOLDER_NOMATCH:
+        return False
+    if t == _PRESET_PLACEHOLDER_EMPTY:
+        return False
+    return True
+
+
+class _PresetListView(QListView):
+    """ListView para dropdown de presets con zona clickable de papelera."""
+
+    def __init__(self, on_delete_cb, parent=None):
+        super(_PresetListView, self).__init__(parent)
+        self._on_delete = on_delete_cb
+        self._hovered_trash_row = -1
+        self.setMouseTracking(True)
+
+    def showEvent(self, event):
+        super(_PresetListView, self).showEvent(event)
+        vp = self.viewport()
+        if vp:
+            vp.setMouseTracking(True)
+            vp.installEventFilter(self)
+
+    def hideEvent(self, event):
+        super(_PresetListView, self).hideEvent(event)
+        self._hovered_trash_row = -1
+
+    def _in_trash_zone(self, row, pos):
+        model = self.model()
+        if not model:
+            return False
+        rect = self.visualRect(model.index(row, 0))
+        return pos.x() >= rect.right() - _PRESET_TRASH_W
+
+    def _update_hover(self, pos):
+        model = self.model()
+        if not model:
+            return
+
+        idx = self.indexAt(pos)
+        row = idx.row() if idx.isValid() else -1
+        new_hover = -1
+        if row >= 0:
+            text = model.data(model.index(row, 0)) or ""
+            if _preset_is_deletable(text) and self._in_trash_zone(row, pos):
+                new_hover = row
+
+        if new_hover != self._hovered_trash_row:
+            old = self._hovered_trash_row
+            self._hovered_trash_row = new_hover
+            vp = self.viewport()
+            for r in (old, new_hover):
+                if r >= 0:
+                    vp.update(self.visualRect(model.index(r, 0)))
+
+    def eventFilter(self, obj, event):
+        vp = self.viewport()
+        if obj is vp:
+            etype = event.type()
+            if etype == QtCore.QEvent.MouseMove:
+                self._update_hover(event.pos())
+            elif etype == QtCore.QEvent.Leave:
+                old = self._hovered_trash_row
+                self._hovered_trash_row = -1
+                model = self.model()
+                if model and old >= 0:
+                    vp.update(self.visualRect(model.index(old, 0)))
+            elif etype == QtCore.QEvent.MouseButtonRelease:
+                model = self.model()
+                if model:
+                    idx = self.indexAt(event.pos())
+                    row = idx.row() if idx.isValid() else -1
+                    if row >= 0:
+                        text = model.data(model.index(row, 0)) or ""
+                        if _preset_is_deletable(text) and self._in_trash_zone(
+                            row, event.pos()
+                        ):
+                            self._on_delete(row)
+                            return True
+        return super(_PresetListView, self).eventFilter(obj, event)
+
+
+class _PresetDelegate(QStyledItemDelegate):
+    """Delegate del combo de presets con icono trash."""
+
+    def __init__(self, list_view, pix_trash, pix_hover, parent=None):
+        super(_PresetDelegate, self).__init__(parent)
+        self._view = list_view
+        self._pix_trash = pix_trash
+        self._pix_hover = pix_hover
+
+    def paint(self, painter, option, index):
+        painter.save()
+
+        bg = (
+            QtGui.QColor("#353535")
+            if (option.state & QStyle.State_Selected)
+            else QtGui.QColor("#2B2B2B")
+        )
+        painter.fillRect(option.rect, bg)
+
+        text = index.data() or ""
+        deletable = _preset_is_deletable(text)
+        text_rect = option.rect.adjusted(
+            6, 0, -(_PRESET_TRASH_W + 4) if deletable else -4, 0
+        )
+
+        painter.setPen(QtGui.QColor("#a7a7a7"))
+        painter.drawText(
+            text_rect,
+            Qt.AlignVCenter | Qt.AlignLeft,
+            text,
+        )
+
+        if deletable:
+            hovered = self._view._hovered_trash_row == index.row()
+            pix = (
+                self._pix_hover
+                if hovered and self._pix_hover and not self._pix_hover.isNull()
+                else self._pix_trash
+            )
+            if pix and not pix.isNull():
+                icon_size = 14
+                tx = (
+                    option.rect.right()
+                    - _PRESET_TRASH_W
+                    + (_PRESET_TRASH_W - icon_size) // 2
+                )
+                ty = option.rect.top() + (option.rect.height() - icon_size) // 2
+                scaled = pix.scaled(
+                    icon_size,
+                    icon_size,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
+                )
+                painter.drawPixmap(tx, ty, scaled)
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        sh = super(_PresetDelegate, self).sizeHint(option, index)
+        return sh.expandedTo(QtCore.QSize(0, 24))
 
 
 class SearchAndReplaceWidget(QWidget):
     def __init__(self, nodes):
         super(SearchAndReplaceWidget, self).__init__()
         self.nodes = nodes
-        # Inicializar la lista de nodos normalizados
         self.normalized_nodes = [node["file"].getValue().lower() for node in self.nodes]
-        self.ini_path = self.get_ini_path()  # Define la ruta del archivo .ini aqui
+        self.ini_path = self.get_ini_path()
+        self.icon_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "icons")
+        self.pix_read = QtGui.QPixmap(os.path.join(self.icon_dir, "node_read.svg"))
+        self.pix_write = QtGui.QPixmap(os.path.join(self.icon_dir, "node_write.svg"))
+        self.presets = []
+        self._applying_preset = False
         self.loadPresets()
         self.initUI()
 
     def initUI(self):
-        # Layout principal vertical
-        self.layout = QVBoxLayout(self)
-
-        # Boton para ejecutar el reemplazo
-        self.run_button = QPushButton("&Replace Paths", self)
-        self.run_button.clicked.connect(self.replacePaths)
-        self.layout.addWidget(self.run_button)
-
-        # Boton para guardar el preset
-        self.save_preset_button = QPushButton("&Save Preset", self)
-        self.save_preset_button.clicked.connect(self.savePreset)
-        self.layout.addWidget(self.save_preset_button)
-
-        # Agregar boton de Presets
-        self.presets_button = QPushButton("&Load Presets", self)
-        self.presets_button.clicked.connect(self.applyPresets)
-        self.layout.addWidget(self.presets_button)
-
-        # Establecer un ancho fijo para los botones
-        self.run_button.setFixedWidth(120)
-        self.presets_button.setFixedWidth(120)
-        self.save_preset_button.setFixedWidth(120)
-
-        # Widget para contener el QHBoxLayout (incluyendo los botones presets)
-        checkboxes_widget = QWidget()
-        checkboxes_layout = QHBoxLayout(checkboxes_widget)
-        checkboxes_layout.addWidget(self.run_button)
-        # checkboxes_layout.addSpacing(20) # Espacio
-        checkboxes_layout.addWidget(self.presets_button)
-        checkboxes_layout.addWidget(self.save_preset_button)
-
-        checkboxes_layout.addSpacing(20)  # Espacio
-
-        # Checkbox para filtrado opcional
-        self.filter_checkbox = QCheckBox("Filter List")
-        self.filter_checkbox.setChecked(True)  # Activado por defecto
-        self.filter_checkbox.setToolTip(
-            "Toggle to enable/disable filtering of the list based on the search term."
+        self.setWindowTitle("Search and Replace in Paths")
+        self.setStyleSheet(
+            "QWidget { background-color: #2B2B2B; color: #a7a7a7; }"
+            "QCheckBox { color: #a7a7a7; }"
         )
-        checkboxes_layout.addWidget(self.filter_checkbox)
+
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(10, 10, 10, 10)
+        self.layout.setSpacing(8)
+
+        # Tabla superior (filas dobles): Node / Type / Paths (Original + New)
+        self.preview_table = QTableWidget()
+        self.preview_table.setColumnCount(3)
+        self.preview_table.setHorizontalHeaderLabels(["Node", "Type", "Paths"])
+        self.preview_table.verticalHeader().setVisible(False)
+        self.preview_table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
+        self.preview_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.preview_table.setFocusPolicy(Qt.NoFocus)
+        self.preview_table.setShowGrid(False)
+        self.preview_table.setStyleSheet(_TABLE_STYLE)
+        self.preview_table.setMinimumHeight(160)
+
+        header = self.preview_table.horizontalHeader()
+        header.setMinimumSectionSize(1)
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.preview_table.setColumnWidth(0, 160)
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
+        self.preview_table.setColumnWidth(1, 80)
+        header.setSectionResizeMode(2, QHeaderView.Interactive)
+        self.preview_table.setColumnWidth(2, 860)
+        header.setStretchLastSection(True)
+        self.layout.addWidget(self.preview_table, 1)
+
+        self.summary_label = QLabel("")
+        self.summary_label.setStyleSheet("color:#888888; padding:2px 6px;")
+        self.layout.addWidget(self.summary_label)
+
+        self.layout.addWidget(_separator())
+
+        line_style = (
+            "QLineEdit { background-color:#272727; border:1px solid #444;"
+            " color:#a7a7a7; padding:4px 8px; border-radius:3px;"
+            " selection-background-color:#505060; selection-color:#d0d0d0; }"
+            "QLineEdit:focus { border:1px solid #555555; }"
+        )
+
+        # Bloque de opciones
+        opts_row = QHBoxLayout()
+        opts_row.setSpacing(20)
+
+        # Columna izquierda: Search & Replace 1 + 2 (igual enfoque Import Shots)
+        col_left = QVBoxLayout()
+        col_left.setSpacing(6)
+
+        col_left.addWidget(_section_label("Search & Replace 1"))
+        sr1_row = QHBoxLayout()
+        self.sr1_search_input = QLineEdit(self)
+        self.sr1_search_input.setPlaceholderText("Search")
+        self.sr1_search_input.setStyleSheet(line_style)
+        self.sr1_replace_input = QLineEdit(self)
+        self.sr1_replace_input.setPlaceholderText("Replace")
+        self.sr1_replace_input.setStyleSheet(line_style)
+        self.sr1_case_checkbox = QCheckBox("Case Sensitive")
+        self.sr1_case_checkbox.setFocusPolicy(Qt.NoFocus)
+        self.sr1_case_checkbox.setStyleSheet("color:#a7a7a7; padding:2px;")
+        sr1_swap = QPushButton("⇄")
+        sr1_swap.setStyleSheet(_BTN_SMALL)
+        sr1_swap.setFixedWidth(28)
+        sr1_swap.setFocusPolicy(Qt.NoFocus)
+        sr1_swap.clicked.connect(
+            lambda: self._swap_sr(self.sr1_search_input, self.sr1_replace_input)
+        )
+        sr1_row.addWidget(self.sr1_search_input, 1)
+        sr1_row.addWidget(sr1_swap, 0)
+        sr1_row.addWidget(self.sr1_replace_input, 1)
+        sr1_row.addWidget(self.sr1_case_checkbox, 0)
+        col_left.addLayout(sr1_row)
+
+        col_left.addSpacing(8)
+
+        col_left.addWidget(_section_label("Search & Replace 2"))
+        sr2_row = QHBoxLayout()
+        self.sr2_search_input = QLineEdit(self)
+        self.sr2_search_input.setPlaceholderText("Search")
+        self.sr2_search_input.setStyleSheet(line_style)
+        self.sr2_replace_input = QLineEdit(self)
+        self.sr2_replace_input.setPlaceholderText("Replace")
+        self.sr2_replace_input.setStyleSheet(line_style)
+        self.sr2_case_checkbox = QCheckBox("Case Sensitive")
+        self.sr2_case_checkbox.setFocusPolicy(Qt.NoFocus)
+        self.sr2_case_checkbox.setStyleSheet("color:#a7a7a7; padding:2px;")
+        sr2_swap = QPushButton("⇄")
+        sr2_swap.setStyleSheet(_BTN_SMALL)
+        sr2_swap.setFixedWidth(28)
+        sr2_swap.setFocusPolicy(Qt.NoFocus)
+        sr2_swap.clicked.connect(
+            lambda: self._swap_sr(self.sr2_search_input, self.sr2_replace_input)
+        )
+        sr2_row.addWidget(self.sr2_search_input, 1)
+        sr2_row.addWidget(sr2_swap, 0)
+        sr2_row.addWidget(self.sr2_replace_input, 1)
+        sr2_row.addWidget(self.sr2_case_checkbox, 0)
+        col_left.addLayout(sr2_row)
+
+        col_left.addStretch()
+        opts_row.addLayout(col_left, 3)
+
+        opts_row.addWidget(_separator("v"))
+
+        # Columna central: Prefix / Suffix
+        col_ps = QVBoxLayout()
+        col_ps.setSpacing(6)
+        col_ps.addWidget(_section_label("Prefix"))
+        self.prefix_input = QLineEdit(self)
+        self.prefix_input.setPlaceholderText("Prefix")
+        self.prefix_input.setStyleSheet(line_style)
+        col_ps.addWidget(self.prefix_input)
+
+        col_ps.addSpacing(8)
+        col_ps.addWidget(_section_label("Suffix"))
+        self.suffix_input = QLineEdit(self)
+        self.suffix_input.setPlaceholderText("Suffix")
+        self.suffix_input.setStyleSheet(line_style)
+        col_ps.addWidget(self.suffix_input)
+        col_ps.addStretch()
+        opts_row.addLayout(col_ps, 2)
+
+        opts_row.addWidget(_separator("v"))
+
+        # Columna derecha: Presets con papelera en dropdown (sin botón Delete)
+        col_preset = QVBoxLayout()
+        col_preset.setSpacing(10)
+
+        preset_row = QHBoxLayout()
+        preset_lbl = QLabel("Preset:")
+        preset_lbl.setStyleSheet("color:#a7a7a7;")
+        preset_row.addWidget(preset_lbl)
+        self.preset_combo = QComboBox()
+        self.preset_combo.setStyleSheet(_COMBO_STYLE)
+        self.preset_combo.setMinimumWidth(230)
+        self.preset_combo.setFocusPolicy(Qt.NoFocus)
+        pix_trash = QtGui.QPixmap(os.path.join(self.icon_dir, "trash.svg"))
+        pix_hover = QtGui.QPixmap(os.path.join(self.icon_dir, "trash_hover.svg"))
+        self.preset_list_view = _PresetListView(self._onPresetDelete)
+        self.preset_combo.setView(self.preset_list_view)
+        self.preset_list_view.setItemDelegate(
+            _PresetDelegate(self.preset_list_view, pix_trash, pix_hover)
+        )
+        preset_row.addWidget(self.preset_combo, 1)
+        col_preset.addLayout(preset_row)
+
+        self.save_preset_button = QPushButton("Save Preset", self)
+        self.save_preset_button.setStyleSheet(_BTN_SMALL)
+        self.save_preset_button.setFocusPolicy(Qt.NoFocus)
+        self.save_preset_button.clicked.connect(self.savePreset)
+        col_preset.addWidget(self.save_preset_button)
+
+        self.reset_values_button = QPushButton("Reset Values", self)
+        self.reset_values_button.setStyleSheet(_BTN_SMALL)
+        self.reset_values_button.setFocusPolicy(Qt.NoFocus)
+        self.reset_values_button.clicked.connect(self.resetValues)
+        col_preset.addWidget(self.reset_values_button)
+
+        col_preset.addStretch()
+        opts_row.addLayout(col_preset, 2)
+
+        self.layout.addLayout(opts_row)
+
+        self.layout.addWidget(_separator())
+
+        # Footer: checkboxes + boton principal
+        footer = QHBoxLayout()
+        footer.setSpacing(12)
+
+        self.filter_checkbox = QCheckBox("Filter List")
+        self.filter_checkbox.setChecked(True)
+        self.filter_checkbox.setToolTip("Filter rows by search text.")
+        footer.addWidget(self.filter_checkbox)
+
+        footer.addWidget(_separator("v"))
+
+        self.read_checkbox = QCheckBox("Reads")
+        self.read_checkbox.setChecked(True)
+        self.read_checkbox.setToolTip("Include Read nodes in search and replace.")
+        footer.addWidget(self.read_checkbox)
+
+        self.write_checkbox = QCheckBox("Writes")
+        self.write_checkbox.setChecked(True)
+        self.write_checkbox.setToolTip("Include Write nodes in search and replace.")
+        footer.addWidget(self.write_checkbox)
+
+        footer.addStretch()
+
+        self.run_button = QPushButton("Replace Paths", self)
+        self.run_button.setStyleSheet(_BTN_PRIMARY)
+        self.run_button.setFocusPolicy(Qt.NoFocus)
+        self.run_button.clicked.connect(self.replacePaths)
+        footer.addWidget(self.run_button)
+
+        self.layout.addLayout(footer)
+
+        # Conexiones de UI
+        self.sr1_search_input.textChanged.connect(self._onSettingsChanged)
+        self.sr1_replace_input.textChanged.connect(self._onSettingsChanged)
+        self.sr1_case_checkbox.stateChanged.connect(self._onSettingsChanged)
+        self.sr2_search_input.textChanged.connect(self._onSettingsChanged)
+        self.sr2_replace_input.textChanged.connect(self._onSettingsChanged)
+        self.sr2_case_checkbox.stateChanged.connect(self._onSettingsChanged)
+        self.prefix_input.textChanged.connect(self._onSettingsChanged)
+        self.suffix_input.textChanged.connect(self._onSettingsChanged)
         self.filter_checkbox.stateChanged.connect(self.updatePreviews)
-
-        checkboxes_layout.addSpacing(20)  # Espacio
-
-        # Crear un divisor vertical
-        divisor = QFrame()
-        divisor.setFrameShape(
-            QFrame.VLine
-        )  # Establecer la forma del marco como una linea vertical
-        divisor.setFrameShadow(
-            QFrame.Sunken
-        )  # Establecer la sombra del marco para un efecto 3D
-        divisor.setStyleSheet(
-            "border: 1px solid #1f1f1f;"
-        )  # Ajustar el color y el grosor del borde
-        checkboxes_layout.addWidget(divisor)  # Anadir el divisor al layout
-        # divisor_reads = QLabel("|")
-        # checkboxes_layout.addWidget(divisor_reads)
-
-        checkboxes_layout.addSpacing(20)
-
-        # Checkbox y etiqueta para 'Read'
-        self.read_checkbox = QCheckBox()
-        self.read_checkbox.setChecked(True)  # Activado por defecto
-        self.read_checkbox.setToolTip("Include Read nodes in search and replace")
-        read_label = QLabel("Reads")
-        checkboxes_layout.addWidget(self.read_checkbox)
-        checkboxes_layout.addWidget(read_label)
-
-        # Espacio entre checkboxes
-        checkboxes_layout.addSpacing(20)
-
-        # Checkbox y etiqueta para 'Write'
-        self.write_checkbox = QCheckBox()
-        self.write_checkbox.setChecked(True)  # Activado por defecto
-        self.write_checkbox.setToolTip("Include Write nodes in search and replace")
-        write_label = QLabel("Writes")
-        checkboxes_layout.addWidget(self.write_checkbox)
-        checkboxes_layout.addWidget(write_label)
-
-        # Espaciador para empujar el texto 'v1.6' hacia la derecha
-        spacer = QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
-        checkboxes_layout.addItem(spacer)
-
-        # Texto 'v1.6' alineado a la derecha
-        version_label = QLabel("v1.6")
-        version_label.setToolTip("Lega Pugliese - 2024")
-        checkboxes_layout.addWidget(version_label)
-
-        # Anadir el widget al layout principal
-        self.layout.addWidget(checkboxes_widget)
-
-        # Conectar los checkboxes con la funcion de actualizacion
         self.read_checkbox.stateChanged.connect(self.updatePreviews)
         self.write_checkbox.stateChanged.connect(self.updatePreviews)
+        self.preset_combo.currentIndexChanged.connect(self.onPresetSelected)
 
-        # Etiqueta y campo de busqueda
-        search_layout = QHBoxLayout()
-        search_label = QLabel("Search:")
-        self.find_input = QLineEdit(self)
-        self.find_input.setPlaceholderText("Search...")
-        # search_layout.addWidget(search_label)
-        search_layout.addWidget(self.find_input)
-        self.layout.addLayout(search_layout)
-
-        # Campo de texto donde mostrar la informacion original
-        self.preview_original = QTextEdit(self)
-        self.preview_original.setReadOnly(True)
-        self.preview_original.setStyleSheet(
-            "QTextEdit { background-color: #282828; color: #c8c8c8; font-size: 10pt; line-height: 120%; }"
-        )
-        self.layout.addWidget(self.preview_original)
-
-        # Espacio vertical
-        self.layout.addSpacing(5)
-
-        # Etiqueta y campo de reemplazo
-        replace_layout = QHBoxLayout()
-        replace_label = QLabel("Replace:")
-        self.replace_input = QLineEdit(self)
-        self.replace_input.setPlaceholderText("Replace...")
-        # replace_layout.addWidget(replace_label)
-        replace_layout.addWidget(self.replace_input)
-        self.layout.addLayout(replace_layout)
-
-        # Campo de texto donde mostrar la informacion reemplazada
-        self.preview_replace = QTextEdit(self)
-        self.preview_replace.setReadOnly(True)
-        self.preview_replace.setStyleSheet(
-            "QTextEdit { background-color: #282828; color: #c8c8c8; font-size: 10pt; line-height: 120%; }"
-        )
-        self.layout.addWidget(self.preview_replace)
-
-        # Conectar cambios en los campos de entrada con la funcion de actualizacion
-        self.find_input.textChanged.connect(self.updatePreviews)
-        self.replace_input.textChanged.connect(self.updatePreviews)
-
-        self.setWindowTitle("Search and Replace in Paths")
-        self.adjustSizeDialog()
-        self.updatePreviews()
-
-        # Atajos de teclado
         self.run_button.setShortcut(QKeySequence(Qt.Key_Return))
-        self.find_input.setFocus()
+        self.sr1_search_input.setFocus()
 
-    def get_ini_path(self):
-        # Construir la ruta al archivo .ini ubicado en el mismo directorio que el script
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        return os.path.join(dir_path, "LGA_mediaPathReplacer_presets.ini")
-
-    def loadPresets(self):
-        self.config = configparser.ConfigParser()
-        self.config.read(self.ini_path)
-
-        # Asignar valores predeterminados si el archivo o las claves no existen
-        self.search_preset = self.config.get("Presets", "Search_Preset_1", fallback="")
-        self.replace_preset = self.config.get(
-            "Presets", "Replace_Preset_1", fallback=""
-        )
-
-        # Asignar valores predeterminados si el archivo o las claves no existen
-        self.search_preset = self.config.get("Presets", "Search_Preset_1", fallback="")
-        self.replace_preset = self.config.get(
-            "Presets", "Replace_Preset_1", fallback=""
-        )
-
-    def savePreset(self):
-        # Guardar el nuevo preset en el archivo .ini
-        search_text = self.find_input.text().strip()
-        replace_text = self.replace_input.text().strip()
-
-        if search_text and replace_text:
-            self.config.read(
-                self.ini_path
-            )  # Recargar la configuracion para obtener el conteo actualizado
-            preset_number = (
-                len(self.config.items("Presets")) // 2 + 1
-            )  # Calcular el nuevo numero de preset
-
-            # Anadir el nuevo preset
-            self.config.set("Presets", f"Search_Preset_{preset_number}", search_text)
-            self.config.set("Presets", f"Replace_Preset_{preset_number}", replace_text)
-
-            # Guardar los cambios
-            with open(self.ini_path, "w") as configfile:
-                self.config.write(configfile)
-        else:
-            print("Search and Replace fields must not be empty.")
-
-    def applyPresets(self):
-        dialog = PresetsDialog(self.config, self.ini_path, self)
-        dialog.loadPresets()
-        if dialog.exec_() and dialog.selected_preset:
-            search_text, replace_text = dialog.selected_preset
-            self.find_input.setText(search_text)
-            self.replace_input.setText(replace_text)
-            self.updatePreviews()
+        self.refreshPresetCombo()
+        self.resize(1260, 640)
+        self.setMinimumSize(960, 420)
+        self.updatePreviews()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.close()
         super(SearchAndReplaceWidget, self).keyPressEvent(event)
 
+    def get_ini_path(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        return os.path.join(dir_path, "LGA_mediaPathReplacer_presets.ini")
+
+    def loadPresets(self):
+        config = configparser.ConfigParser()
+        config.read(self.ini_path)
+
+        presets_by_index = {}
+        if config.has_section("Presets"):
+            for key, value in config.items("Presets"):
+                match = re.match(
+                    r"^(name|search|replace|prefix|suffix|sr1_search|sr1_replace|sr1_case|sr2_search|sr2_replace|sr2_case)_preset_(\d+)$",
+                    key.lower(),
+                )
+                if not match:
+                    continue
+                field = match.group(1)
+                index = int(match.group(2))
+                if index not in presets_by_index:
+                    presets_by_index[index] = {
+                        "name": "",
+                        "sr1_search": "",
+                        "sr1_replace": "",
+                        "sr1_case": "false",
+                        "sr2_search": "",
+                        "sr2_replace": "",
+                        "sr2_case": "false",
+                        "prefix": "",
+                        "suffix": "",
+                    }
+                if field == "search":
+                    presets_by_index[index]["sr1_search"] = value
+                elif field == "replace":
+                    presets_by_index[index]["sr1_replace"] = value
+                else:
+                    presets_by_index[index][field] = value
+
+        self.presets = []
+        for index in sorted(presets_by_index.keys()):
+            if not presets_by_index[index].get("name", "").strip():
+                presets_by_index[index]["name"] = "Preset %d" % index
+            self.presets.append(presets_by_index[index])
+
+    def _writePresets(self):
+        config = configparser.ConfigParser()
+        config.add_section("Presets")
+        for i, preset in enumerate(self.presets, 1):
+            config.set("Presets", "name_preset_%d" % i, preset.get("name", "Preset %d" % i))
+            for field in _PRESET_FIELDS:
+                config.set("Presets", "%s_preset_%d" % (field, i), preset.get(field, ""))
+            # Compatibilidad con presets antiguos:
+            config.set("Presets", "search_preset_%d" % i, preset.get("sr1_search", ""))
+            config.set("Presets", "replace_preset_%d" % i, preset.get("sr1_replace", ""))
+            config.set("Presets", "prefix_preset_%d" % i, preset.get("prefix", ""))
+            config.set("Presets", "suffix_preset_%d" % i, preset.get("suffix", ""))
+        with open(self.ini_path, "w", encoding="utf-8") as config_file:
+            config.write(config_file)
+
+    def _currentPresetData(self):
+        return {
+            "sr1_search": self.sr1_search_input.text(),
+            "sr1_replace": self.sr1_replace_input.text(),
+            "sr1_case": str(self.sr1_case_checkbox.isChecked()).lower(),
+            "sr2_search": self.sr2_search_input.text(),
+            "sr2_replace": self.sr2_replace_input.text(),
+            "sr2_case": str(self.sr2_case_checkbox.isChecked()).lower(),
+            "prefix": self.prefix_input.text(),
+            "suffix": self.suffix_input.text(),
+        }
+
+    def _presetMatchesCurrent(self, preset):
+        current = self._currentPresetData()
+        for field in _PRESET_FIELDS:
+            if preset.get(field, "") != current.get(field, ""):
+                return False
+        return True
+
+    def refreshPresetCombo(self, selected_preset_index=None):
+        self.preset_combo.blockSignals(True)
+        self.preset_combo.clear()
+
+        if not self.presets:
+            self.preset_combo.addItem(_PRESET_PLACEHOLDER_EMPTY)
+            self.preset_combo.setEnabled(False)
+            self.preset_combo.blockSignals(False)
+            return
+
+        self.preset_combo.setEnabled(True)
+        self.preset_combo.addItem(_PRESET_PLACEHOLDER_NOMATCH)
+        for idx, preset in enumerate(self.presets):
+            preset_name = preset.get("name", "").strip() or ("Preset %d" % (idx + 1))
+            self.preset_combo.addItem(preset_name)
+
+        if selected_preset_index is None:
+            self.preset_combo.setCurrentIndex(0)
+        else:
+            combo_idx = max(
+                1, min(selected_preset_index + 1, self.preset_combo.count() - 1)
+            )
+            self.preset_combo.setCurrentIndex(combo_idx)
+        self.preset_combo.blockSignals(False)
+        self._updatePresetComboSelection()
+
+    def _updatePresetComboSelection(self):
+        if not self.preset_combo.isEnabled():
+            return
+        match_idx = None
+        for idx, preset in enumerate(self.presets):
+            if self._presetMatchesCurrent(preset):
+                match_idx = idx
+                break
+        target_combo_idx = (match_idx + 1) if match_idx is not None else 0
+        self.preset_combo.blockSignals(True)
+        self.preset_combo.setCurrentIndex(target_combo_idx)
+        self.preset_combo.blockSignals(False)
+
+    def onPresetSelected(self, combo_index):
+        if combo_index <= 0:
+            return
+        preset_index = combo_index - 1
+        if preset_index >= len(self.presets):
+            return
+        preset = self.presets[preset_index]
+        self._applying_preset = True
+        self.sr1_search_input.setText(preset.get("sr1_search", ""))
+        self.sr1_replace_input.setText(preset.get("sr1_replace", ""))
+        self.sr1_case_checkbox.setChecked(
+            preset.get("sr1_case", "false").lower() == "true"
+        )
+        self.sr2_search_input.setText(preset.get("sr2_search", ""))
+        self.sr2_replace_input.setText(preset.get("sr2_replace", ""))
+        self.sr2_case_checkbox.setChecked(
+            preset.get("sr2_case", "false").lower() == "true"
+        )
+        self.prefix_input.setText(preset.get("prefix", ""))
+        self.suffix_input.setText(preset.get("suffix", ""))
+        self._applying_preset = False
+        self.updatePreviews()
+        self._updatePresetComboSelection()
+
+    def savePreset(self):
+        data = self._currentPresetData()
+        if not any(
+            (
+                data["sr1_search"],
+                data["sr1_replace"],
+                data["sr2_search"],
+                data["sr2_replace"],
+                data["prefix"],
+                data["suffix"],
+            )
+        ):
+            print("Search/Replace/Prefix/Suffix must not be all empty.")
+            return
+        data["name"] = "Preset %d" % (len(self.presets) + 1)
+        self.presets.append(data)
+        self._writePresets()
+        self.refreshPresetCombo(selected_preset_index=len(self.presets) - 1)
+
+    def _onPresetDelete(self, combo_row):
+        if combo_row <= 0:
+            return
+        preset_index = combo_row - 1
+        if preset_index < 0 or preset_index >= len(self.presets):
+            return
+        del self.presets[preset_index]
+        self._writePresets()
+        self.preset_combo.hidePopup()
+        self.refreshPresetCombo()
+        self.updatePreviews()
+
+    def resetValues(self):
+        self.sr1_search_input.setText("")
+        self.sr1_replace_input.setText("")
+        self.sr2_search_input.setText("")
+        self.sr2_replace_input.setText("")
+        self.prefix_input.setText("")
+        self.suffix_input.setText("")
+
+    def _onSettingsChanged(self, *_):
+        self.updatePreviews()
+        if not self._applying_preset:
+            self._updatePresetComboSelection()
+
+    def _swap_sr(self, search_edit, replace_edit):
+        a = search_edit.text()
+        b = replace_edit.text()
+        search_edit.setText(b)
+        replace_edit.setText(a)
+
+    def _isNodeAllowedByFilters(self, node):
+        if node.Class() == "Read":
+            return self.read_checkbox.isChecked()
+        if node.Class() == "Write":
+            return self.write_checkbox.isChecked()
+        return False
+
+    @staticmethod
+    def _containsLiteral(text, normalized_text, needle, case_sensitive):
+        if not needle:
+            return False
+        if case_sensitive:
+            return needle in text
+        return needle.lower() in normalized_text
+
+    @staticmethod
+    def _applySearchReplaceStage(text, search_text, replace_text, case_sensitive):
+        if not search_text:
+            return text
+        flags = 0 if case_sensitive else re.IGNORECASE
+        pattern = re.compile(re.escape(search_text), flags)
+        return pattern.sub(lambda _m: replace_text, text)
+
+    def _applyPrefixSuffix(self, path_text, prefix_text, suffix_text):
+        if not prefix_text and not suffix_text:
+            return path_text
+
+        slash_idx = max(path_text.rfind("/"), path_text.rfind("\\"))
+        if slash_idx >= 0:
+            folder_part = path_text[: slash_idx + 1]
+            file_part = path_text[slash_idx + 1 :]
+        else:
+            folder_part = ""
+            file_part = path_text
+
+        if not file_part:
+            return path_text
+
+        dot_idx = file_part.rfind(".")
+        if dot_idx > 0:
+            stem = file_part[:dot_idx]
+            extension = file_part[dot_idx:]
+        else:
+            stem = file_part
+            extension = ""
+
+        return "%s%s%s%s%s" % (folder_part, prefix_text, stem, suffix_text, extension)
+
+    def _buildNewPath(self, original_path, normalized_path):
+        sr1_search = self.sr1_search_input.text()
+        sr1_replace = self.sr1_replace_input.text()
+        sr1_case = self.sr1_case_checkbox.isChecked()
+
+        sr2_search = self.sr2_search_input.text()
+        sr2_replace = self.sr2_replace_input.text()
+        sr2_case = self.sr2_case_checkbox.isChecked()
+
+        new_path = self._applySearchReplaceStage(
+            original_path,
+            sr1_search,
+            sr1_replace,
+            sr1_case,
+        )
+        new_path = self._applySearchReplaceStage(
+            new_path,
+            sr2_search,
+            sr2_replace,
+            sr2_case,
+        )
+        new_path = self._applyPrefixSuffix(
+            new_path,
+            self.prefix_input.text(),
+            self.suffix_input.text(),
+        )
+        return new_path
+
+    def _rowPassesFilter(self, original_path, normalized_path):
+        if not self.filter_checkbox.isChecked():
+            return True
+
+        if self.prefix_input.text() or self.suffix_input.text():
+            return True
+
+        sr1_search = self.sr1_search_input.text()
+        sr2_search = self.sr2_search_input.text()
+        if not sr1_search and not sr2_search:
+            return True
+
+        if self._containsLiteral(
+            original_path,
+            normalized_path,
+            sr1_search,
+            self.sr1_case_checkbox.isChecked(),
+        ):
+            return True
+        if self._containsLiteral(
+            original_path,
+            normalized_path,
+            sr2_search,
+            self.sr2_case_checkbox.isChecked(),
+        ):
+            return True
+        return False
+
+    def _buildNodeCell(self, node_name, node_type):
+        w = QWidget()
+        layout = QHBoxLayout(w)
+        layout.setContentsMargins(6, 2, 6, 2)
+        layout.setSpacing(6)
+
+        icon_lbl = QLabel()
+        pix = self.pix_read if node_type == "Read" else self.pix_write
+        if pix and not pix.isNull():
+            icon_lbl.setPixmap(
+                pix.scaled(
+                    13,
+                    13,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
+                )
+            )
+        icon_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        layout.addWidget(icon_lbl, 0)
+
+        txt_lbl = QLabel(node_name)
+        txt_lbl.setStyleSheet("color:#a7a7a7;")
+        txt_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        layout.addWidget(txt_lbl, 1)
+        return w
+
     def replacePaths(self):
+        changed_count = 0
         nuke.Undo().begin("Replace All Paths")
         try:
-            find_text = (
-                self.find_input.text().lower()
-            )  # Version normalizada para busqueda
-            replace_text = self.replace_input.text()
             for node, normalized_path in zip(self.nodes, self.normalized_nodes):
-                if (node.Class() == "Read" and self.read_checkbox.isChecked()) or (
-                    node.Class() == "Write" and self.write_checkbox.isChecked()
-                ):
-                    original_path = node["file"].getValue()
-                    # Buscar el texto en la version normalizada para encontrar la posicion
-                    if find_text in normalized_path:
-                        # Reemplazar TODAS las ocurrencias - VERSION SEGURA
-                        import re
-
-                        pattern = re.escape(find_text)
-                        new_path = re.sub(
-                            pattern, replace_text, original_path, flags=re.IGNORECASE
-                        )
-                        node["file"].setValue(new_path)
+                if not self._isNodeAllowedByFilters(node):
+                    continue
+                original_path = node["file"].getValue()
+                new_path = self._buildNewPath(original_path, normalized_path)
+                if new_path != original_path:
+                    node["file"].setValue(new_path)
+                    changed_count += 1
         finally:
             nuke.Undo().end()
-        self.updatePreviews()  # Actualizar las vistas previas para reflejar los cambios
+
+        self.normalized_nodes = [node["file"].getValue().lower() for node in self.nodes]
+        self.updatePreviews()
+        print("Updated %d node paths." % changed_count)
 
     def updateNodes(self, new_nodes):
         self.nodes = new_nodes
         self.normalized_nodes = [node["file"].getValue().lower() for node in self.nodes]
 
     def updatePreviews(self):
-        find_text = self.find_input.text().lower()
-        replace_text = self.replace_input.text()
-        original_previews = []
-        replace_previews = []
-        is_filtering_enabled = self.filter_checkbox.isChecked()
-
+        preview_rows = []
         for node, normalized_path in zip(self.nodes, self.normalized_nodes):
+            if not self._isNodeAllowedByFilters(node):
+                continue
+
             original_path = node["file"].getValue()
-            if (node.Class() == "Read" and self.read_checkbox.isChecked()) or (
-                node.Class() == "Write" and self.write_checkbox.isChecked()
-            ):
-                # Realiza el reemplazo independientemente del filtrado
-                if find_text in normalized_path:
-                    # Usar regex para TODAS las ocurrencias - SEGURO
-                    import re
+            if not self._rowPassesFilter(original_path, normalized_path):
+                continue
 
-                    pattern = re.escape(find_text)
-                    new_path = re.sub(
-                        pattern, replace_text, original_path, flags=re.IGNORECASE
-                    )
-                else:
-                    new_path = (
-                        original_path  # Si no hay coincidencia, usar la ruta original
-                    )
+            new_path = self._buildNewPath(original_path, normalized_path)
 
-                # Aplicar el resaltado segun corresponda - VERSION SEGURA SIN LOOPS
-                highlighted_original_path = original_path
-                highlighted_new_path = new_path
-
-                if find_text in normalized_path:
-                    # Resaltar TODAS las ocurrencias en la ruta original - SEGURO
-                    import re
-
-                    pattern = re.escape(find_text)
-                    highlighted_original_path = re.sub(
-                        pattern,
-                        f'<span style="color: #ff9a8a; font-weight: bold;">{find_text}</span>',
-                        original_path,
-                        flags=re.IGNORECASE,
-                    )
-
-                    # Resaltar texto de reemplazo - SOLO SI ES DIFERENTE AL TEXTO DE BUSQUEDA
-                    if replace_text and replace_text.lower() != find_text.lower():
-                        pattern_replace = re.escape(replace_text)
-                        highlighted_new_path = re.sub(
-                            pattern_replace,
-                            f'<span style="color: #ff9a8a; font-weight: bold;">{replace_text}</span>',
-                            new_path,
-                        )
-
-                # Agregar a las vistas previas segun el estado del filtrado
-                if (
-                    is_filtering_enabled
-                    and find_text in normalized_path
-                    or not is_filtering_enabled
-                ):
-                    original_previews.append(highlighted_original_path)
-                    replace_previews.append(highlighted_new_path)
-
-        self.preview_original.setHtml("<br>".join(original_previews))
-        self.preview_replace.setHtml("<br>".join(replace_previews))
-
-    def adjustSizeDialog(self):
-        # Calcular el ancho del texto mas largo
-        fm = QFontMetrics(self.font())
-
-        def _text_width(txt):
-            # Qt6: usar horizontalAdvance; Qt5: width
-            if hasattr(fm, "horizontalAdvance"):
-                return fm.horizontalAdvance(txt)
-            return fm.width(txt)
-
-        max_text_width = max(
-            [_text_width(node["file"].getValue()) for node in self.nodes] + [200],
-            default=0,
-        )
-        width = min(max_text_width * 2, 1600)  # Ancho maximo ajustado
-
-        # Calcular la altura basada en el numero de nodos
-        height_per_item = fm.lineSpacing() * 2  # Altura para dos lineas de texto
-        estimated_height = (
-            len(self.nodes) * height_per_item
-            + self.find_input.height()
-            + self.replace_input.height()
-            + self.run_button.height()
-        )
-
-        # Obtener la altura del monitor
-        screen_height = QApplication.primaryScreen().geometry().height()
-
-        # Establecer un limite para la altura, por ejemplo, el 80% de la altura del monitor
-        max_height = screen_height * 0.8
-
-        # Usar el menor entre la altura calculada y el maximo permitido
-        final_height = min(estimated_height, max_height)
-
-        # Ajustar el tamano de los campos de texto previo
-        # El numero de items visible en los previews sera proporcional a la altura final
-        visible_items = max(
-            1,
-            int(
-                (
-                    final_height
-                    - self.find_input.height()
-                    - self.replace_input.height()
-                    - self.run_button.height()
+            changed = new_path != original_path
+            new_color = "#6a9960" if changed else "#a7a7a7"
+            path_html = (
+                "<span style='color:#a7a7a7; font-weight:600;'>Original:</span> "
+                "<span style='color:#a7a7a7;'>%s</span><br>"
+                "<span style='color:#a7a7a7; font-weight:600;'>New:</span> "
+                "<span style='color:%s;'>%s</span>"
+                % (
+                    _html_escape(original_path),
+                    new_color,
+                    _html_escape(new_path),
                 )
-                / (2 * height_per_item)
-            ),
-        )
-        self.preview_original.setFixedHeight(
-            height_per_item * min(len(self.nodes), visible_items)
-        )
-        self.preview_replace.setFixedHeight(
-            height_per_item * min(len(self.nodes), visible_items)
-        )
-
-        # Establecer el tamano minimo del dialogo
-        self.setMinimumSize(width, final_height)
-
-
-class PresetsDialog(QDialog):
-    def __init__(self, config, ini_path, parent=None):
-        super(PresetsDialog, self).__init__(parent, Qt.FramelessWindowHint)
-        self.ini_path = ini_path
-        self.config = config
-        self.parent_widget = parent  # Asignar el widget padre
-        self.selected_preset = None
-        self.applied_preset = None
-        self.setMinimumWidth(400)
-        self.initUI()
-
-    def initUI(self):
-        self.layout = QVBoxLayout(self)
-
-        self.table = QTableWidget(self)
-        self.table.setColumnCount(2)
-        self.table.setHorizontalHeaderLabels(["Search", "Replace"])
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.doubleClicked.connect(self.apply_and_close)
-
-        # Conectar el evento de clic en la tabla para aplicar el preset
-        self.table.clicked.connect(self.apply_preset)
-
-        # Establecer el color de fondo y del texto
-        self.table.setStyleSheet(
-            """
-            QTableWidget { background-color: #282828; color: rgb(200, 200, 200); }
-            QTableWidget::item:selected { background-color: rgb(62, 62, 62); color: rgb(200, 200, 200); }
-        """
-        )
-
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.layout.addWidget(self.table)
-
-        self.loadPresets()
-
-        # Ajustar la altura de la ventana en funcion del numero de presets
-        row_height = self.table.rowHeight(0) if self.table.rowCount() > 0 else 24
-        header_height = self.table.horizontalHeader().height()
-        self.setFixedHeight(
-            min(400, self.table.rowCount() * row_height + header_height + 60)
-        )  # 60 para espacio adicional y botones
-
-        if self.table.rowCount() > 0:
-            self.table.selectRow(0)
-
-        # Botones Apply, Delete y Cancel
-        self.buttons_layout = QHBoxLayout()
-        self.cancel_button = QPushButton("&Cancel", self)
-        self.cancel_button.setShortcut("Alt+C")
-        self.cancel_button.clicked.connect(self.close)
-
-        self.delete_button = QPushButton("&Delete Preset", self)
-        self.delete_button.setShortcut("Alt+D")
-        self.delete_button.clicked.connect(self.delete_preset)
-
-        self.apply_button = QPushButton("&Apply", self)
-        self.apply_button.setShortcut("Alt+A")
-        self.apply_button.clicked.connect(self.apply_and_close)
-
-        self.buttons_layout.addWidget(self.cancel_button)
-        self.buttons_layout.addWidget(self.delete_button)
-        self.buttons_layout.addWidget(self.apply_button)
-
-        self.layout.addLayout(self.buttons_layout)
-
-    def loadPresets(self):
-        # Limpiar la configuracion actual y recargar desde el archivo
-        self.config = configparser.ConfigParser()
-        self.config.read(self.ini_path)
-
-        # Limpiar la tabla antes de volver a cargar los datos
-        self.table.setRowCount(0)  # Esto elimina todas las filas existentes
-
-        if self.config.has_section("Presets"):
-            presets = self.config.items("Presets")
-            # Determinar el numero de filas necesario
-            self.table.setRowCount(len(presets) // 2)
-
-            for key, value in presets:
-                key_lower = key.lower()
-                if "search_preset_" in key_lower:
-                    index = int(key_lower.split("_")[2]) - 1
-                    self.table.setItem(index, 0, QTableWidgetItem(value))
-                elif "replace_preset_" in key_lower:
-                    index = int(key_lower.split("_")[2]) - 1
-                    self.table.setItem(index, 1, QTableWidgetItem(value))
-
-            self.table.resizeColumnsToContents()
-
-        # Selecciona la primera fila si hay alguna y aplica el preset
-        if self.table.rowCount() > 0:
-            self.table.selectRow(0)
-            self.apply_preset()
-
-    def delete_preset(self):
-        selected_row = self.table.currentRow()
-        if selected_row != -1:
-            # Eliminar la fila de la tabla
-            self.table.removeRow(selected_row)
-
-            # Reorganizar y guardar la nueva configuracion en el archivo .ini
-            new_config = configparser.ConfigParser()
-            new_config.add_section("Presets")
-
-            for row in range(self.table.rowCount()):
-                search_item = self.table.item(row, 0)
-                replace_item = self.table.item(row, 1)
-                if search_item and replace_item:
-                    new_config.set(
-                        "Presets", f"Search_Preset_{row + 1}", search_item.text()
-                    )
-                    new_config.set(
-                        "Presets", f"Replace_Preset_{row + 1}", replace_item.text()
-                    )
-
-            with open(self.ini_path, "w") as configfile:
-                new_config.write(configfile)
-
-            # Ajustar la seleccion
-            new_selected_row = (
-                selected_row
-                if selected_row < self.table.rowCount()
-                else selected_row - 1
             )
-            if new_selected_row >= 0:
-                self.table.selectRow(new_selected_row)
-                self.apply_preset(
-                    self.table.currentIndex()
-                )  # Aplicar el preset de la fila seleccionada
+            preview_rows.append(
+                {
+                    "node_name": node.name(),
+                    "node_type": node.Class(),
+                    "path_html": path_html,
+                    "changed": changed,
+                }
+            )
 
-    def apply_preset(self, index=None):
-        # Si no se proporciona un indice, usa la fila seleccionada actualmente
-        selected_row = index.row() if index else self.table.currentRow()
+        self.preview_table.setRowCount(len(preview_rows))
+        changed_count = 0
+        for row_idx, row_data in enumerate(preview_rows):
+            if row_data["changed"]:
+                changed_count += 1
+            self.preview_table.setCellWidget(
+                row_idx,
+                0,
+                self._buildNodeCell(row_data["node_name"], row_data["node_type"]),
+            )
+            self.preview_table.setCellWidget(
+                row_idx,
+                1,
+                _cell_html_label(
+                    "<span style='color:#a7a7a7;'>%s</span>" % _html_escape(row_data["node_type"])
+                ),
+            )
+            self.preview_table.setCellWidget(
+                row_idx,
+                2,
+                _cell_html_label(row_data["path_html"]),
+            )
+            self.preview_table.setRowHeight(row_idx, 44)
 
-        if selected_row != -1:
-            search_item = self.table.item(selected_row, 0)
-            replace_item = self.table.item(selected_row, 1)
-            if search_item and replace_item:
-                self.applied_preset = (search_item.text(), replace_item.text())
-                if self.parent_widget:  # Verificar si el widget padre esta definido
-                    self.parent_widget.find_input.setText(search_item.text())
-                    self.parent_widget.replace_input.setText(replace_item.text())
-
-    def apply_and_close(self):
-        # Aplicar y cerrar solo si se presiona "Apply"
-        if self.applied_preset:
-            self.selected_preset = self.applied_preset
-        self.accept()
-
-    def closeEvent(self, event):
-        # Revertir los cambios si se presiona "Cancel"
-        if self.applied_preset and not self.selected_preset and self.parent_widget:
-            # Restablece los valores originales o los vacia
-            self.parent_widget.find_input.setText("")
-            self.parent_widget.replace_input.setText("")
-        super(PresetsDialog, self).closeEvent(event)
+        self.summary_label.setText(
+            "Rows: %d | With changes: %d | Nodes total: %d"
+            % (len(preview_rows), changed_count, len(self.nodes))
+        )
 
 
 def show_search_replace_widget():
-    # Obtener nodos seleccionados o todos los nodos si no hay seleccionados
     selected_nodes = nuke.selectedNodes("Read") + nuke.selectedNodes("Write")
     if not selected_nodes:
         selected_nodes = nuke.allNodes("Read") + nuke.allNodes("Write")
 
-    # Mostrar el widget
     global search_replace_widget
     search_replace_widget = SearchAndReplaceWidget(selected_nodes)
     search_replace_widget.show()
 
 
-# Llamar a la funcion para mostrar el widget
-# show_search_replace_widget()
+if __name__ == "__main__":
+    # Permite ejecutar/pegar el script completo en Script Editor y abrir la ventana.
+    show_search_replace_widget()
