@@ -40,6 +40,12 @@ app = QApplication.instance() or QApplication([])
 _PRESET_TRASH_W = 26
 _PRESET_PLACEHOLDER_NOMATCH = "----"
 _PRESET_PLACEHOLDER_EMPTY = "(sin presets)"
+_STAGE_COLORS = {
+    1: "#6a9960",  # Search & Replace 1
+    2: "#c4787a",  # Search & Replace 2
+    3: "#3381e0",  # Prefix
+    4: "#b09040",  # Suffix
+}
 _PRESET_FIELDS = (
     "sr1_search",
     "sr1_replace",
@@ -56,7 +62,7 @@ QTableWidget {
     background-color: #272727;
     border: 1px solid #333333;
     color: #a7a7a7;
-    gridline-color: #333333;
+    gridline-color: #4d4d4d;
     outline: none;
 }
 QHeaderView::section {
@@ -146,6 +152,43 @@ def _html_escape(text):
         .replace("<", "&lt;")
         .replace(">", "&gt;")
     )
+
+
+def _colorize_with_map(text, color_by_index):
+    if not text:
+        return ""
+    chunks = []
+    cur_chars = []
+    cur_color = None
+
+    for i, ch in enumerate(text):
+        c = color_by_index.get(i)
+        if c != cur_color:
+            if cur_chars:
+                raw = "".join(cur_chars)
+                if cur_color:
+                    chunks.append(
+                        "<span style='color:%s; font-weight:600;'>%s</span>"
+                        % (cur_color, _html_escape(raw))
+                    )
+                else:
+                    chunks.append("<span style='color:#a7a7a7;'>%s</span>" % _html_escape(raw))
+            cur_chars = [ch]
+            cur_color = c
+        else:
+            cur_chars.append(ch)
+
+    if cur_chars:
+        raw = "".join(cur_chars)
+        if cur_color:
+            chunks.append(
+                "<span style='color:%s; font-weight:600;'>%s</span>"
+                % (cur_color, _html_escape(raw))
+            )
+        else:
+            chunks.append("<span style='color:#a7a7a7;'>%s</span>" % _html_escape(raw))
+
+    return "".join(chunks)
 
 
 def _cell_html_label(html, bg="#272727"):
@@ -338,12 +381,13 @@ class SearchAndReplaceWidget(QWidget):
         self.preview_table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         self.preview_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.preview_table.setFocusPolicy(Qt.NoFocus)
-        self.preview_table.setShowGrid(False)
+        self.preview_table.setShowGrid(True)
         self.preview_table.setStyleSheet(_TABLE_STYLE)
         self.preview_table.setMinimumHeight(160)
 
         header = self.preview_table.horizontalHeader()
         header.setMinimumSectionSize(1)
+        header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         header.setSectionResizeMode(0, QHeaderView.Fixed)
         self.preview_table.setColumnWidth(0, 160)
         header.setSectionResizeMode(1, QHeaderView.Fixed)
@@ -351,6 +395,10 @@ class SearchAndReplaceWidget(QWidget):
         header.setSectionResizeMode(2, QHeaderView.Interactive)
         self.preview_table.setColumnWidth(2, 860)
         header.setStretchLastSection(True)
+        for col_idx in range(3):
+            hdr_item = self.preview_table.horizontalHeaderItem(col_idx)
+            if hdr_item:
+                hdr_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.layout.addWidget(self.preview_table, 1)
 
         self.summary_label = QLabel("")
@@ -762,57 +810,180 @@ class SearchAndReplaceWidget(QWidget):
         pattern = re.compile(re.escape(search_text), flags)
         return pattern.sub(lambda _m: replace_text, text)
 
-    def _applyPrefixSuffix(self, path_text, prefix_text, suffix_text):
-        if not prefix_text and not suffix_text:
-            return path_text
+    @staticmethod
+    def _findLiteral(haystack, needle, start_idx, case_sensitive):
+        if case_sensitive:
+            return haystack.find(needle, start_idx)
+        return haystack.lower().find(needle.lower(), start_idx)
 
+    @staticmethod
+    def _applySearchReplaceStageMeta(
+        cur_text,
+        cur_orig_map,
+        cur_tags,
+        search_text,
+        replace_text,
+        case_sensitive,
+        stage_id,
+    ):
+        if not search_text:
+            return cur_text, cur_orig_map, cur_tags, set()
+
+        out_text_parts = []
+        out_map = []
+        out_tags = []
+        changed_orig = set()
+        idx = 0
+
+        while True:
+            pos = SearchAndReplaceWidget._findLiteral(
+                cur_text, search_text, idx, case_sensitive
+            )
+            if pos < 0:
+                break
+            end = pos + len(search_text)
+
+            out_text_parts.append(cur_text[idx:pos])
+            out_map.extend(cur_orig_map[idx:pos])
+            out_tags.extend([set(x) for x in cur_tags[idx:pos]])
+
+            src_slice_map = cur_orig_map[pos:end]
+            src_slice_tags = [set(x) for x in cur_tags[pos:end]]
+            matched_text = cur_text[pos:end]
+            if replace_text == matched_text:
+                out_text_parts.append(matched_text)
+                out_map.extend(src_slice_map)
+                out_tags.extend(src_slice_tags)
+            else:
+                for oi in src_slice_map:
+                    if oi is not None:
+                        changed_orig.add(oi)
+                out_text_parts.append(replace_text)
+                out_map.extend([None] * len(replace_text))
+                out_tags.extend([{stage_id} for _ in replace_text])
+            idx = end
+
+        out_text_parts.append(cur_text[idx:])
+        out_map.extend(cur_orig_map[idx:])
+        out_tags.extend([set(x) for x in cur_tags[idx:]])
+        return "".join(out_text_parts), out_map, out_tags, changed_orig
+
+    @staticmethod
+    def _filenameStemBounds(path_text):
         slash_idx = max(path_text.rfind("/"), path_text.rfind("\\"))
-        if slash_idx >= 0:
-            folder_part = path_text[: slash_idx + 1]
-            file_part = path_text[slash_idx + 1 :]
-        else:
-            folder_part = ""
-            file_part = path_text
-
+        filename_start = slash_idx + 1 if slash_idx >= 0 else 0
+        file_part = path_text[filename_start:]
         if not file_part:
-            return path_text
-
+            return filename_start, filename_start
         dot_idx = file_part.rfind(".")
-        if dot_idx > 0:
-            stem = file_part[:dot_idx]
-            extension = file_part[dot_idx:]
-        else:
-            stem = file_part
-            extension = ""
+        stem_end = filename_start + (dot_idx if dot_idx > 0 else len(file_part))
+        return filename_start, stem_end
 
-        return "%s%s%s%s%s" % (folder_part, prefix_text, stem, suffix_text, extension)
-
-    def _buildNewPath(self, original_path, normalized_path):
-        sr1_search = self.sr1_search_input.text()
-        sr1_replace = self.sr1_replace_input.text()
-        sr1_case = self.sr1_case_checkbox.isChecked()
-
-        sr2_search = self.sr2_search_input.text()
-        sr2_replace = self.sr2_replace_input.text()
-        sr2_case = self.sr2_case_checkbox.isChecked()
-
-        new_path = self._applySearchReplaceStage(
-            original_path,
-            sr1_search,
-            sr1_replace,
-            sr1_case,
+    @staticmethod
+    def _applyPrefixStageMeta(cur_text, cur_orig_map, cur_tags, prefix_text, stage_id):
+        if not prefix_text:
+            return cur_text, cur_orig_map, cur_tags, set()
+        insert_pos, _stem_end = SearchAndReplaceWidget._filenameStemBounds(cur_text)
+        out_text = cur_text[:insert_pos] + prefix_text + cur_text[insert_pos:]
+        out_map = (
+            list(cur_orig_map[:insert_pos])
+            + [None] * len(prefix_text)
+            + list(cur_orig_map[insert_pos:])
         )
-        new_path = self._applySearchReplaceStage(
-            new_path,
-            sr2_search,
-            sr2_replace,
-            sr2_case,
+        out_tags = (
+            [set(x) for x in cur_tags[:insert_pos]]
+            + [{stage_id} for _ in prefix_text]
+            + [set(x) for x in cur_tags[insert_pos:]]
         )
-        new_path = self._applyPrefixSuffix(
-            new_path,
+        return out_text, out_map, out_tags, set()
+
+    @staticmethod
+    def _applySuffixStageMeta(cur_text, cur_orig_map, cur_tags, suffix_text, stage_id):
+        if not suffix_text:
+            return cur_text, cur_orig_map, cur_tags, set()
+        _file_start, insert_pos = SearchAndReplaceWidget._filenameStemBounds(cur_text)
+        out_text = cur_text[:insert_pos] + suffix_text + cur_text[insert_pos:]
+        out_map = (
+            list(cur_orig_map[:insert_pos])
+            + [None] * len(suffix_text)
+            + list(cur_orig_map[insert_pos:])
+        )
+        out_tags = (
+            [set(x) for x in cur_tags[:insert_pos]]
+            + [{stage_id} for _ in suffix_text]
+            + [set(x) for x in cur_tags[insert_pos:]]
+        )
+        return out_text, out_map, out_tags, set()
+
+    def _computePathPreview(self, original_path):
+        cur_text = original_path
+        cur_orig_map = list(range(len(cur_text)))
+        cur_tags = [set() for _ in cur_text]
+        orig_stage_marks = {1: set(), 2: set(), 3: set(), 4: set()}
+
+        cur_text, cur_orig_map, cur_tags, changed_orig = self._applySearchReplaceStageMeta(
+            cur_text,
+            cur_orig_map,
+            cur_tags,
+            self.sr1_search_input.text(),
+            self.sr1_replace_input.text(),
+            self.sr1_case_checkbox.isChecked(),
+            stage_id=1,
+        )
+        orig_stage_marks[1].update(changed_orig)
+
+        cur_text, cur_orig_map, cur_tags, changed_orig = self._applySearchReplaceStageMeta(
+            cur_text,
+            cur_orig_map,
+            cur_tags,
+            self.sr2_search_input.text(),
+            self.sr2_replace_input.text(),
+            self.sr2_case_checkbox.isChecked(),
+            stage_id=2,
+        )
+        orig_stage_marks[2].update(changed_orig)
+
+        cur_text, cur_orig_map, cur_tags, changed_orig = self._applyPrefixStageMeta(
+            cur_text,
+            cur_orig_map,
+            cur_tags,
             self.prefix_input.text(),
-            self.suffix_input.text(),
+            stage_id=3,
         )
+        orig_stage_marks[3].update(changed_orig)
+
+        cur_text, cur_orig_map, cur_tags, changed_orig = self._applySuffixStageMeta(
+            cur_text,
+            cur_orig_map,
+            cur_tags,
+            self.suffix_input.text(),
+            stage_id=4,
+        )
+        orig_stage_marks[4].update(changed_orig)
+
+        orig_colors = {}
+        for stage_id in (1, 2, 3, 4):
+            color = _STAGE_COLORS.get(stage_id)
+            if not color:
+                continue
+            for oi in orig_stage_marks.get(stage_id, ()):
+                orig_colors[oi] = color
+
+        renamed_colors = {}
+        for idx, tags in enumerate(cur_tags):
+            if not tags:
+                continue
+            stage_id = sorted(tags)[-1]
+            color = _STAGE_COLORS.get(stage_id)
+            if color:
+                renamed_colors[idx] = color
+
+        original_html = _colorize_with_map(original_path, orig_colors)
+        renamed_html = _colorize_with_map(cur_text, renamed_colors)
+        return cur_text, original_html, renamed_html
+
+    def _buildNewPath(self, original_path):
+        new_path, _orig_html, _ren_html = self._computePathPreview(original_path)
         return new_path
 
     def _rowPassesFilter(self, original_path, normalized_path):
@@ -845,17 +1016,19 @@ class SearchAndReplaceWidget(QWidget):
 
     def _buildNodeCell(self, node_name, node_type):
         w = QWidget()
+        w.setStyleSheet("background-color:#272727;")
         layout = QHBoxLayout(w)
         layout.setContentsMargins(6, 2, 6, 2)
         layout.setSpacing(6)
 
         icon_lbl = QLabel()
+        icon_lbl.setStyleSheet("background-color:#272727;")
         pix = self.pix_read if node_type == "Read" else self.pix_write
         if pix and not pix.isNull():
             icon_lbl.setPixmap(
                 pix.scaled(
-                    13,
-                    13,
+                    18,
+                    18,
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation,
                 )
@@ -864,7 +1037,7 @@ class SearchAndReplaceWidget(QWidget):
         layout.addWidget(icon_lbl, 0)
 
         txt_lbl = QLabel(node_name)
-        txt_lbl.setStyleSheet("color:#a7a7a7;")
+        txt_lbl.setStyleSheet("color:#a7a7a7; background-color:#272727;")
         txt_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         layout.addWidget(txt_lbl, 1)
         return w
@@ -877,7 +1050,7 @@ class SearchAndReplaceWidget(QWidget):
                 if not self._isNodeAllowedByFilters(node):
                     continue
                 original_path = node["file"].getValue()
-                new_path = self._buildNewPath(original_path, normalized_path)
+                new_path = self._buildNewPath(original_path)
                 if new_path != original_path:
                     node["file"].setValue(new_path)
                     changed_count += 1
@@ -902,20 +1075,20 @@ class SearchAndReplaceWidget(QWidget):
             if not self._rowPassesFilter(original_path, normalized_path):
                 continue
 
-            new_path = self._buildNewPath(original_path, normalized_path)
-
+            new_path, original_html, renamed_html = self._computePathPreview(original_path)
             changed = new_path != original_path
-            new_color = "#6a9960" if changed else "#a7a7a7"
             path_html = (
-                "<span style='color:#a7a7a7; font-weight:600;'>Original:</span> "
-                "<span style='color:#a7a7a7;'>%s</span><br>"
-                "<span style='color:#a7a7a7; font-weight:600;'>New:</span> "
-                "<span style='color:%s;'>%s</span>"
-                % (
-                    _html_escape(original_path),
-                    new_color,
-                    _html_escape(new_path),
-                )
+                "<table cellspacing='0' cellpadding='0' style='margin:0;'>"
+                "<tr>"
+                "<td width='72'><span style='color:#a7a7a7; font-weight:600;'>Original:</span></td>"
+                "<td>%s</td>"
+                "</tr>"
+                "<tr>"
+                "<td width='72'><span style='color:#a7a7a7; font-weight:600;'>Renamed:</span></td>"
+                "<td>%s</td>"
+                "</tr>"
+                "</table>"
+                % (original_html, renamed_html)
             )
             preview_rows.append(
                 {
@@ -948,7 +1121,7 @@ class SearchAndReplaceWidget(QWidget):
                 2,
                 _cell_html_label(row_data["path_html"]),
             )
-            self.preview_table.setRowHeight(row_idx, 44)
+            self.preview_table.setRowHeight(row_idx, 46)
 
         self.summary_label.setText(
             "Rows: %d | With changes: %d | Nodes total: %d"
