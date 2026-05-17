@@ -67,7 +67,7 @@ Al ejecutarlo escanea toda la media de la carpeta del shot y todas las rutas de 
 ## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media path replacer v1.10 | Lega
 
 Para cuando hay missing media porque se cambió la ubicación del proyecto y su media.<br>
-Permite buscar y reemplazar rutas en los nodos Read y Write. Incluye preview en filas dobles (Original/New) con identificación visual por tipo de nodo, dos etapas de Search & Replace y presets integrados con borrado desde ícono de papelera en el dropdown.<br>
+Permite buscar y reemplazar rutas en los nodos Read y Write. Incluye preview en filas dobles (Original/New) con identificación visual por tipo de nodo, dos etapas de Search & Replace y presets integrados.<br>
 ![](Doc_Media/MediaPathReplacer.gif)<br>
 Útil para actualizar rutas de archivos cuando se mueven proyectos a otras carpetas o discos.
 <br><br>

@@ -1,7 +1,7 @@
 """
 _______________________________________________
 
-  LGA_mediaPathReplacer v2.01 | Lega
+  LGA_mediaPathReplacer v2.02 | Lega
   Search and replace for Read and Write nodes
 _______________________________________________
 
@@ -52,6 +52,9 @@ _PRESET_FIELDS = (
     "sr2_replace",
     "sr2_case",
 )
+_OPTIONS_SR_COL_WIDTH = 480
+_OPTIONS_PRESET_COL_WIDTH = 280
+_WINDOW_WIDTH = 1360
 
 _TABLE_STYLE = """
 QTableWidget {
@@ -246,6 +249,91 @@ def _cell_html_label(html, bg="#272727"):
     lbl.setStyleSheet("background:%s; padding:2px 6px;" % bg)
     lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
     return lbl
+
+
+def _show_save_preset_dialog(parent=None):
+    """Diálogo estilo Import Shots para nombrar preset."""
+    _BTN_SECONDARY = (
+        "QPushButton { background-color:#3a3a3a; border:1px solid #555555;"
+        " color:#CCCCCC; padding:7px 18px; border-radius:3px; }"
+        "QPushButton:hover { background-color:#4a4a4a; }"
+    )
+    _BTN_PRIMARY_DIS = (
+        "QPushButton { background-color:#443a91; border:1px solid #5a4faa;"
+        " color:#CCCCCC; padding:7px 18px; border-radius:3px; font-weight:bold; }"
+        "QPushButton:hover { background-color:#774dcb; }"
+        "QPushButton:disabled { background-color:#2a2a4a; color:#666; border-color:#444; }"
+    )
+    _LINE_STYLE = (
+        "QLineEdit { background-color:#272727; border:1px solid #555555;"
+        " color:#cccccc; padding:5px 8px; border-radius:3px; }"
+        "QLineEdit:focus { border:1px solid #666666; }"
+    )
+
+    dlg = QtWidgets.QDialog(parent)
+    dlg.setWindowTitle("Guardar preset")
+    dlg.setMinimumWidth(380)
+    dlg.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
+    dlg.setStyleSheet(
+        "QDialog { background-color:#2B2B2B; border:1px solid #555555; }"
+        "QLabel  { color:#a7a7a7; }"
+    )
+    dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+
+    layout = QVBoxLayout(dlg)
+    layout.setContentsMargins(24, 20, 24, 20)
+    layout.setSpacing(10)
+
+    header_row = QHBoxLayout()
+    title_lbl = QLabel("Guardar preset de paths")
+    title_lbl.setStyleSheet("color:#d9a441; font-size:13px; font-weight:bold;")
+    header_row.addWidget(title_lbl)
+    header_row.addStretch()
+    layout.addLayout(header_row)
+
+    sep = QFrame()
+    sep.setFrameShape(QFrame.HLine)
+    sep.setStyleSheet("background:#444444;")
+    sep.setFixedHeight(1)
+    layout.addWidget(sep)
+
+    name_prompt = QLabel("Nombre del preset:")
+    name_prompt.setStyleSheet("color:#a7a7a7; font-size:11px;")
+    layout.addWidget(name_prompt)
+
+    line = QLineEdit()
+    line.setPlaceholderText("Ej: Cambio rutas comp")
+    line.setStyleSheet(_LINE_STYLE)
+    layout.addWidget(line)
+
+    layout.addSpacing(8)
+
+    btn_row = QHBoxLayout()
+    btn_row.addStretch()
+    btn_cancel = QPushButton("Cancelar")
+    btn_save = QPushButton("Guardar")
+    btn_cancel.setStyleSheet(_BTN_SECONDARY)
+    btn_save.setStyleSheet(_BTN_PRIMARY_DIS)
+    btn_save.setEnabled(False)
+    btn_row.addWidget(btn_cancel)
+    btn_row.addSpacing(8)
+    btn_row.addWidget(btn_save)
+    layout.addLayout(btn_row)
+
+    line.textChanged.connect(lambda t: btn_save.setEnabled(bool(t.strip())))
+
+    result = [None]
+
+    def _do_save():
+        result[0] = line.text().strip()
+        dlg.accept()
+
+    btn_cancel.clicked.connect(dlg.reject)
+    btn_save.clicked.connect(_do_save)
+    line.returnPressed.connect(lambda: _do_save() if btn_save.isEnabled() else None)
+
+    dlg.exec_()
+    return result[0]
 
 
 def _preset_is_deletable(text):
@@ -493,7 +581,10 @@ class SearchAndReplaceWidget(QWidget):
         sr1_row.addWidget(self.sr1_case_checkbox, 0)
         col_sr1.addLayout(sr1_row)
         col_sr1.addStretch()
-        opts_row.addLayout(col_sr1, 2)
+        col_sr1_wrap = QWidget(self)
+        col_sr1_wrap.setLayout(col_sr1)
+        col_sr1_wrap.setFixedWidth(_OPTIONS_SR_COL_WIDTH)
+        opts_row.addWidget(col_sr1_wrap, 0)
 
         opts_row.addWidget(_separator("v"))
 
@@ -524,7 +615,10 @@ class SearchAndReplaceWidget(QWidget):
         sr2_row.addWidget(self.sr2_case_checkbox, 0)
         col_sr2.addLayout(sr2_row)
         col_sr2.addStretch()
-        opts_row.addLayout(col_sr2, 2)
+        col_sr2_wrap = QWidget(self)
+        col_sr2_wrap.setLayout(col_sr2)
+        col_sr2_wrap.setFixedWidth(_OPTIONS_SR_COL_WIDTH)
+        opts_row.addWidget(col_sr2_wrap, 0)
 
         opts_row.addWidget(_separator("v"))
 
@@ -539,7 +633,7 @@ class SearchAndReplaceWidget(QWidget):
         preset_row.addWidget(preset_lbl)
         self.preset_combo = QComboBox()
         self.preset_combo.setStyleSheet(_COMBO_STYLE)
-        self.preset_combo.setMinimumWidth(190)
+        self.preset_combo.setMinimumWidth(120)
         self.preset_combo.setFocusPolicy(Qt.NoFocus)
         pix_trash = QtGui.QPixmap(os.path.join(self.icon_dir, "trash.svg"))
         pix_hover = QtGui.QPixmap(os.path.join(self.icon_dir, "trash_hover.svg"))
@@ -568,7 +662,10 @@ class SearchAndReplaceWidget(QWidget):
         col_preset.addLayout(reset_row)
 
         col_preset.addStretch()
-        opts_row.addLayout(col_preset, 2)
+        col_preset_wrap = QWidget(self)
+        col_preset_wrap.setLayout(col_preset)
+        col_preset_wrap.setFixedWidth(_OPTIONS_PRESET_COL_WIDTH)
+        opts_row.addWidget(col_preset_wrap, 0)
 
         self.layout.addLayout(opts_row)
 
@@ -621,7 +718,7 @@ class SearchAndReplaceWidget(QWidget):
         self.sr1_search_input.setFocus()
 
         self.refreshPresetCombo()
-        self.resize(1260, 640)
+        self.resize(_WINDOW_WIDTH, 640)
         self.setMinimumSize(960, 420)
         self.updatePreviews()
 
@@ -775,7 +872,10 @@ class SearchAndReplaceWidget(QWidget):
         ):
             print("Search/Replace fields must not be all empty.")
             return
-        data["name"] = "Preset %d" % (len(self.presets) + 1)
+        preset_name = _show_save_preset_dialog(parent=self)
+        if not preset_name:
+            return
+        data["name"] = preset_name
         self.presets.append(data)
         self._writePresets()
         self.refreshPresetCombo(selected_preset_index=len(self.presets) - 1)
@@ -1027,12 +1127,12 @@ class SearchAndReplaceWidget(QWidget):
                 "<table cellspacing='0' cellpadding='0' style='margin:0;'>"
                 "<tr>"
                 "<td><span style='color:#a7a7a7; font-weight:600;'>Original:</span></td>"
-                "<td width='30'></td>"
+                "<td width='20'></td>"
                 "<td>%s</td>"
                 "</tr>"
                 "<tr>"
                 "<td><span style='color:#a7a7a7; font-weight:600;'>Renamed:</span></td>"
-                "<td width='22'></td>"
+                "<td width='12'></td>"
                 "<td>%s</td>"
                 "</tr>"
                 "</table>"
