@@ -43,8 +43,6 @@ _PRESET_PLACEHOLDER_EMPTY = "(sin presets)"
 _STAGE_COLORS = {
     1: "#6a9960",  # Search & Replace 1
     2: "#c4787a",  # Search & Replace 2
-    3: "#3381e0",  # Prefix
-    4: "#b09040",  # Suffix
 }
 _PRESET_FIELDS = (
     "sr1_search",
@@ -53,8 +51,6 @@ _PRESET_FIELDS = (
     "sr2_search",
     "sr2_replace",
     "sr2_case",
-    "prefix",
-    "suffix",
 )
 
 _TABLE_STYLE = """
@@ -75,6 +71,52 @@ QHeaderView::section {
 }
 QTableWidget::item { padding-left: 6px; padding-right: 6px; }
 QTableWidget::item:selected { background-color: #353535; color: #cccccc; }
+QTableWidget QScrollBar:vertical {
+    background-color: #252525;
+    width: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+QTableWidget QScrollBar::handle:vertical {
+    background-color: #2E2E2E;
+    min-height: 30px;
+    border-radius: 4px;
+}
+QTableWidget QScrollBar::handle:vertical:hover {
+    background-color: #3D3D3D;
+}
+QTableWidget QScrollBar::add-line:vertical,
+QTableWidget QScrollBar::sub-line:vertical {
+    height: 0px;
+    background: none;
+}
+QTableWidget QScrollBar::add-page:vertical,
+QTableWidget QScrollBar::sub-page:vertical {
+    background: transparent;
+}
+QTableWidget QScrollBar:horizontal {
+    background-color: #252525;
+    height: 8px;
+    margin: 0px;
+    border-radius: 4px;
+}
+QTableWidget QScrollBar::handle:horizontal {
+    background-color: #2E2E2E;
+    min-width: 30px;
+    border-radius: 4px;
+}
+QTableWidget QScrollBar::handle:horizontal:hover {
+    background-color: #3D3D3D;
+}
+QTableWidget QScrollBar::add-line:horizontal,
+QTableWidget QScrollBar::sub-line:horizontal {
+    width: 0px;
+    background: none;
+}
+QTableWidget QScrollBar::add-page:horizontal,
+QTableWidget QScrollBar::sub-page:horizontal {
+    background: transparent;
+}
 """
 
 _BTN_PRIMARY = """
@@ -103,12 +145,18 @@ QPushButton:hover { background-color: #383838; color: #cccccc; }
 QPushButton:disabled { background-color: #272727; color: #555555; }
 """
 
-_LINE_STYLE = (
-    "QLineEdit { background-color:#272727; border:1px solid #444;"
-    " color:#a7a7a7; padding:4px 8px; border-radius:3px;"
-    " selection-background-color:#505060; selection-color:#d0d0d0; }"
-    "QLineEdit:focus { border:1px solid #555555; }"
-)
+_BTN_SMALL_TIGHT = """
+QPushButton {
+    background-color: #2e2e2e;
+    border: 1px solid #4b4b4b;
+    color: #a7a7a7;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+QPushButton:hover { background-color: #383838; color: #cccccc; }
+QPushButton:disabled { background-color: #272727; color: #555555; }
+"""
 
 _COMBO_STYLE = """
 QComboBox {
@@ -141,8 +189,8 @@ def _section_label(text):
 def _separator(orientation="h"):
     sep = QFrame()
     sep.setFrameShape(QFrame.HLine if orientation == "h" else QFrame.VLine)
-    sep.setFrameShadow(QFrame.Sunken)
-    sep.setStyleSheet("color: #444444; margin: 0px;")
+    sep.setFrameShadow(QFrame.Plain)
+    sep.setStyleSheet("color: #5a5a5a; margin: 0px;")
     return sep
 
 
@@ -418,11 +466,10 @@ class SearchAndReplaceWidget(QWidget):
         opts_row = QHBoxLayout()
         opts_row.setSpacing(20)
 
-        # Columna izquierda: Search & Replace 1 + 2 (igual enfoque Import Shots)
-        col_left = QVBoxLayout()
-        col_left.setSpacing(6)
-
-        col_left.addWidget(_section_label("Search & Replace 1"))
+        # Columna 1: Search & Replace 1
+        col_sr1 = QVBoxLayout()
+        col_sr1.setSpacing(6)
+        col_sr1.addWidget(_section_label("Search & Replace 1"))
         sr1_row = QHBoxLayout()
         self.sr1_search_input = QLineEdit(self)
         self.sr1_search_input.setPlaceholderText("Search")
@@ -444,11 +491,16 @@ class SearchAndReplaceWidget(QWidget):
         sr1_row.addWidget(sr1_swap, 0)
         sr1_row.addWidget(self.sr1_replace_input, 1)
         sr1_row.addWidget(self.sr1_case_checkbox, 0)
-        col_left.addLayout(sr1_row)
+        col_sr1.addLayout(sr1_row)
+        col_sr1.addStretch()
+        opts_row.addLayout(col_sr1, 2)
 
-        col_left.addSpacing(8)
+        opts_row.addWidget(_separator("v"))
 
-        col_left.addWidget(_section_label("Search & Replace 2"))
+        # Columna 2: Search & Replace 2
+        col_sr2 = QVBoxLayout()
+        col_sr2.setSpacing(6)
+        col_sr2.addWidget(_section_label("Search & Replace 2"))
         sr2_row = QHBoxLayout()
         self.sr2_search_input = QLineEdit(self)
         self.sr2_search_input.setPlaceholderText("Search")
@@ -470,44 +522,24 @@ class SearchAndReplaceWidget(QWidget):
         sr2_row.addWidget(sr2_swap, 0)
         sr2_row.addWidget(self.sr2_replace_input, 1)
         sr2_row.addWidget(self.sr2_case_checkbox, 0)
-        col_left.addLayout(sr2_row)
-
-        col_left.addStretch()
-        opts_row.addLayout(col_left, 3)
-
-        opts_row.addWidget(_separator("v"))
-
-        # Columna central: Prefix / Suffix
-        col_ps = QVBoxLayout()
-        col_ps.setSpacing(6)
-        col_ps.addWidget(_section_label("Prefix"))
-        self.prefix_input = QLineEdit(self)
-        self.prefix_input.setPlaceholderText("Prefix")
-        self.prefix_input.setStyleSheet(line_style)
-        col_ps.addWidget(self.prefix_input)
-
-        col_ps.addSpacing(8)
-        col_ps.addWidget(_section_label("Suffix"))
-        self.suffix_input = QLineEdit(self)
-        self.suffix_input.setPlaceholderText("Suffix")
-        self.suffix_input.setStyleSheet(line_style)
-        col_ps.addWidget(self.suffix_input)
-        col_ps.addStretch()
-        opts_row.addLayout(col_ps, 2)
+        col_sr2.addLayout(sr2_row)
+        col_sr2.addStretch()
+        opts_row.addLayout(col_sr2, 2)
 
         opts_row.addWidget(_separator("v"))
 
-        # Columna derecha: Presets con papelera en dropdown (sin botón Delete)
+        # Columna 3: Presets (dropdown + Save en la misma fila)
         col_preset = QVBoxLayout()
-        col_preset.setSpacing(10)
+        col_preset.setSpacing(8)
 
         preset_row = QHBoxLayout()
+        preset_row.setSpacing(6)
         preset_lbl = QLabel("Preset:")
         preset_lbl.setStyleSheet("color:#a7a7a7;")
         preset_row.addWidget(preset_lbl)
         self.preset_combo = QComboBox()
         self.preset_combo.setStyleSheet(_COMBO_STYLE)
-        self.preset_combo.setMinimumWidth(230)
+        self.preset_combo.setMinimumWidth(190)
         self.preset_combo.setFocusPolicy(Qt.NoFocus)
         pix_trash = QtGui.QPixmap(os.path.join(self.icon_dir, "trash.svg"))
         pix_hover = QtGui.QPixmap(os.path.join(self.icon_dir, "trash_hover.svg"))
@@ -517,19 +549,23 @@ class SearchAndReplaceWidget(QWidget):
             _PresetDelegate(self.preset_list_view, pix_trash, pix_hover)
         )
         preset_row.addWidget(self.preset_combo, 1)
-        col_preset.addLayout(preset_row)
-
         self.save_preset_button = QPushButton("Save Preset", self)
-        self.save_preset_button.setStyleSheet(_BTN_SMALL)
+        self.save_preset_button.setStyleSheet(_BTN_SMALL_TIGHT)
+        self.save_preset_button.setFixedWidth(104)
         self.save_preset_button.setFocusPolicy(Qt.NoFocus)
         self.save_preset_button.clicked.connect(self.savePreset)
-        col_preset.addWidget(self.save_preset_button)
+        preset_row.addWidget(self.save_preset_button, 0)
+        col_preset.addLayout(preset_row)
 
         self.reset_values_button = QPushButton("Reset Values", self)
-        self.reset_values_button.setStyleSheet(_BTN_SMALL)
+        self.reset_values_button.setStyleSheet(_BTN_SMALL_TIGHT)
+        self.reset_values_button.setFixedWidth(104)
         self.reset_values_button.setFocusPolicy(Qt.NoFocus)
         self.reset_values_button.clicked.connect(self.resetValues)
-        col_preset.addWidget(self.reset_values_button)
+        reset_row = QHBoxLayout()
+        reset_row.addStretch()
+        reset_row.addWidget(self.reset_values_button, 0)
+        col_preset.addLayout(reset_row)
 
         col_preset.addStretch()
         opts_row.addLayout(col_preset, 2)
@@ -576,8 +612,6 @@ class SearchAndReplaceWidget(QWidget):
         self.sr2_search_input.textChanged.connect(self._onSettingsChanged)
         self.sr2_replace_input.textChanged.connect(self._onSettingsChanged)
         self.sr2_case_checkbox.stateChanged.connect(self._onSettingsChanged)
-        self.prefix_input.textChanged.connect(self._onSettingsChanged)
-        self.suffix_input.textChanged.connect(self._onSettingsChanged)
         self.filter_checkbox.stateChanged.connect(self.updatePreviews)
         self.read_checkbox.stateChanged.connect(self.updatePreviews)
         self.write_checkbox.stateChanged.connect(self.updatePreviews)
@@ -608,7 +642,7 @@ class SearchAndReplaceWidget(QWidget):
         if config.has_section("Presets"):
             for key, value in config.items("Presets"):
                 match = re.match(
-                    r"^(name|search|replace|prefix|suffix|sr1_search|sr1_replace|sr1_case|sr2_search|sr2_replace|sr2_case)_preset_(\d+)$",
+                    r"^(name|search|replace|sr1_search|sr1_replace|sr1_case|sr2_search|sr2_replace|sr2_case)_preset_(\d+)$",
                     key.lower(),
                 )
                 if not match:
@@ -624,8 +658,6 @@ class SearchAndReplaceWidget(QWidget):
                         "sr2_search": "",
                         "sr2_replace": "",
                         "sr2_case": "false",
-                        "prefix": "",
-                        "suffix": "",
                     }
                 if field == "search":
                     presets_by_index[index]["sr1_search"] = value
@@ -650,8 +682,6 @@ class SearchAndReplaceWidget(QWidget):
             # Compatibilidad con presets antiguos:
             config.set("Presets", "search_preset_%d" % i, preset.get("sr1_search", ""))
             config.set("Presets", "replace_preset_%d" % i, preset.get("sr1_replace", ""))
-            config.set("Presets", "prefix_preset_%d" % i, preset.get("prefix", ""))
-            config.set("Presets", "suffix_preset_%d" % i, preset.get("suffix", ""))
         with open(self.ini_path, "w", encoding="utf-8") as config_file:
             config.write(config_file)
 
@@ -663,8 +693,6 @@ class SearchAndReplaceWidget(QWidget):
             "sr2_search": self.sr2_search_input.text(),
             "sr2_replace": self.sr2_replace_input.text(),
             "sr2_case": str(self.sr2_case_checkbox.isChecked()).lower(),
-            "prefix": self.prefix_input.text(),
-            "suffix": self.suffix_input.text(),
         }
 
     def _presetMatchesCurrent(self, preset):
@@ -731,8 +759,6 @@ class SearchAndReplaceWidget(QWidget):
         self.sr2_case_checkbox.setChecked(
             preset.get("sr2_case", "false").lower() == "true"
         )
-        self.prefix_input.setText(preset.get("prefix", ""))
-        self.suffix_input.setText(preset.get("suffix", ""))
         self._applying_preset = False
         self.updatePreviews()
         self._updatePresetComboSelection()
@@ -745,11 +771,9 @@ class SearchAndReplaceWidget(QWidget):
                 data["sr1_replace"],
                 data["sr2_search"],
                 data["sr2_replace"],
-                data["prefix"],
-                data["suffix"],
             )
         ):
-            print("Search/Replace/Prefix/Suffix must not be all empty.")
+            print("Search/Replace fields must not be all empty.")
             return
         data["name"] = "Preset %d" % (len(self.presets) + 1)
         self.presets.append(data)
@@ -773,8 +797,6 @@ class SearchAndReplaceWidget(QWidget):
         self.sr1_replace_input.setText("")
         self.sr2_search_input.setText("")
         self.sr2_replace_input.setText("")
-        self.prefix_input.setText("")
-        self.suffix_input.setText("")
 
     def _onSettingsChanged(self, *_):
         self.updatePreviews()
@@ -801,14 +823,6 @@ class SearchAndReplaceWidget(QWidget):
         if case_sensitive:
             return needle in text
         return needle.lower() in normalized_text
-
-    @staticmethod
-    def _applySearchReplaceStage(text, search_text, replace_text, case_sensitive):
-        if not search_text:
-            return text
-        flags = 0 if case_sensitive else re.IGNORECASE
-        pattern = re.compile(re.escape(search_text), flags)
-        return pattern.sub(lambda _m: replace_text, text)
 
     @staticmethod
     def _findLiteral(haystack, needle, start_idx, case_sensitive):
@@ -868,58 +882,11 @@ class SearchAndReplaceWidget(QWidget):
         out_tags.extend([set(x) for x in cur_tags[idx:]])
         return "".join(out_text_parts), out_map, out_tags, changed_orig
 
-    @staticmethod
-    def _filenameStemBounds(path_text):
-        slash_idx = max(path_text.rfind("/"), path_text.rfind("\\"))
-        filename_start = slash_idx + 1 if slash_idx >= 0 else 0
-        file_part = path_text[filename_start:]
-        if not file_part:
-            return filename_start, filename_start
-        dot_idx = file_part.rfind(".")
-        stem_end = filename_start + (dot_idx if dot_idx > 0 else len(file_part))
-        return filename_start, stem_end
-
-    @staticmethod
-    def _applyPrefixStageMeta(cur_text, cur_orig_map, cur_tags, prefix_text, stage_id):
-        if not prefix_text:
-            return cur_text, cur_orig_map, cur_tags, set()
-        insert_pos, _stem_end = SearchAndReplaceWidget._filenameStemBounds(cur_text)
-        out_text = cur_text[:insert_pos] + prefix_text + cur_text[insert_pos:]
-        out_map = (
-            list(cur_orig_map[:insert_pos])
-            + [None] * len(prefix_text)
-            + list(cur_orig_map[insert_pos:])
-        )
-        out_tags = (
-            [set(x) for x in cur_tags[:insert_pos]]
-            + [{stage_id} for _ in prefix_text]
-            + [set(x) for x in cur_tags[insert_pos:]]
-        )
-        return out_text, out_map, out_tags, set()
-
-    @staticmethod
-    def _applySuffixStageMeta(cur_text, cur_orig_map, cur_tags, suffix_text, stage_id):
-        if not suffix_text:
-            return cur_text, cur_orig_map, cur_tags, set()
-        _file_start, insert_pos = SearchAndReplaceWidget._filenameStemBounds(cur_text)
-        out_text = cur_text[:insert_pos] + suffix_text + cur_text[insert_pos:]
-        out_map = (
-            list(cur_orig_map[:insert_pos])
-            + [None] * len(suffix_text)
-            + list(cur_orig_map[insert_pos:])
-        )
-        out_tags = (
-            [set(x) for x in cur_tags[:insert_pos]]
-            + [{stage_id} for _ in suffix_text]
-            + [set(x) for x in cur_tags[insert_pos:]]
-        )
-        return out_text, out_map, out_tags, set()
-
     def _computePathPreview(self, original_path):
         cur_text = original_path
         cur_orig_map = list(range(len(cur_text)))
         cur_tags = [set() for _ in cur_text]
-        orig_stage_marks = {1: set(), 2: set(), 3: set(), 4: set()}
+        orig_stage_marks = {1: set(), 2: set()}
 
         cur_text, cur_orig_map, cur_tags, changed_orig = self._applySearchReplaceStageMeta(
             cur_text,
@@ -943,26 +910,8 @@ class SearchAndReplaceWidget(QWidget):
         )
         orig_stage_marks[2].update(changed_orig)
 
-        cur_text, cur_orig_map, cur_tags, changed_orig = self._applyPrefixStageMeta(
-            cur_text,
-            cur_orig_map,
-            cur_tags,
-            self.prefix_input.text(),
-            stage_id=3,
-        )
-        orig_stage_marks[3].update(changed_orig)
-
-        cur_text, cur_orig_map, cur_tags, changed_orig = self._applySuffixStageMeta(
-            cur_text,
-            cur_orig_map,
-            cur_tags,
-            self.suffix_input.text(),
-            stage_id=4,
-        )
-        orig_stage_marks[4].update(changed_orig)
-
         orig_colors = {}
-        for stage_id in (1, 2, 3, 4):
+        for stage_id in (1, 2):
             color = _STAGE_COLORS.get(stage_id)
             if not color:
                 continue
@@ -988,9 +937,6 @@ class SearchAndReplaceWidget(QWidget):
 
     def _rowPassesFilter(self, original_path, normalized_path):
         if not self.filter_checkbox.isChecked():
-            return True
-
-        if self.prefix_input.text() or self.suffix_input.text():
             return True
 
         sr1_search = self.sr1_search_input.text()
@@ -1046,7 +992,7 @@ class SearchAndReplaceWidget(QWidget):
         changed_count = 0
         nuke.Undo().begin("Replace All Paths")
         try:
-            for node, normalized_path in zip(self.nodes, self.normalized_nodes):
+            for node in self.nodes:
                 if not self._isNodeAllowedByFilters(node):
                     continue
                 original_path = node["file"].getValue()
@@ -1080,11 +1026,13 @@ class SearchAndReplaceWidget(QWidget):
             path_html = (
                 "<table cellspacing='0' cellpadding='0' style='margin:0;'>"
                 "<tr>"
-                "<td width='72'><span style='color:#a7a7a7; font-weight:600;'>Original:</span></td>"
+                "<td><span style='color:#a7a7a7; font-weight:600;'>Original:</span></td>"
+                "<td width='30'></td>"
                 "<td>%s</td>"
                 "</tr>"
                 "<tr>"
-                "<td width='72'><span style='color:#a7a7a7; font-weight:600;'>Renamed:</span></td>"
+                "<td><span style='color:#a7a7a7; font-weight:600;'>Renamed:</span></td>"
+                "<td width='22'></td>"
                 "<td>%s</td>"
                 "</tr>"
                 "</table>"
