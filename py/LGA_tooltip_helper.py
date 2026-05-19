@@ -1,27 +1,24 @@
 """
-LGA_tooltip_helper.py
-─────────────────────
-Helper para aplicar tooltips estilizados a widgets Qt en paneles de Hiero/Nuke.
+_______________________________________________________________________________________________________________________________
 
-Los tooltips de Qt soportan HTML rich text. Para que el fondo y borde se
-apliquen correctamente, el QToolTip stylesheet debe establecerse en la QApplication.
-Este helper ofrece:
+  LGA_tooltip_helper v1.01 | Lega
 
-  set_clip_tooltip(widget, name, frames, fps=24, color="#42616d")
-      Tooltip estándar para chips de clips de timeline.
 
-  set_rich_tooltip(widget, html)
-      Tooltip con HTML arbitrario (máximo control).
+  Helper para aplicar tooltips estilizados a widgets Qt en paneles de Hiero/Nuke.
+  Define el look estandar de tooltips de esta repo: fondo, padding, esquinas redondeadas
+  y colores de texto primario/secundario.
 
-  apply_tooltip_stylesheet(app_or_widget)
-      Aplica el QToolTip CSS global a la QApplication o al widget raíz.
-      Debe llamarse UNA SOLA VEZ al iniciar la ventana.
 
-Uso típico
-──────────
-  from LGA_tooltip_helper import set_clip_tooltip, apply_tooltip_stylesheet
-  apply_tooltip_stylesheet(QtWidgets.QApplication.instance())
-  set_clip_tooltip(label, "TEST_013_020_comp_v02", 480, fps=24, color="#3381e0")
+  v1.01: Standard de tooltips para esta repo.
+         - Fondo #1e1e1e
+         - Sin borde
+         - Texto primario #cccccc
+         - Texto secundario #888888
+         - Padding 12px
+         - Esquinas redondeadas 6px
+
+  v1.00: Helper inicial para QToolTip con HTML rich text.
+_______________________________________________________________________________________________________________________________
 """
 
 # ── imports ───────────────────────────────────────────────────────────────────
@@ -38,20 +35,27 @@ except ImportError:
 
 # ── constants ─────────────────────────────────────────────────────────────────
 
-_TOOLTIP_BG      = "#1e1e1e"
-_TOOLTIP_BORDER  = "#444444"
-_TOOLTIP_TEXT    = "#d8d8d8"
-_TOOLTIP_DIM     = "#888888"
-_TOOLTIP_RADIUS  = "5px"
-_TOOLTIP_PADDING = "8px 12px"
+TOOLTIP_BG = "#1e1e1e"
+TOOLTIP_BORDER = "none"
+TOOLTIP_PRIMARY_TEXT = "#cccccc"
+TOOLTIP_SECONDARY_TEXT = "#888888"
+TOOLTIP_PADDING_PX = 12
+TOOLTIP_RADIUS_PX = 6
+
+_TOOLTIP_BG = TOOLTIP_BG
+_TOOLTIP_BORDER = TOOLTIP_BORDER
+_TOOLTIP_TEXT = TOOLTIP_PRIMARY_TEXT
+_TOOLTIP_DIM = TOOLTIP_SECONDARY_TEXT
+_TOOLTIP_RADIUS = f"{TOOLTIP_RADIUS_PX}px"
+_TOOLTIP_PADDING = f"{TOOLTIP_PADDING_PX}px"
 
 # CSS global inyectado en QApplication — controla la caja exterior del tooltip
 def _make_qtooltip_css(
     bg: str = _TOOLTIP_BG,
     text: str = _TOOLTIP_TEXT,
-    border: str = "1px solid " + _TOOLTIP_BORDER,
+    border: str = _TOOLTIP_BORDER,
     radius: str = _TOOLTIP_RADIUS,
-    padding: str = "0px",
+    padding: str = _TOOLTIP_PADDING,
 ) -> str:
     return """
 QToolTip {{
@@ -131,7 +135,7 @@ def _clip_tooltip_html(
     html = (
         "<div style='"
         "background:{bg};"
-        "border:1px solid {border};"
+        "border:{border};"
         "border-radius:{radius};"
         "padding:{pad};"
         "min-width:200px;"
@@ -180,9 +184,9 @@ def apply_tooltip_stylesheet(
     target=None,
     bg: str = _TOOLTIP_BG,
     text: str = _TOOLTIP_TEXT,
-    border: str = "1px solid " + _TOOLTIP_BORDER,
+    border: str = _TOOLTIP_BORDER,
     radius: str = _TOOLTIP_RADIUS,
-    padding: str = "0px",
+    padding: str = _TOOLTIP_PADDING,
     force: bool = False,
 ):
     """
@@ -295,7 +299,7 @@ def make_tooltip_html(
 
     return (
         "<div style='"
-        "background:{bg}; border:1px solid {border}; border-radius:{radius};"
+        "background:{bg}; border:{border}; border-radius:{radius};"
         "padding:{pad}; min-width:{width};"
         "'>"
         "<p style='margin:0 0 2px 0; font-weight:bold; font-size:13px;"

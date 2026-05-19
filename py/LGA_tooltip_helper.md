@@ -1,7 +1,7 @@
 > **Regla de documentacion**: este archivo describe el estado actual del codigo. No es un historial de cambios, changelog ni bitacora temporal.
 > **Regla de documentacion**: este archivo debe incluir una seccion de referencias tecnicas con rutas completas a los archivos mas importantes relacionados, y para cada archivo nombrar las funciones, clases o metodos clave vinculados a este tema.
 
-# LGA_tooltip_helper — Tooltips estilizados para Qt
+# LGA_tooltip_helper v1.01 — Tooltips estilizados para Qt
 
 Helper que genera y aplica **tooltips ricos con HTML** a widgets Qt (QLabel, QPushButton, etc.).
 
@@ -30,7 +30,7 @@ tooltip_mod.set_clip_tooltip(label, "TEST_013_020_comp_v02", 480, fps=24, color=
 
 ## API
 
-### `apply_tooltip_stylesheet(target=None, bg="#1e1e1e", text="#d8d8d8", border="1px solid #444444", radius="5px", padding="0px", force=False)`
+### `apply_tooltip_stylesheet(target=None, bg="#1e1e1e", text="#cccccc", border="none", radius="6px", padding="12px", force=False)`
 
 Inyecta el CSS de `QToolTip` en la `QApplication` o widget raíz.
 
@@ -44,15 +44,26 @@ apply_tooltip_stylesheet(my_dialog)
 
 El CSS aplicado establece fondo oscuro, borde sutil y bordes redondeados para todos los `QToolTip` de la app.
 
-Para tooltips sin borde, o para sobrescribir una regla `QToolTip` ya instalada en una sesion larga, pasar parametros explicitos:
+El standard visual de esta repo para tooltips es:
+
+| Elemento | Valor |
+|----------|-------|
+| Fondo | `#1e1e1e` |
+| Borde | `none` |
+| Texto primario / shortcuts | `#cccccc` |
+| Texto secundario / descripcion | `#888888` |
+| Padding | `12px` |
+| Esquinas redondeadas | `6px` |
+
+Para sobrescribir una regla `QToolTip` ya instalada en una sesion larga, pasar parametros explicitos:
 
 ```python
 apply_tooltip_stylesheet(
     QtWidgets.QApplication.instance(),
     bg="#1e1e1e",
     border="none",
-    radius="0px",
-    padding="0px",
+    radius="6px",
+    padding="12px",
     force=True,
 )
 ```
@@ -152,12 +163,12 @@ Los colores globales están definidos como constantes al inicio del módulo:
 
 | Constante | Default | Descripción |
 |-----------|---------|-------------|
-| `_TOOLTIP_BG` | `#1e1e1e` | Fondo del tooltip |
-| `_TOOLTIP_BORDER` | `#444444` | Borde exterior |
-| `_TOOLTIP_TEXT` | `#d8d8d8` | Texto general |
-| `_TOOLTIP_DIM` | `#888888` | Texto secundario / labels |
-| `_TOOLTIP_RADIUS` | `5px` | Radio de bordes |
-| `_TOOLTIP_PADDING` | `8px 12px` | Padding interno |
+| `TOOLTIP_BG` / `_TOOLTIP_BG` | `#1e1e1e` | Fondo del tooltip |
+| `TOOLTIP_BORDER` / `_TOOLTIP_BORDER` | `none` | Borde exterior |
+| `TOOLTIP_PRIMARY_TEXT` / `_TOOLTIP_TEXT` | `#cccccc` | Texto primario / shortcuts |
+| `TOOLTIP_SECONDARY_TEXT` / `_TOOLTIP_DIM` | `#888888` | Texto secundario / descripcion |
+| `TOOLTIP_RADIUS_PX` / `_TOOLTIP_RADIUS` | `6` / `6px` | Radio de bordes |
+| `TOOLTIP_PADDING_PX` / `_TOOLTIP_PADDING` | `12` / `12px` | Padding interno |
 
 Para cambiar el look globalmente, editar estas constantes antes de llamar a `apply_tooltip_stylesheet`.
 

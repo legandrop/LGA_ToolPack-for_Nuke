@@ -17,6 +17,13 @@ import shutil
 import subprocess  # Importar subprocess para abrir archivos en macOS/Linux
 import platform  # Importar platform para detectar el SO
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui
+from LGA_tooltip_helper import (
+    TOOLTIP_BG,
+    TOOLTIP_PADDING_PX,
+    TOOLTIP_PRIMARY_TEXT,
+    TOOLTIP_RADIUS_PX,
+    TOOLTIP_SECONDARY_TEXT,
+)
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
@@ -40,7 +47,7 @@ QPixmap = QtGui.QPixmap
 QFont = QtGui.QFont
 QCursor = QtGui.QCursor
 QIcon = QtGui.QIcon
-QPalette = QtGui.QPalette
+QPainter = QtGui.QPainter
 QColor = QtGui.QColor
 
 # Variable global para activar o desactivar los prints de depuracion
@@ -273,6 +280,68 @@ class DeleteButton(QPushButton):
         super().leaveEvent(event)
 
 
+class RoundedTooltipPopup(QWidget):
+    """Tooltip propio con fondo pintado y padding real."""
+
+    def __init__(
+        self,
+        html,
+        parent=None,
+        padding=TOOLTIP_PADDING_PX,
+        radius=TOOLTIP_RADIUS_PX,
+    ):
+        super().__init__(parent)
+        self.bg_color = QColor(TOOLTIP_BG)
+        self.padding = padding
+        self.radius = radius
+
+        flags = Qt.ToolTip | Qt.FramelessWindowHint
+        if hasattr(Qt, "NoDropShadowWindowHint"):
+            flags = flags | Qt.NoDropShadowWindowHint
+        self.setWindowFlags(flags)
+        if hasattr(Qt, "WA_ShowWithoutActivating"):
+            self.setAttribute(Qt.WA_ShowWithoutActivating)
+        if hasattr(Qt, "WA_TranslucentBackground"):
+            self.setAttribute(Qt.WA_TranslucentBackground)
+        if hasattr(Qt, "WA_NoSystemBackground"):
+            self.setAttribute(Qt.WA_NoSystemBackground)
+        self.setAutoFillBackground(False)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(padding, padding, padding, padding)
+        layout.setSpacing(0)
+
+        self.label = QLabel()
+        self.label.setTextFormat(Qt.RichText)
+        self.label.setStyleSheet(
+            """
+            QLabel {
+                background: transparent;
+                border: 0px;
+                margin: 0px;
+                padding: 0px;
+            }
+            """
+        )
+        self.label.setContentsMargins(0, 0, 0, 0)
+        self.label.setMargin(0)
+        self.label.setIndent(0)
+        layout.addWidget(self.label)
+        self.set_html(html)
+
+    def set_html(self, html):
+        self.label.setText(html)
+        self.adjustSize()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(self.bg_color)
+        rect = self.rect().adjusted(0, 0, -1, -1)
+        painter.drawRoundedRect(rect, self.radius, self.radius)
+
+
 class ThumbnailWidget(QLabel):
     """Widget personalizado para mostrar un thumbnail"""
 
@@ -330,62 +399,31 @@ class ThumbnailWidget(QLabel):
 
         self.tooltip_html = (
             "<table border='0' cellspacing='0' cellpadding='0' style='"
-            "background-color:#1e1e1e;"
+            f"background-color:{TOOLTIP_BG};"
             "border:0px;"
             "border-collapse:collapse;"
             "margin:0px;"
             "padding:0px;"
             "'>"
             "<tr>"
-            "<td style='background-color:#1e1e1e; color:#cccccc; padding:0px 12px 3px 0px; white-space:nowrap;'>Click</td>"
-            "<td style='background-color:#1e1e1e; color:#888888; padding:0px 0px 3px 0px; white-space:nowrap;'>Open JPG in your default viewer</td>"
+            f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_PRIMARY_TEXT}; padding:0px 12px 3px 0px; white-space:nowrap;'>Click</td>"
+            f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_SECONDARY_TEXT}; padding:0px 0px 3px 0px; white-space:nowrap;'>Open JPG in your default viewer</td>"
             "</tr>"
             "<tr>"
-            "<td style='background-color:#1e1e1e; color:#cccccc; padding:0px 12px 0px 0px; white-space:nowrap;'>Shift-click</td>"
-            f"<td style='background-color:#1e1e1e; color:#888888; padding:0px; white-space:nowrap;'>Show in {reveal_target}</td>"
+            f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_PRIMARY_TEXT}; padding:0px 12px 0px 0px; white-space:nowrap;'>Shift-click</td>"
+            f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_SECONDARY_TEXT}; padding:0px; white-space:nowrap;'>Show in {reveal_target}</td>"
             "</tr>"
             "</table>"
         )
         self.setMouseTracking(True)
 
-    def tooltip_window_flags(self):
-        """Retorna flags compatibles para un tooltip propio sin marco nativo."""
-        flags = Qt.ToolTip | Qt.FramelessWindowHint
-        if hasattr(Qt, "BypassWindowManagerHint"):
-            flags = flags | Qt.BypassWindowManagerHint
-        if hasattr(Qt, "NoDropShadowWindowHint"):
-            flags = flags | Qt.NoDropShadowWindowHint
-        return flags
-
     def show_custom_tooltip(self):
-        """Muestra un tooltip propio para evitar padding/borde nativo de QToolTip."""
+        """Muestra un tooltip propio con padding y esquinas redondeadas."""
         if self.tooltip_popup is None:
-            self.tooltip_popup = QLabel()
-            self.tooltip_popup.setWindowFlags(self.tooltip_window_flags())
-            if hasattr(Qt, "WA_ShowWithoutActivating"):
-                self.tooltip_popup.setAttribute(Qt.WA_ShowWithoutActivating)
-            self.tooltip_popup.setAutoFillBackground(True)
-            self.tooltip_popup.setContentsMargins(0, 0, 0, 0)
-            self.tooltip_popup.setMargin(0)
-            self.tooltip_popup.setIndent(0)
-            palette = self.tooltip_popup.palette()
-            palette.setColor(QPalette.Window, QColor("#1e1e1e"))
-            palette.setColor(QPalette.Base, QColor("#1e1e1e"))
-            self.tooltip_popup.setPalette(palette)
-            self.tooltip_popup.setStyleSheet(
-                """
-                QLabel {
-                    background-color: #1e1e1e;
-                    border: 0px;
-                    margin: 0px;
-                    padding: 0px;
-                }
-                """
-            )
-            self.tooltip_popup.setTextFormat(Qt.RichText)
+            self.tooltip_popup = RoundedTooltipPopup(self.tooltip_html)
+        else:
+            self.tooltip_popup.set_html(self.tooltip_html)
 
-        self.tooltip_popup.setText(self.tooltip_html)
-        self.tooltip_popup.adjustSize()
         self.tooltip_popup.move(QCursor.pos() + QPoint(12, 18))
         self.tooltip_popup.show()
 
