@@ -1,8 +1,11 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v0.52 - Lega
+  LGA_viewer_SnapShot_Gallery v0.53 - Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
+
+  v0.53 - Shift click para revelar en explorador de archivos
+        - Tooltips
 ___________________________________________________________________________________
 
 """
@@ -37,6 +40,8 @@ QPixmap = QtGui.QPixmap
 QFont = QtGui.QFont
 QCursor = QtGui.QCursor
 QIcon = QtGui.QIcon
+QPalette = QtGui.QPalette
+QColor = QtGui.QColor
 
 # Variable global para activar o desactivar los prints de depuracion
 debug = False  # Cambiar a False para ocultar los mensajes de debug
@@ -275,6 +280,7 @@ class ThumbnailWidget(QLabel):
         super().__init__()
         self.image_path = image_path
         self.original_pixmap = None
+        self.tooltip_popup = None
         self.load_image()
         self.update_size(size)
         self.setAlignment(Qt.AlignCenter)
@@ -290,6 +296,7 @@ class ThumbnailWidget(QLabel):
             }
         """
         )
+        self.setup_tooltip()
 
     def load_image(self):
         """Carga la imagen original"""
@@ -314,22 +321,135 @@ class ThumbnailWidget(QLabel):
             self.setPixmap(scaled_pixmap)
             self.setFixedSize(scaled_pixmap.size())
 
+    def setup_tooltip(self):
+        """Configura el tooltip de acciones del thumbnail."""
+        system = platform.system()
+        reveal_target = "Finder" if system == "Darwin" else "Explorer"
+        if system not in ("Windows", "Darwin"):
+            reveal_target = "File Manager"
+
+        self.tooltip_html = (
+            "<table border='0' cellspacing='0' cellpadding='0' style='"
+            "background-color:#1e1e1e;"
+            "border:0px;"
+            "border-collapse:collapse;"
+            "margin:0px;"
+            "padding:0px;"
+            "'>"
+            "<tr>"
+            "<td style='background-color:#1e1e1e; color:#cccccc; padding:0px 12px 3px 0px; white-space:nowrap;'>Click</td>"
+            "<td style='background-color:#1e1e1e; color:#888888; padding:0px 0px 3px 0px; white-space:nowrap;'>Open JPG in your default viewer</td>"
+            "</tr>"
+            "<tr>"
+            "<td style='background-color:#1e1e1e; color:#cccccc; padding:0px 12px 0px 0px; white-space:nowrap;'>Shift-click</td>"
+            f"<td style='background-color:#1e1e1e; color:#888888; padding:0px; white-space:nowrap;'>Show in {reveal_target}</td>"
+            "</tr>"
+            "</table>"
+        )
+        self.setMouseTracking(True)
+
+    def tooltip_window_flags(self):
+        """Retorna flags compatibles para un tooltip propio sin marco nativo."""
+        flags = Qt.ToolTip | Qt.FramelessWindowHint
+        if hasattr(Qt, "BypassWindowManagerHint"):
+            flags = flags | Qt.BypassWindowManagerHint
+        if hasattr(Qt, "NoDropShadowWindowHint"):
+            flags = flags | Qt.NoDropShadowWindowHint
+        return flags
+
+    def show_custom_tooltip(self):
+        """Muestra un tooltip propio para evitar padding/borde nativo de QToolTip."""
+        if self.tooltip_popup is None:
+            self.tooltip_popup = QLabel()
+            self.tooltip_popup.setWindowFlags(self.tooltip_window_flags())
+            if hasattr(Qt, "WA_ShowWithoutActivating"):
+                self.tooltip_popup.setAttribute(Qt.WA_ShowWithoutActivating)
+            self.tooltip_popup.setAutoFillBackground(True)
+            self.tooltip_popup.setContentsMargins(0, 0, 0, 0)
+            self.tooltip_popup.setMargin(0)
+            self.tooltip_popup.setIndent(0)
+            palette = self.tooltip_popup.palette()
+            palette.setColor(QPalette.Window, QColor("#1e1e1e"))
+            palette.setColor(QPalette.Base, QColor("#1e1e1e"))
+            self.tooltip_popup.setPalette(palette)
+            self.tooltip_popup.setStyleSheet(
+                """
+                QLabel {
+                    background-color: #1e1e1e;
+                    border: 0px;
+                    margin: 0px;
+                    padding: 0px;
+                }
+                """
+            )
+            self.tooltip_popup.setTextFormat(Qt.RichText)
+
+        self.tooltip_popup.setText(self.tooltip_html)
+        self.tooltip_popup.adjustSize()
+        self.tooltip_popup.move(QCursor.pos() + QPoint(12, 18))
+        self.tooltip_popup.show()
+
+    def hide_custom_tooltip(self):
+        """Oculta el tooltip propio."""
+        if self.tooltip_popup is not None:
+            self.tooltip_popup.hide()
+
+    def enterEvent(self, event):
+        """Muestra el tooltip inmediatamente al pasar por arriba."""
+        self.show_custom_tooltip()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        """Oculta el tooltip al salir del thumbnail."""
+        self.hide_custom_tooltip()
+        super().leaveEvent(event)
+
+    def reveal_in_file_browser(self):
+        """Revela el archivo del thumbnail en el explorador del sistema."""
+        try:
+            normalized_path = os.path.normpath(self.image_path)
+
+            if platform.system() == "Windows":
+                subprocess.Popen(["explorer", "/select,", normalized_path])
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", "-R", normalized_path])
+            else:  # Linux
+                subprocess.Popen(["xdg-open", os.path.dirname(normalized_path)])
+        except Exception as e:
+            debug_print(f"Error al revelar imagen: {e}")
+            QMessageBox.warning(
+                self, "Error", f"No se pudo revelar la imagen:\n{str(e)}"
+            )
+
+    def open_image_in_default_viewer(self):
+        """Abre el snapshot en el visor de imagenes predeterminado."""
+        debug_print(f"Abriendo imagen: {self.image_path}")
+        try:
+            if platform.system() == "Windows":
+                os.startfile(self.image_path)
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", self.image_path])
+            else:  # Linux
+                subprocess.Popen(["xdg-open", self.image_path])
+        except Exception as e:
+            debug_print(f"Error al abrir imagen: {e}")
+            QMessageBox.warning(
+                self, "Error", f"No se pudo abrir la imagen:\n{str(e)}"
+            )
+
     def mousePressEvent(self, event):
-        """Maneja el evento de clic del mouse para abrir la imagen"""
+        """Maneja click para abrir y Shift+click para revelar."""
         if event.button() == Qt.LeftButton:
-            debug_print(f"Abriendo imagen: {self.image_path}")
-            try:
-                if platform.system() == "Windows":
-                    os.startfile(self.image_path)
-                elif platform.system() == "Darwin":  # macOS
-                    subprocess.Popen(["open", self.image_path])
-                else:  # Linux
-                    subprocess.Popen(["xdg-open", self.image_path])
-            except Exception as e:
-                debug_print(f"Error al abrir imagen: {e}")
-                QMessageBox.warning(
-                    self, "Error", f"No se pudo abrir la imagen:\n{str(e)}"
-                )
+            self.hide_custom_tooltip()
+
+            if event.modifiers() & Qt.ShiftModifier:
+                debug_print(f"Revelando imagen en explorador: {self.image_path}")
+                self.reveal_in_file_browser()
+                super().mousePressEvent(event)
+                return
+
+            self.open_image_in_default_viewer()
+
         super().mousePressEvent(event)
 
 
