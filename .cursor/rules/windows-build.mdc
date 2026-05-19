@@ -3,9 +3,8 @@ alwaysApply: true
 ---
 
 - After a relevant (non-trivial) change, always check the current version of the app in the README.md
-  - check `docs/ChangeLog.md` and if the last changelog matches the same in the help tab, then bump the app version by `+0.001 (only in the changelog) and add a short changelog note for that new version.
-  - if in `docs/ChangeLog.md` the version is higher that the one in HelpTab, then don't bump, just keep adding notes to the last version number.
-  - al final del changelog pondrás entre [ ] una sugerencia de nombre corto para el commit que hará el usuario luego de este ajuste
+  - check `docs/ChangeLog.md` and if the last changelog matches the same in the README.MD, then bump the changelog version by `+0.01 (only in the changelog) and add a short changelog note for that new version.
+  - if in `docs/ChangeLog.md` the version is higher that the one in README>MD, then don't bump, just keep adding notes to the last version number.
   los changelogs siempre van en castellano!
 
 

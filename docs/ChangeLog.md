@@ -1,6 +1,12 @@
 # ChangeLog
 
-## v2.521
+## v2.54
+- Se agrega `LGA_tooltip_helper.py` y su documentacion `LGA_tooltip_helper.md` en `py/`, con standard de tooltips para la repo: fondo `#1e1e1e`, texto primario `#cccccc`, texto secundario `#888888`, padding `12px`, esquinas redondeadas y sin borde.
+- Se agrega tooltip custom inmediato en los thumbnails de `LGA_viewer_SnapShot_Gallery`, usando popup propio con fondo redondeado pintado por Qt para evitar bordes/padding nativos de `QToolTip`.
+- Se actualiza el comportamiento de thumbnails en la galeria de snapshots: click simple abre el JPG en el viewer default del usuario.
+- Se agrega `Shift + click` sobre thumbnails para revelar el archivo en el explorador del sistema (`Show in Explorer` en Windows, `Show in Finder` en macOS y file manager en Linux).
+
+## v2.53
 - Se rehace la UI de `LGA_mediaPathReplacer` a una tabla de tres columnas (`Node`, `Type`, `Paths`) con filas dobles por item (`Original` y `New`) para mejorar lectura de rutas largas.
 - Se incorporan dos etapas de `Search & Replace` en líneas separadas (S&R 1 y S&R 2), cada una con botón de swap y checkbox `Case Sensitive`.
 - Se reemplaza el borrado de presets por botón con implementación de papelera en el dropdown (ícono normal/hover), siguiendo el patrón de presets del panel de Import Shots.
