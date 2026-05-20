@@ -1,11 +1,13 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Roto v1.13 | Lega
+  LGA_build_Roto v1.14 | Lega
 
   Crea nodos Roto, Blur y Dot conectados al input mask del nodo Merge (llamado Merge2 en Nuke) o al input 1 de cualquier otro nodo.
   Requiere que haya un nodo seleccionado para funcionar.
   Diseñado para añadir rápidamente máscaras a nodos existentes.
+
+  v1.14 - Se agregó regla para nodo dissolve
 _____________________________________________________________________________
 
 """
@@ -46,26 +48,26 @@ def get_selected_node():
 
 def get_mask_input_and_prepare(node):
     """
-    Si el nodo es Merge2, asegura que los inputs B y A estén ocupados (crea NoOps temporales si es necesario)
-    y devuelve el índice del input mask (2). Para cualquier otro nodo, devuelve 1 (input clásico de máscara).
+    Si el nodo es Merge2 o Dissolve, asegura que los inputs 0 y 1 estén ocupados (crea NoOps temporales si es necesario)
+    y devuelve el índice del input mask (2). Para Keymix, devuelve 2. Para cualquier otro nodo, devuelve 1 (input clásico de máscara).
     Devuelve: (mask_input_index, lista_noops_temporales)
     """
-    if node.Class() == "Merge2":
+    if node.Class() in ("Merge2", "Dissolve"):
         temp_nodes = []
-        # Si B está vacío, conectar un NoOp temporal
+        # Si input 0 está vacío, conectar un NoOp temporal
         if node.input(0) is None:
-            temp_b = nuke.nodes.NoOp()
-            temp_b.setXpos(node.xpos() - 100)
-            temp_b.setYpos(node.ypos() - 100)
-            node.setInput(0, temp_b)
-            temp_nodes.append((0, temp_b))
-        # Si A está vacío, conectar un NoOp temporal
+            temp_0 = nuke.nodes.NoOp()
+            temp_0.setXpos(node.xpos() - 100)
+            temp_0.setYpos(node.ypos() - 100)
+            node.setInput(0, temp_0)
+            temp_nodes.append((0, temp_0))
+        # Si input 1 está vacío, conectar un NoOp temporal
         if node.input(1) is None:
-            temp_a = nuke.nodes.NoOp()
-            temp_a.setXpos(node.xpos() + 100)
-            temp_a.setYpos(node.ypos() - 100)
-            node.setInput(1, temp_a)
-            temp_nodes.append((1, temp_a))
+            temp_1 = nuke.nodes.NoOp()
+            temp_1.setXpos(node.xpos() + 100)
+            temp_1.setYpos(node.ypos() - 100)
+            node.setInput(1, temp_1)
+            temp_nodes.append((1, temp_1))
         return 2, temp_nodes
     elif node.Class() == "Keymix":
         return 2, []
