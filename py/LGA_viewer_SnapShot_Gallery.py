@@ -1,11 +1,12 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v0.53 - Lega
+  LGA_viewer_SnapShot_Gallery v0.54 - Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
   v0.53 - Shift click para revelar en explorador de archivos
         - Tooltips
+  v0.54 - Thumb size persistente en config
 ___________________________________________________________________________________
 
 """
@@ -16,6 +17,7 @@ import glob
 import shutil
 import subprocess  # Importar subprocess para abrir archivos en macOS/Linux
 import platform  # Importar platform para detectar el SO
+import configparser
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui
 from LGA_tooltip_helper import (
     TOOLTIP_BG,
@@ -57,6 +59,12 @@ debug = False  # Cambiar a False para ocultar los mensajes de debug
 SLIDER_BAR_WIDTH = 100  # Ancho de la barra del slider
 SLIDER_BAR_HEIGHT = 4  # Alto de la barra del slider
 SLIDER_HANDLE_SIZE = 9  # Diametro de la bolita del slider
+DEFAULT_THUMBNAIL_SIZE = 150
+MIN_THUMBNAIL_SIZE = 50
+MAX_THUMBNAIL_SIZE = 500
+CONFIG_FILE_NAME = "SnapshotGallery.ini"
+CONFIG_SECTION = "Settings"
+CONFIG_THUMBNAIL_SIZE_KEY = "thumbnail_size"
 
 app = None
 window = None
@@ -65,6 +73,121 @@ window = None
 def debug_print(*message):
     if debug:
         print("[LGA_viewer_SnapShot_Gallery]", *message)
+
+
+def get_user_config_dir():
+    """
+    Obtiene el directorio de configuracion del usuario segun el sistema operativo.
+    Usa la misma base que el resto de settings del ToolPack.
+    """
+    system = platform.system()
+    if system == "Windows":
+        config_path = os.getenv("APPDATA")
+        if not config_path:
+            debug_print("Error: No se pudo encontrar la variable de entorno APPDATA.")
+            return None
+    elif system == "Darwin":
+        config_path = os.path.expanduser("~/Library/Application Support")
+    else:
+        config_path = os.path.expanduser("~/.config")
+        debug_print(
+            f"Sistema no reconocido ({system}), usando ~/.config como fallback."
+        )
+
+    return config_path
+
+
+def get_config_path():
+    """Devuelve la ruta completa al ini persistente de la galeria."""
+    try:
+        user_config_dir = get_user_config_dir()
+        if not user_config_dir:
+            return None
+        config_dir = os.path.join(user_config_dir, "LGA", "ToolPack")
+        return os.path.join(config_dir, CONFIG_FILE_NAME)
+    except Exception as e:
+        debug_print(f"Error al obtener la ruta de configuracion: {e}")
+        return None
+
+
+def ensure_config_exists():
+    """Asegura que exista el ini de la galeria con defaults."""
+    config_file_path = get_config_path()
+    if not config_file_path:
+        return
+
+    config_dir = os.path.dirname(config_file_path)
+    try:
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+            debug_print(f"Directorio de configuracion creado: {config_dir}")
+
+        if not os.path.exists(config_file_path):
+            config = configparser.ConfigParser()
+            config[CONFIG_SECTION] = {
+                CONFIG_THUMBNAIL_SIZE_KEY: str(DEFAULT_THUMBNAIL_SIZE)
+            }
+            with open(config_file_path, "w", encoding="utf-8") as configfile:
+                config.write(configfile)
+            debug_print(f"Archivo de configuracion creado: {config_file_path}")
+    except Exception as e:
+        debug_print(f"Error al asegurar la configuracion: {e}")
+
+
+def clamp_thumbnail_size(value):
+    """Limita el valor del thumbnail al rango valido del slider."""
+    return max(MIN_THUMBNAIL_SIZE, min(MAX_THUMBNAIL_SIZE, int(value)))
+
+
+def get_thumbnail_size_from_config():
+    """Lee el tamaño persistente del slider o devuelve el default."""
+    ensure_config_exists()
+    config_file_path = get_config_path()
+    if not config_file_path or not os.path.exists(config_file_path):
+        return DEFAULT_THUMBNAIL_SIZE
+
+    config = configparser.ConfigParser()
+    try:
+        config.read(config_file_path, encoding="utf-8")
+        value = config.getint(
+            CONFIG_SECTION,
+            CONFIG_THUMBNAIL_SIZE_KEY,
+            fallback=DEFAULT_THUMBNAIL_SIZE,
+        )
+        return clamp_thumbnail_size(value)
+    except Exception as e:
+        debug_print(f"Error al leer thumbnail_size desde config: {e}")
+        return DEFAULT_THUMBNAIL_SIZE
+
+
+def save_thumbnail_size_to_config(value):
+    """Guarda el tamaño del slider en el ini persistente."""
+    config_file_path = get_config_path()
+    if not config_file_path:
+        return False
+
+    config_dir = os.path.dirname(config_file_path)
+    try:
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+
+        config = configparser.ConfigParser()
+        if os.path.exists(config_file_path):
+            config.read(config_file_path, encoding="utf-8")
+        if not config.has_section(CONFIG_SECTION):
+            config.add_section(CONFIG_SECTION)
+
+        config.set(
+            CONFIG_SECTION,
+            CONFIG_THUMBNAIL_SIZE_KEY,
+            str(clamp_thumbnail_size(value)),
+        )
+        with open(config_file_path, "w", encoding="utf-8") as configfile:
+            config.write(configfile)
+        return True
+    except Exception as e:
+        debug_print(f"Error al guardar thumbnail_size en config: {e}")
+        return False
 
 
 def get_project_info():
@@ -820,9 +943,9 @@ class ToolbarWidget(QWidget):
 
     size_changed = Signal(int)
 
-    def __init__(self):
+    def __init__(self, initial_thumbnail_size=DEFAULT_THUMBNAIL_SIZE):
         super().__init__()
-        self.current_thumbnail_size = 150
+        self.current_thumbnail_size = clamp_thumbnail_size(initial_thumbnail_size)
         self.setup_ui()
 
     def setup_ui(self):
@@ -845,9 +968,9 @@ class ToolbarWidget(QWidget):
 
         # Slider para controlar el tamaño de los thumbnails
         self.size_slider = QSlider(Qt.Horizontal)
-        self.size_slider.setMinimum(50)
-        self.size_slider.setMaximum(500)
-        self.size_slider.setValue(150)
+        self.size_slider.setMinimum(MIN_THUMBNAIL_SIZE)
+        self.size_slider.setMaximum(MAX_THUMBNAIL_SIZE)
+        self.size_slider.setValue(self.current_thumbnail_size)
         self.size_slider.setFixedWidth(SLIDER_BAR_WIDTH)
 
         # Calcular el margen para centrar el handle
@@ -881,15 +1004,15 @@ class ToolbarWidget(QWidget):
 
     def on_size_changed(self, value):
         """Se ejecuta cuando cambia el valor del slider"""
-        self.current_thumbnail_size = value
-        self.size_changed.emit(value)
+        self.current_thumbnail_size = clamp_thumbnail_size(value)
+        self.size_changed.emit(self.current_thumbnail_size)
 
 
 class SnapshotGalleryWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.project_widgets = []
-        self.current_thumbnail_size = 150
+        self.current_thumbnail_size = get_thumbnail_size_from_config()
         self.current_project_name = None
 
         self.setWindowFlags(Qt.Window)
@@ -914,7 +1037,7 @@ class SnapshotGalleryWindow(QWidget):
         main_layout.setSpacing(0)
 
         # Toolbar separado
-        self.toolbar = ToolbarWidget()
+        self.toolbar = ToolbarWidget(self.current_thumbnail_size)
         self.toolbar.size_changed.connect(self.on_size_changed)
         main_layout.addWidget(self.toolbar)
 
@@ -963,11 +1086,12 @@ class SnapshotGalleryWindow(QWidget):
 
     def on_size_changed(self, value):
         """Se ejecuta cuando cambia el valor del slider"""
-        self.current_thumbnail_size = value
+        self.current_thumbnail_size = clamp_thumbnail_size(value)
+        save_thumbnail_size_to_config(self.current_thumbnail_size)
 
         # Actualizar el tamaño de todos los thumbnails
         for project_widget in self.project_widgets:
-            project_widget.update_thumbnail_size(value)
+            project_widget.update_thumbnail_size(self.current_thumbnail_size)
 
     def load_gallery_content(self):
         """Carga el contenido de la galería organizando por proyectos"""

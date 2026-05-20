@@ -5,6 +5,8 @@
 - Se agrega tooltip custom inmediato en los thumbnails de `LGA_viewer_SnapShot_Gallery`, usando popup propio con fondo redondeado pintado por Qt para evitar bordes/padding nativos de `QToolTip`.
 - Se actualiza el comportamiento de thumbnails en la galeria de snapshots: click simple abre el JPG en el viewer default del usuario.
 - Se agrega `Shift + click` sobre thumbnails para revelar el archivo en el explorador del sistema (`Show in Explorer` en Windows, `Show in Finder` en macOS y file manager en Linux).
+- Thumb size persistente
+- Create roto con regla para dissolve
 
 ## v2.53
 - Se rehace la UI de `LGA_mediaPathReplacer` a una tabla de tres columnas (`Node`, `Type`, `Paths`) con filas dobles por item (`Original` y `New`) para mejorar lectura de rutas largas.
