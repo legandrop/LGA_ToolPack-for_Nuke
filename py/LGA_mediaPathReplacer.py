@@ -254,6 +254,57 @@ def _cell_html_label(html, bg="#272727"):
     return lbl
 
 
+def _path_preview_cell(original_html, renamed_html, bg="#272727"):
+    w = QWidget()
+    w.setStyleSheet("background:%s;" % bg)
+
+    layout = QtWidgets.QGridLayout(w)
+    layout.setContentsMargins(6, 2, 6, 2)
+    layout.setHorizontalSpacing(0)
+    layout.setVerticalSpacing(0)
+
+    original_lbl = QLabel(
+        "<span style='color:#a7a7a7; font-weight:600;'>Original:</span>"
+    )
+    original_lbl.setTextFormat(Qt.RichText)
+    original_lbl.setStyleSheet("background:%s;" % bg)
+    original_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+    renamed_lbl = QLabel(
+        "<span style='color:#a7a7a7; font-weight:600;'>Renamed:</span>"
+    )
+    renamed_lbl.setTextFormat(Qt.RichText)
+    renamed_lbl.setStyleSheet("background:%s;" % bg)
+    renamed_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+    original_path_lbl = QLabel(original_html)
+    original_path_lbl.setTextFormat(Qt.RichText)
+    original_path_lbl.setStyleSheet("background:%s;" % bg)
+    original_path_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    original_path_lbl.setCursor(Qt.IBeamCursor)
+
+    renamed_path_lbl = QLabel(renamed_html)
+    renamed_path_lbl.setTextFormat(Qt.RichText)
+    renamed_path_lbl.setStyleSheet("background:%s;" % bg)
+    renamed_path_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+    spacer_top = QWidget()
+    spacer_top.setFixedWidth(20)
+    spacer_top.setStyleSheet("background:%s;" % bg)
+    spacer_bottom = QWidget()
+    spacer_bottom.setFixedWidth(20)
+    spacer_bottom.setStyleSheet("background:%s;" % bg)
+
+    layout.addWidget(original_lbl, 0, 0)
+    layout.addWidget(spacer_top, 0, 1)
+    layout.addWidget(original_path_lbl, 0, 2)
+    layout.addWidget(renamed_lbl, 1, 0)
+    layout.addWidget(spacer_bottom, 1, 1)
+    layout.addWidget(renamed_path_lbl, 1, 2)
+    layout.setColumnStretch(2, 1)
+    return w
+
+
 def _show_save_preset_dialog(parent=None):
     """Diálogo estilo Import Shots para nombrar preset."""
     _BTN_SECONDARY = (
@@ -1159,26 +1210,12 @@ class SearchAndReplaceWidget(QWidget):
 
             new_path, original_html, renamed_html = self._computePathPreview(original_path)
             changed = new_path != original_path
-            path_html = (
-                "<table cellspacing='0' cellpadding='0' style='margin:0;'>"
-                "<tr>"
-                "<td><span style='color:#a7a7a7; font-weight:600;'>Original:</span></td>"
-                "<td width='20'></td>"
-                "<td>%s</td>"
-                "</tr>"
-                "<tr>"
-                "<td><span style='color:#a7a7a7; font-weight:600;'>Renamed:</span></td>"
-                "<td width='12'></td>"
-                "<td>%s</td>"
-                "</tr>"
-                "</table>"
-                % (original_html, renamed_html)
-            )
             preview_rows.append(
                 {
                     "node_name": node.name(),
                     "node_type": node.Class(),
-                    "path_html": path_html,
+                    "original_html": original_html,
+                    "renamed_html": renamed_html,
                     "changed": changed,
                 }
             )
@@ -1203,7 +1240,7 @@ class SearchAndReplaceWidget(QWidget):
             self.preview_table.setCellWidget(
                 row_idx,
                 2,
-                _cell_html_label(row_data["path_html"]),
+                _path_preview_cell(row_data["original_html"], row_data["renamed_html"]),
             )
             self.preview_table.setRowHeight(row_idx, 46)
 
