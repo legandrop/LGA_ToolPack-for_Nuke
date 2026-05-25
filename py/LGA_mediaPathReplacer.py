@@ -1,9 +1,10 @@
 """
 _______________________________________________
 
-  LGA_mediaPathReplacer v2.03 | Lega
+  LGA_mediaPathReplacer v2.04 | Lega
   Search and replace for Read and Write nodes
 
+  v2.04 - Seleccion de texto en path original
   v2.03 - Checkboxes persistentes
 
 _______________________________________________
@@ -279,7 +280,10 @@ def _path_preview_cell(original_html, renamed_html, bg="#272727"):
 
     original_path_lbl = QLabel(original_html)
     original_path_lbl.setTextFormat(Qt.RichText)
-    original_path_lbl.setStyleSheet("background:%s;" % bg)
+    original_path_lbl.setStyleSheet(
+        "background:%s; selection-background-color:#505050; selection-color:#d0d0d0;"
+        % bg
+    )
     original_path_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
     original_path_lbl.setCursor(Qt.IBeamCursor)
 
