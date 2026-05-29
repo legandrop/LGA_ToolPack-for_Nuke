@@ -1,3 +1,18 @@
+"""
+____________________________________________________________________
+
+  LGA_showFlowNotes_AddComment v1.02 | Lega
+
+  Helper para crear comentarios en Flow y reflejarlos en la DB local
+  usada por LGA_showFlowNotes.
+
+  v1.01: Usa SecureConfig_Reader local del ToolPack para no depender de
+         HieroTools instalado/cargado. Refuerza la validacion Reviewer
+         tambien en el helper de envio.
+  v1.02: Agrega trazas de diagnostico para imports, lectura de config y envio.
+____________________________________________________________________
+"""
+
 import json
 import os
 import sqlite3
@@ -9,6 +24,21 @@ from pathlib import Path
 DB_PATH = r"C:/Portable/LGA/PipeSync/cache/pipesync.db"
 
 
+def _trace(*parts):
+    try:
+        log_path = Path(__file__).resolve().parents[1] / "logs" / "LGA_showFlowNotes.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(str(log_path), "a", encoding="utf-8") as handle:
+            handle.write(
+                "[AddComment] {}\n".format(" ".join(str(part) for part in parts))
+            )
+    except Exception:
+        pass
+
+
+_trace("module import started", "file=", __file__)
+
+
 def _toolpack_py_dir():
     return Path(__file__).resolve().parent
 
@@ -16,34 +46,41 @@ def _toolpack_py_dir():
 def _ensure_shotgun_api_path():
     shotgun_api_path = _toolpack_py_dir() / "shotgun_api3"
     path_text = str(shotgun_api_path)
+    _trace("_ensure_shotgun_api_path", shotgun_api_path, "exists=", shotgun_api_path.exists())
     if shotgun_api_path.exists() and path_text not in sys.path:
         sys.path.insert(0, path_text)
+        _trace("inserted shotgun_api3 path")
 
 
 def _ensure_secure_reader_path():
-    nuke_dir = Path(__file__).resolve().parents[2]
-    shared_dir = nuke_dir / "Python" / "Startup" / "LGA_NKS_Shared"
-    for path in (shared_dir.parent, shared_dir):
-        path_text = str(path)
-        if path.exists() and path_text not in sys.path:
-            sys.path.insert(0, path_text)
+    toolpack_py_dir = _toolpack_py_dir()
+    path_text = str(toolpack_py_dir)
+    _trace("_ensure_secure_reader_path", toolpack_py_dir, "exists=", toolpack_py_dir.exists())
+    if toolpack_py_dir.exists() and path_text not in sys.path:
+        sys.path.insert(0, path_text)
+        _trace("inserted toolpack py path")
 
 
 def read_secure_config():
     _ensure_secure_reader_path()
+    _trace("importing SecureConfig_Reader.read_secure_config")
     from SecureConfig_Reader import read_secure_config as _read_secure_config
 
+    _trace("calling SecureConfig_Reader.read_secure_config")
     return _read_secure_config()
 
 
 def get_flow_credentials():
     _ensure_secure_reader_path()
+    _trace("importing SecureConfig_Reader.get_flow_credentials")
     from SecureConfig_Reader import get_flow_credentials as _get_flow_credentials
 
+    _trace("calling SecureConfig_Reader.get_flow_credentials")
     return _get_flow_credentials()
 
 
 def get_special_roles_from_secure_config():
+    _trace("get_special_roles_from_secure_config started")
     config = read_secure_config() or {}
     flow_config = config.get("Flow", {}) if isinstance(config, dict) else {}
     raw_roles = flow_config.get("SpecialRoles", "")
@@ -55,6 +92,7 @@ def get_special_roles_from_secure_config():
 
 
 def is_current_user_reviewer():
+    _trace("is_current_user_reviewer started")
     return "Reviewer" in get_special_roles_from_secure_config()
 
 
@@ -87,10 +125,18 @@ def get_current_user(db_path=DB_PATH):
 
 
 def _connect_to_flow():
+    _trace("_connect_to_flow started")
     _ensure_shotgun_api_path()
+    _trace("importing shotgun_api3")
     import shotgun_api3
 
     flow_url, flow_login, flow_password = get_flow_credentials()
+    _trace(
+        "credentials read",
+        "has_url=", bool(flow_url),
+        "has_login=", bool(flow_login),
+        "has_password=", bool(flow_password),
+    )
     if not flow_url or not flow_login or not flow_password:
         raise RuntimeError("No se pudieron leer las credenciales de Flow desde config.secure.")
     return shotgun_api3.Shotgun(flow_url, login=flow_login, password=flow_password)
@@ -203,6 +249,11 @@ def submit_comment(
     attachment_paths=None,
     progress_callback=None,
 ):
+    _trace("submit_comment started", "project_id=", project_id, "version_sg_id=", version_sg_id)
+    if not is_current_user_reviewer():
+        _trace("submit_comment blocked: current user is not Reviewer")
+        raise RuntimeError("Solo usuarios con rol Reviewer pueden enviar notas a Flow.")
+
     user = get_current_user(db_path)
     user_id = user.get("user_id")
     if not user_id:

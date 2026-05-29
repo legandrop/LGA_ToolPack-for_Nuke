@@ -1,12 +1,21 @@
 ﻿"""
 ____________________________________________________________________
 
-  LGA_showFlowNotes v1.02 | Lega
+  LGA_showFlowNotes v1.06 | Lega
 
   Muestra informacion del shot y notas/versiones desde la DB local de PipeSync.
   El shot se determina priorizando un nodo Read seleccionado en Nuke.
   Si no hay Read seleccionado, usa el nombre del script abierto.
   Si el nombre incluye _roto_ o _cleanup_, usa esa task. Si no, usa comp.
+
+  v1.03: Usa dependencias locales del ToolPack para naming y configuracion
+         segura, evitando depender de HieroTools instalado/cargado.
+  v1.04: Normaliza el log a LGA_ToolPack/logs/LGA_showFlowNotes.log y
+         registra fallos tempranos de imports/main para diagnostico.
+  v1.05: Agrega trazas top-level alrededor de imports locales para detectar
+         fallos antes de main().
+  v1.06: Corrige carga de colores de usuarios sin depender de NUKE_DIR y
+         expone show_flow_notes() como entrada explicita.
 ____________________________________________________________________
 
 """
@@ -52,11 +61,6 @@ QMessageBox = QtWidgets.QMessageBox
 QIcon = QtGui.QIcon
 QColor = QtGui.QColor
 
-try:
-    import LGA_showFlowNotes_AddComment as AddCommentHelper
-except Exception as exc:
-    AddCommentHelper = None
-
 DEBUG = True
 DEBUG_CONSOLE = False
 DEBUG_LOG = True
@@ -77,11 +81,11 @@ class RelativeTimeFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_debug_logging(script_name="FlowShotInfo"):
+def setup_debug_logging(script_name="LGA_showFlowNotes"):
     """Configura el logging para escribir solo en archivo."""
     global debug_log_listener
 
-    log_filename = f"DebugPy_{script_name}.log"
+    log_filename = f"{script_name}.log"
     log_file_path = os.path.join(os.path.dirname(__file__), "..", "logs", log_filename)
     log_file_path = os.path.normpath(log_file_path)
 
@@ -126,7 +130,7 @@ def setup_debug_logging(script_name="FlowShotInfo"):
     return logger
 
 
-debug_logger = setup_debug_logging(script_name="FlowShotInfo")
+debug_logger = setup_debug_logging(script_name="LGA_showFlowNotes")
 
 
 def debug_print(*message, level="info"):
@@ -153,18 +157,39 @@ def debug_print(*message, level="info"):
         relative_time = time.time() - script_start_time
         print(f"[{relative_time:.3f}s] {msg}")
 
-# Importar utilidades de naming desde shareds de dominio Flow
-NUKE_DIR = Path(__file__).resolve().parents[2]
-flow_shared_dir = NUKE_DIR / "Python" / "Startup" / "LGA_NKS_Shared"
-if flow_shared_dir.exists():
-    sys.path.insert(0, str(flow_shared_dir.parent))
-    sys.path.insert(0, str(flow_shared_dir))
-from LGA_NKS_Flow_NamingUtils import (
-    extract_shot_code,
-    extract_project_name,
-    clean_base_name,
-    extract_task_name,
-)
+
+debug_print("LGA_showFlowNotes module import started.")
+debug_print("LGA_showFlowNotes file:", __file__)
+debug_print("sys.path head:", sys.path[:8])
+
+try:
+    import LGA_showFlowNotes_AddComment as AddCommentHelper
+    debug_print("LGA_showFlowNotes_AddComment import OK.")
+except Exception as exc:
+    AddCommentHelper = None
+    debug_print("Error importando LGA_showFlowNotes_AddComment:", str(exc), level="error")
+
+debug_print("Preparing local ToolPack dependency path.")
+toolpack_py_dir = Path(__file__).resolve().parent
+debug_print("toolpack_py_dir:", toolpack_py_dir)
+if str(toolpack_py_dir) not in sys.path:
+    sys.path.insert(0, str(toolpack_py_dir))
+    debug_print("Inserted toolpack_py_dir into sys.path.")
+else:
+    debug_print("toolpack_py_dir already present in sys.path.")
+
+debug_print("Importing LGA_NKS_Flow_NamingUtils.")
+try:
+    from LGA_NKS_Flow_NamingUtils import (
+        extract_shot_code,
+        extract_project_name,
+        clean_base_name,
+        extract_task_name,
+    )
+    debug_print("LGA_NKS_Flow_NamingUtils import OK.")
+except Exception as exc:
+    debug_print("Error importing LGA_NKS_Flow_NamingUtils:", repr(exc), level="error")
+    raise
 
 # Importar módulo utilitario para obtener clips
 utils_path = None
@@ -181,6 +206,8 @@ if False:
         HAS_CLIP_UTILS = True
     except ImportError as e:
         debug_print(f"Error importando módulo LGA_NKS_GetClip: {e}")
+
+debug_print("Top-level dependency imports completed. HAS_CLIP_UTILS=", HAS_CLIP_UTILS)
 
 
 # Umbral (en segundos) para considerar que una nota fue auto-generada al subir
@@ -395,22 +422,33 @@ _USER_COLOR_UNKNOWN    = "#d6c94a"
 
 def _load_user_colors_from_json():
     """Carga colores desde LGA_NKS_Flow_Users.json (mismo archivo que el panel Assignee)."""
-    json_path = NUKE_DIR / "Python" / "Startup" / "LGA_NKS_Flow_Users.json"
     colors = {}
     try:
-        if json_path.exists():
-            with open(json_path, encoding="utf-8") as fh:
-                data = json.load(fh)
-            for entry in data.get("users", []):
-                name   = (entry.get("name")        or "").strip()
-                wasabi = (entry.get("wasabi_user")  or "").strip()
-                hex_c  = (entry.get("color")        or "").strip()
-                if not hex_c or not hex_c.startswith("#"):
-                    continue
-                if name:
-                    colors[name.casefold()] = hex_c
-                if wasabi:
-                    colors[wasabi.casefold()] = hex_c
+        nuke_dir = Path(__file__).resolve().parents[2]
+        candidates = [
+            toolpack_py_dir / "LGA_NKS_Flow_Users.json",
+            toolpack_py_dir / "LGA_NKS_Flow_Users_dist.json",
+            nuke_dir / "Python" / "Startup" / "LGA_HieroTools" / "LGA_NKS_Flow_Users.json",
+            nuke_dir / "Python" / "Startup" / "LGA_HieroTools" / "LGA_NKS_Flow_Users_dist.json",
+            nuke_dir / "Python" / "Startup" / "LGA_NKS_Flow_Users.json",
+        ]
+        json_path = next((path for path in candidates if path.exists()), None)
+        debug_print("User color config path:", json_path or "not found")
+        if not json_path:
+            return colors
+
+        with open(json_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        for entry in data.get("users", []):
+            name   = (entry.get("name")        or "").strip()
+            wasabi = (entry.get("wasabi_user")  or "").strip()
+            hex_c  = (entry.get("color")        or "").strip()
+            if not hex_c or not hex_c.startswith("#"):
+                continue
+            if name:
+                colors[name.casefold()] = hex_c
+            if wasabi:
+                colors[wasabi.casefold()] = hex_c
     except Exception as exc:
         debug_print(f"Error cargando LGA_NKS_Flow_Users.json: {exc}", level="warning")
     return colors
@@ -1756,34 +1794,66 @@ class GUIWindow(QWidget):
         debug_print("Results displayed successfully.")
 
 
-def main():
+def show_flow_notes():
     global app, window
-    # Selecciona la ruta de la base de datos segun el sistema operativo
-    if platform.system() == "Windows":
-        db_path = r"C:/Portable/LGA/PipeSync/cache/pipesync.db"
-    elif platform.system() == "Darwin":  # macOS
-        db_path = "/Users/leg4/Library/Caches/LGA/PipeSync/pipesync.db"
-    else:
-        debug_print(f"Sistema operativo no soportado: {platform.system()}")
-        return
+    debug_print("show_flow_notes() started.")
+    try:
+        # Selecciona la ruta de la base de datos segun el sistema operativo
+        system_name = platform.system()
+        debug_print(f"Detected platform: {system_name}")
+        if system_name == "Windows":
+            db_path = r"C:/Portable/LGA/PipeSync/cache/pipesync.db"
+        elif system_name == "Darwin":  # macOS
+            db_path = "/Users/leg4/Library/Caches/LGA/PipeSync/pipesync.db"
+        else:
+            debug_print(f"Sistema operativo no soportado: {system_name}", level="error")
+            return
 
-    if not os.path.exists(db_path):
-        debug_print(f"DB file not found at path: {db_path}")
-        nuke.message(f"No se encontro la base de datos de PipeSync:\n{db_path}")
-        return
-    sg_manager = ShotGridManager(db_path)
-    nuke_ops = NukeOperations(sg_manager)
-    if not QApplication.instance():
-        app = QApplication(sys.argv)
-    else:
-        app = QApplication.instance()
-    window = GUIWindow(nuke_ops)
-    results = nuke_ops.process_current_script()
-    debug_print(f"Results: {results}")
-    window.display_results(results)
-    window.show()
+        debug_print(f"Using PipeSync DB path: {db_path}")
+        if not os.path.exists(db_path):
+            debug_print(f"DB file not found at path: {db_path}", level="error")
+            nuke.message(f"No se encontro la base de datos de PipeSync:\n{db_path}")
+            return
+
+        debug_print("Creating ShotGridManager and NukeOperations.")
+        sg_manager = ShotGridManager(db_path)
+        nuke_ops = NukeOperations(sg_manager)
+
+        if not QApplication.instance():
+            debug_print("Creating QApplication instance.")
+            app = QApplication(sys.argv)
+        else:
+            debug_print("Using existing QApplication instance.")
+            app = QApplication.instance()
+
+        debug_print("Creating GUIWindow.")
+        window = GUIWindow(nuke_ops)
+
+        debug_print("Processing current script.")
+        results = nuke_ops.process_current_script()
+        debug_print(f"Results: {results}")
+
+        debug_print("Displaying window.")
+        window.display_results(results)
+        window.show()
+        debug_print("show_flow_notes() completed.")
+    except Exception as exc:
+        debug_print("Unhandled error in show_flow_notes():", repr(exc), level="error")
+        try:
+            nuke.message(f"Show Flow Notes fallo. Revisar log:\n{exc}")
+        except Exception:
+            pass
+        raise
+
+
+def main():
+    debug_print("main() compatibility alias called.")
+    return show_flow_notes()
+
+
+debug_print("LGA_showFlowNotes module import completed; show_flow_notes is defined.")
 
 
 if __name__ == "__main__":
-    main()
-
+    debug_print("__main__ guard executing show_flow_notes().")
+    show_flow_notes()
