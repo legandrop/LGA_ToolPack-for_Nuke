@@ -1,7 +1,12 @@
 """
 _____________________________________
 
-  LGA_ToolPack v2.55 | Lega
+  LGA_ToolPack v2.58 | Lega
+  v2.58: Show Flow Notes llama show_flow_notes() en vez de main().
+  v2.57: Mueve trazas de Show Flow Notes runner a un log separado para que
+         no sean borradas por el logger propio de la tool.
+  v2.56: Agrega trazas de ejecucion para Show Flow Notes en el runner lazy
+         para diagnosticar si el comando llega a llamar main().
   Colección de herramientas de Nuke
 _____________________________________
 
@@ -15,11 +20,31 @@ import os
 
 # --- Config loader & helpers -------------------------------------------
 import configparser, importlib
+import time
 
 
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 PY_DIR = os.path.join(ROOT_DIR, "py")
 DOCS_DIR = os.path.join(ROOT_DIR, "docs")
+
+
+def _show_flow_notes_runner_log(*parts):
+    try:
+        log_dir = os.path.join(ROOT_DIR, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, "LGA_showFlowNotes_runner.log")
+        with open(log_path, "a", encoding="utf-8") as handle:
+            handle.write(
+                "[menu {}] {}\n".format(
+                    time.strftime("%Y-%m-%d %H:%M:%S"),
+                    " ".join(str(part) for part in parts),
+                )
+            )
+    except Exception:
+        pass
+
+
+_show_flow_notes_runner_log("menu.py loaded", "ROOT_DIR=", ROOT_DIR, "PY_DIR=", PY_DIR)
 
 # Carga los modulos runtime desde py/
 nuke.pluginAddPath(PY_DIR.replace("\\", "/"))
@@ -86,10 +111,34 @@ def add_tool(menu, label, key, module, attr, shortcut=None, icon=None, context=2
             pass
         return
 
+    if module == "LGA_showFlowNotes":
+        _show_flow_notes_runner_log(
+            "registering command",
+            "label=", label,
+            "key=", key,
+            "module=", module,
+            "attr=", attr,
+            "shortcut=", shortcut,
+        )
+
     def _runner():
-        m = importlib.import_module(module)
-        func = getattr(m, attr)
-        return func()
+        def _runner_debug(*parts):
+            if module != "LGA_showFlowNotes":
+                return
+            _show_flow_notes_runner_log("runner", *parts)
+
+        try:
+            _runner_debug("runner started", "module=", module, "attr=", attr)
+            m = importlib.import_module(module)
+            _runner_debug("module imported/resolved", "file=", getattr(m, "__file__", ""))
+            func = getattr(m, attr)
+            _runner_debug("callable resolved", "callable=", func)
+            result = func()
+            _runner_debug("call completed")
+            return result
+        except Exception as exc:
+            _runner_debug("runner error", repr(exc))
+            raise
 
     kwargs = {}
     if shortcut:
@@ -232,7 +281,7 @@ add_tool(
     label="  Show Flow Notes",
     key="Show_Flow_Notes",
     module="LGA_showFlowNotes",
-    attr="main",
+    attr="show_flow_notes",
     shortcut="ctrl+alt+shift+f",
     icon=icon_RnW,
     context=2,

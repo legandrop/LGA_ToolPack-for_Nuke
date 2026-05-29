@@ -1,7 +1,7 @@
 ﻿"""
 ____________________________________________________________________
 
-  LGA_showFlowNotes v1.06 | Lega
+  LGA_showFlowNotes v1.07 | Lega
 
   Muestra informacion del shot y notas/versiones desde la DB local de PipeSync.
   El shot se determina priorizando un nodo Read seleccionado en Nuke.
@@ -16,6 +16,8 @@ ____________________________________________________________________
          fallos antes de main().
   v1.06: Corrige carga de colores de usuarios sin depender de NUKE_DIR y
          expone show_flow_notes() como entrada explicita.
+  v1.07: La config de colores de usuarios se lee solo desde HieroTools,
+         resuelta de forma relativa a .nuke; si no existe usa defaults.
 ____________________________________________________________________
 
 """
@@ -425,16 +427,10 @@ def _load_user_colors_from_json():
     colors = {}
     try:
         nuke_dir = Path(__file__).resolve().parents[2]
-        candidates = [
-            toolpack_py_dir / "LGA_NKS_Flow_Users.json",
-            toolpack_py_dir / "LGA_NKS_Flow_Users_dist.json",
-            nuke_dir / "Python" / "Startup" / "LGA_HieroTools" / "LGA_NKS_Flow_Users.json",
-            nuke_dir / "Python" / "Startup" / "LGA_HieroTools" / "LGA_NKS_Flow_Users_dist.json",
-            nuke_dir / "Python" / "Startup" / "LGA_NKS_Flow_Users.json",
-        ]
-        json_path = next((path for path in candidates if path.exists()), None)
+        json_path = nuke_dir / "Python" / "Startup" / "LGA_HieroTools" / "LGA_NKS_Flow_Users.json"
         debug_print("User color config path:", json_path or "not found")
-        if not json_path:
+        if not json_path.exists():
+            debug_print("User color config not found; using fallback colors.")
             return colors
 
         with open(json_path, encoding="utf-8") as fh:
