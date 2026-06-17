@@ -1,11 +1,14 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Grade v1.63 | Lega
+  LGA_build_Grade v1.64 | Lega
 
   Crea nodos Grade con diferentes configuraciones de máscaras.
   Soporta creación desde un nodo seleccionado o desde la posición del cursor.
   Incluye dos modos: Grade con máscara de luminancia y Grade con Roto.
+
+  v1.64: Se agregó un ajuste por colisión para evitar que el Grade se pase hacia abajo del nodo siguiente.
+
 _____________________________________________________________________________
 
 """
@@ -144,13 +147,6 @@ def gradeHI():
         current_node
     )
 
-    # Ajustar la distancia Y si es necesario
-    if (
-        distMedia_NodoSiguiente != float("inf")
-        and distMedia_NodoSiguiente < distanciaY * 2
-    ):
-        distanciaY = distMedia_NodoSiguiente / 2 - (dot_width / 2) - 6
-
     # Crear el Dot a la derecha del primer Dot
     dot_below = nuke.nodes.Dot()
     dot_below.setXpos(
@@ -223,6 +219,30 @@ def gradeHI():
     grade.setInput(0, dot_below)
     grade.setInput(1, dot_bottom)  # Conectar la mascara al ultimo Dot
 
+    # Ajuste por colisión: si el Grade se pasa hacia abajo del nodo siguiente,
+    # moverlo a mitad de camino entre los dos nodos y subir toda la cadena
+    # (dot_below, dot_right, keyer, shuffle, dot_bottom, grade) la misma diferencia hacia arriba.
+    if nodo_siguiente_en_columna is not None:
+        current_center_y = current_node.ypos() + (current_node.screenHeight() / 2)
+        next_center_y = nodo_siguiente_en_columna.ypos() + (
+            nodo_siguiente_en_columna.screenHeight() / 2
+        )
+        grade_center_y = grade.ypos() + (grade.screenHeight() / 2)
+
+        # Posicion deseada del centro del Grade: mitad de camino entre ambos nodos
+        halfway_center_y = (current_center_y + next_center_y) / 2
+
+        # Cuanto hay que subir (positivo = el Grade se pasaba hacia abajo)
+        delta = int(grade_center_y - halfway_center_y)
+        debug_print(f"[gradeHI] current_center_y={current_center_y}, next_center_y={next_center_y}, grade_center_y={grade_center_y}, halfway={halfway_center_y}, delta={delta}")
+
+        if delta > 0:
+            debug_print(f"[gradeHI] COLISIÓN: subiendo Grade y cadena {delta}px")
+            for n in [dot_below, dot_right, keyer, shuffle, dot_bottom, grade]:
+                n.setYpos(n.ypos() - delta)
+        else:
+            debug_print("[gradeHI] Sin colisión, se mantiene posición original")
+
     if nodo_siguiente_en_columna:
         for i in range(nodo_siguiente_en_columna.inputs()):
             if nodo_siguiente_en_columna.input(i) == dot_below:
@@ -284,7 +304,7 @@ def gradeMask():
     dot_right.setInput(0, blur)
 
     # Buscar el nodo siguiente en la columna principal
-    nodo_siguiente_en_columna, _ = find_next_node_in_column(current_node)
+    nodo_siguiente_en_columna, distMedia_NodoSiguiente = find_next_node_in_column(current_node)
 
     # Crear un nodo Grade alineado con el nodo seleccionado en la columna principal
     grade = nuke.nodes.Grade()
@@ -302,6 +322,31 @@ def gradeMask():
     )
 
     debug_print(f"[gradeMask] Se crea Grade: {grade.name()} id={id(grade)}")
+
+    # Ajuste por colisión: si el Grade se pasa hacia abajo del nodo siguiente,
+    # moverlo a mitad de camino entre los dos nodos y subir toda la cadena
+    # (roto, blur, dot_right, grade) la misma diferencia hacia arriba.
+    if nodo_siguiente_en_columna is not None:
+        current_center_y = current_node.ypos() + (current_node.screenHeight() / 2)
+        next_center_y = nodo_siguiente_en_columna.ypos() + (
+            nodo_siguiente_en_columna.screenHeight() / 2
+        )
+        grade_center_y = grade.ypos() + (grade.screenHeight() / 2)
+
+        # Posicion deseada del centro del Grade: mitad de camino entre ambos nodos
+        halfway_center_y = (current_center_y + next_center_y) / 2
+
+        # Cuanto hay que subir (positivo = el Grade se pasaba hacia abajo)
+        delta = int(grade_center_y - halfway_center_y)
+        debug_print(f"[gradeMask] current_center_y={current_center_y}, next_center_y={next_center_y}, grade_center_y={grade_center_y}, halfway={halfway_center_y}, delta={delta}")
+
+        if delta > 0:
+            debug_print(f"[gradeMask] COLISIÓN: subiendo Grade y cadena {delta}px")
+            for n in [roto, blur, dot_right, grade]:
+                n.setYpos(n.ypos() - delta)
+        else:
+            debug_print("[gradeMask] Sin colisión, se mantiene posición original")
+
     debug_print(
         f"[gradeMask] Conectando input 0 del Grade a {current_node.name()} id={id(current_node)}"
     )
