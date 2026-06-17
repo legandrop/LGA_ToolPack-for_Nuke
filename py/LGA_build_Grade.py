@@ -1,12 +1,14 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Grade v1.64 | Lega
+  LGA_build_Grade v1.65 | Lega
 
   Crea nodos Grade con diferentes configuraciones de máscaras.
   Soporta creación desde un nodo seleccionado o desde la posición del cursor.
   Incluye dos modos: Grade con máscara de luminancia y Grade con Roto.
 
+
+  v1.65: En Grade Highlight se centra todo el subárbol nuevo en el espacio disponible; si no entra, se prioriza el dot superior.
   v1.64: Se agregó un ajuste por colisión para evitar que el Grade se pase hacia abajo del nodo siguiente.
 
 _____________________________________________________________________________
@@ -219,29 +221,39 @@ def gradeHI():
     grade.setInput(0, dot_below)
     grade.setInput(1, dot_bottom)  # Conectar la mascara al ultimo Dot
 
-    # Ajuste por colisión: si el Grade se pasa hacia abajo del nodo siguiente,
-    # moverlo a mitad de camino entre los dos nodos y subir toda la cadena
-    # (dot_below, dot_right, keyer, shuffle, dot_bottom, grade) la misma diferencia hacia arriba.
+    # Ajuste por colisión (Grade Highlight): se agregan DOS nodos en la rama
+    # principal (dot_below arriba y grade abajo). En vez de centrar solo el Grade,
+    # centramos TODO el subárbol nuevo dentro del espacio disponible entre el nodo
+    # seleccionado y el siguiente. Si no entra, priorizamos el dot de arriba (queda
+    # justo debajo del seleccionado) y el Grade se pasa hacia abajo lo necesario.
     if nodo_siguiente_en_columna is not None:
-        current_center_y = current_node.ypos() + (current_node.screenHeight() / 2)
-        next_center_y = nodo_siguiente_en_columna.ypos() + (
-            nodo_siguiente_en_columna.screenHeight() / 2
-        )
-        grade_center_y = grade.ypos() + (grade.screenHeight() / 2)
+        # Espacio disponible: borde inferior del seleccionado a borde superior del siguiente
+        gap_top = current_node.ypos() + current_node.screenHeight()
+        gap_bottom = nodo_siguiente_en_columna.ypos()
+        gap = gap_bottom - gap_top
 
-        # Posicion deseada del centro del Grade: mitad de camino entre ambos nodos
-        halfway_center_y = (current_center_y + next_center_y) / 2
+        # Extensión vertical del subárbol nuevo en la columna principal (dot_below -> grade)
+        subtree_top = dot_below.ypos()
+        subtree_bottom = grade.ypos() + grade.screenHeight()
+        subtree_height = subtree_bottom - subtree_top
 
-        # Cuanto hay que subir (positivo = el Grade se pasaba hacia abajo)
-        delta = int(grade_center_y - halfway_center_y)
-        debug_print(f"[gradeHI] current_center_y={current_center_y}, next_center_y={next_center_y}, grade_center_y={grade_center_y}, halfway={halfway_center_y}, delta={delta}")
-
-        if delta > 0:
-            debug_print(f"[gradeHI] COLISIÓN: subiendo Grade y cadena {delta}px")
-            for n in [dot_below, dot_right, keyer, shuffle, dot_bottom, grade]:
-                n.setYpos(n.ypos() - delta)
+        if subtree_height <= gap:
+            # Entra: centrar el subárbol en el espacio disponible (sobrante igual arriba y abajo)
+            desired_top = gap_top + (gap - subtree_height) / 2
         else:
-            debug_print("[gradeHI] Sin colisión, se mantiene posición original")
+            # No entra: priorizar el dot de arriba justo debajo del seleccionado
+            desired_top = gap_top + distanciaY
+
+        offset = int(desired_top - subtree_top)
+        debug_print(f"[gradeHI] gap={gap}, subtree_height={subtree_height}, subtree_top={subtree_top}, desired_top={desired_top}, offset={offset}")
+
+        # Solo ajustar si hay que subir (no empujar hacia abajo en espacios grandes)
+        if offset < 0:
+            debug_print(f"[gradeHI] COLISIÓN: moviendo subárbol {offset}px")
+            for n in [dot_below, dot_right, keyer, shuffle, dot_bottom, grade]:
+                n.setYpos(n.ypos() + offset)
+        else:
+            debug_print("[gradeHI] Espacio suficiente, se mantiene posición original")
 
     if nodo_siguiente_en_columna:
         for i in range(nodo_siguiente_en_columna.inputs()):
