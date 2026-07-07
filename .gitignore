@@ -8,4 +8,7 @@ __pycache__/
 +OLD/
 .DS_Store
 Thumbs.db
-
+.claude/
+.cursor/
+.codex/
+.cursorrules

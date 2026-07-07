@@ -1,7 +1,7 @@
 """
 _____________________________________
 
-  LGA_ToolPack v2.55 | Lega
+  LGA_ToolPack v2.56 | Lega
   Colección de herramientas de Nuke
 _____________________________________
 
@@ -598,4 +598,4 @@ def _documentation_runner():
     webbrowser.open("https://github.com/legandrop/LGA_ToolPack-for_Nuke")
 
 
-n.addCommand("Documentation v2.55", _documentation_runner)
+n.addCommand("Documentation v2.56", _documentation_runner)

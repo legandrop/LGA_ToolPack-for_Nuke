@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Merge v1.7 | Lega
+  LGA_build_Merge v1.71 | Lega
 
   Crea nodos Merge con configuración de máscara predefinida.
   Soporta creación desde un nodo seleccionado o desde la posición del cursor.
@@ -9,6 +9,9 @@ _____________________________________________________________________________
 
   Si hay nodos Merge seleccionados, rota sus operaciones entre:
   over -> mask -> stencil -> over
+
+  v1.71: Se agregó un ajuste por colisión para evitar que el Merge se pase hacia abajo del nodo siguiente.
+  
 _____________________________________________________________________________
 
 """
@@ -22,6 +25,14 @@ QApplication = QtWidgets.QApplication
 Qt = QtCore.Qt
 QEvent = QtCore.QEvent
 QPoint = QtCore.QPoint
+
+# Variable global para activar o desactivar los prints
+DEBUG = True
+
+
+def debug_print(*message):
+    if DEBUG:
+        print(*message)
 
 
 def get_common_variables():
@@ -98,9 +109,11 @@ def find_next_node_in_column(current_node, tolerance_x=120):
 def createMerge():
     # Obtener las variables comunes
     distanciaX, distanciaY, dot_width = get_common_variables()
+    debug_print(f"\n[createMerge] distanciaY inicial: {distanciaY}, dot_width: {dot_width}")
 
     # Obtener el nodo seleccionado
     selected_node = get_selected_node()
+    debug_print(f"[createMerge] Nodo seleccionado: {selected_node.name() if selected_node else 'None'}")
 
     # Si no hay nodo seleccionado, simular click en el DAG antes de crear el NoOp
     if selected_node is None:
@@ -145,7 +158,8 @@ def createMerge():
     dot_right.setInput(0, blur)
 
     # Buscar el nodo siguiente en la columna principal
-    nodo_siguiente_en_columna, _ = find_next_node_in_column(current_node)
+    nodo_siguiente_en_columna, distMedia_NodoSiguiente = find_next_node_in_column(current_node)
+    debug_print(f"[createMerge] Nodo siguiente: {nodo_siguiente_en_columna.name() if nodo_siguiente_en_columna else 'None'} a distancia {distMedia_NodoSiguiente}")
 
     # Crear un nodo Merge alineado con el nodo seleccionado en la columna principal
     merge = nuke.nodes.Merge2()
@@ -163,6 +177,31 @@ def createMerge():
     )
     merge["operation"].setValue("mask")
     merge["bbox"].setValue("A")
+    debug_print(f"[createMerge] Merge en Y natural: {merge.ypos()}")
+
+    # Ajuste por colision: si el Merge se pasa hacia abajo del nodo siguiente,
+    # moverlo a mitad de camino entre los dos nodos y subir toda la cadena
+    # (Roto, Blur, Dot y Merge) la misma diferencia hacia arriba.
+    if nodo_siguiente_en_columna is not None:
+        current_center_y = current_node.ypos() + (current_node.screenHeight() / 2)
+        next_center_y = nodo_siguiente_en_columna.ypos() + (
+            nodo_siguiente_en_columna.screenHeight() / 2
+        )
+        merge_center_y = merge.ypos() + (merge.screenHeight() / 2)
+
+        # Posicion deseada del centro del Merge: mitad de camino entre ambos nodos
+        halfway_center_y = (current_center_y + next_center_y) / 2
+
+        # Cuanto hay que subir (positivo = el Merge se pasaba hacia abajo)
+        delta = int(merge_center_y - halfway_center_y)
+        debug_print(f"[createMerge] current_center_y={current_center_y}, next_center_y={next_center_y}, merge_center_y={merge_center_y}, halfway={halfway_center_y}, delta={delta}")
+
+        if delta > 0:
+            debug_print(f"[createMerge] COLISIÓN: subiendo Merge y cadena {delta}px")
+            for n in [roto, blur, dot_right, merge]:
+                n.setYpos(n.ypos() - delta)
+        else:
+            debug_print("[createMerge] Sin colisión, se mantiene posición original")
 
     # Conectar el nodo Merge al nodo seleccionado
     merge.setInput(0, current_node)

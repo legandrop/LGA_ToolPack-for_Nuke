@@ -7,7 +7,7 @@
 
 Esta guia documenta el sistema de logging adoptado en `LGA_ToolPack` para herramientas Python que deben escribir por defecto en un archivo `.log` dedicado, sin ensuciar la consola de Nuke.
 
-El primer caso implementado con este esquema es `LGA_mediaManager`.
+Los casos implementados con este esquema son `LGA_mediaManager` y `LGA_showFlowNotes`.
 
 ## Objetivos del Sistema
 
@@ -38,6 +38,18 @@ Para `LGA_mediaManager`, el archivo queda en:
 
 ```text
 LGA_ToolPack/logs/LGA_mediaManager.log
+```
+
+Para `LGA_showFlowNotes`, el archivo queda en:
+
+```text
+LGA_ToolPack/logs/LGA_showFlowNotes.log
+```
+
+Durante diagnostico de carga desde menu, el runner lazy escribe ademas en:
+
+```text
+LGA_ToolPack/logs/LGA_showFlowNotes_runner.log
 ```
 
 Estructura esperada:
@@ -121,6 +133,7 @@ Implementado en:
 - `LGA_MediaManager_settings.py`
 - `LGA_MediaManager_utils.py`
 - `LGA_MediaManager_logging.py`
+- `LGA_showFlowNotes.py`
 
 Pendiente para futuras tools del pack:
 
@@ -157,3 +170,15 @@ Pendiente para futuras tools del pack:
 - `C:\Users\leg4-pc\.nuke\LGA_ToolPack\py\LGA_MediaManager_settings.py`
   - `SettingsWindow`
   - uso compartido de `debug_print()`
+
+- `C:\Users\leg4-pc\.nuke\LGA_ToolPack\py\LGA_showFlowNotes.py`
+  - `setup_debug_logging()`
+  - `debug_print()`
+  - `main()`
+  - `NukeOperations.process_current_script()`
+  - escribe `C:\Users\leg4-pc\.nuke\LGA_ToolPack\logs\LGA_showFlowNotes.log`
+
+- `C:\Users\leg4-pc\.nuke\LGA_ToolPack\menu.py`
+  - `add_tool()`
+  - `_show_flow_notes_runner_log()`
+  - escribe `C:\Users\leg4-pc\.nuke\LGA_ToolPack\logs\LGA_showFlowNotes_runner.log`
