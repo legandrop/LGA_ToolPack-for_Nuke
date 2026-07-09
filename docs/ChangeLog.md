@@ -1,5 +1,8 @@
 # ChangeLog
 
+## v2.56
+- Se actualiza la copia vendorizada de `certifi` en `py/shotgun_api3/lib` a `2026.6.17` para cerrar la alerta de seguridad de GitHub por certificados raiz retirados. [ ToolPack - Actualizar certifi vendorizado ]
+
 ## v2.54
 - Se agrega `LGA_tooltip_helper.py` y su documentacion `LGA_tooltip_helper.md` en `py/`, con standard de tooltips para la repo: fondo `#1e1e1e`, texto primario `#cccccc`, texto secundario `#888888`, padding `12px`, esquinas redondeadas y sin borde.
 - Se agrega tooltip custom inmediato en los thumbnails de `LGA_viewer_SnapShot_Gallery`, usando popup propio con fondo redondeado pintado por Qt para evitar bordes/padding nativos de `QToolTip`.
