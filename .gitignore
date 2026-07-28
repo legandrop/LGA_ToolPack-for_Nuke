@@ -9,6 +9,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 .claude/
-.cursor/
+.cursor/*
+!.cursor/rules/
+.cursor/rules/*
+!.cursor/rules/instructions.mdc
 .codex/
 .cursorrules

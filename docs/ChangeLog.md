@@ -1,5 +1,10 @@
 # ChangeLog
 
+## v2.57
+- El startup del pack queda aislado de Hiero y Nuke Studio: `menu.py` pasa a ser un wrapper mínimo que consulta los flags oficiales de host antes de importar `LGA_ToolPack_menu.py`, mientras `init.py` aplica el mismo guard antes de agregar `py/` o registrar el callback del Viewer. La configuración global de `~/.nuke/init.py` puede conservar así su instalación simple basada únicamente en `pluginAddPath`. [ ToolPack - Evitar carga en Hiero y Nuke Studio ]
+
+- Se incorpora `VERSION` como fuente única de la versión publicada y el menú obtiene desde allí su label de documentación. Se agregan reglas de desarrollo espejadas, se formaliza el changelog pendiente sin bumps durante el trabajo normal y se reserva la promoción de versión para el generador manual de `LGA_Release`. [ ToolPack - Unificar reglas, changelog y versión publicada ]
+
 ## v2.56
 - Se actualiza la copia vendorizada de `certifi` en `py/shotgun_api3/lib` a `2026.6.17` para cerrar la alerta de seguridad de GitHub por certificados raiz retirados. [ ToolPack - Actualizar certifi vendorizado ]
 

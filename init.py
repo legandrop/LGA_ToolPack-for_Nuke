@@ -1,23 +1,24 @@
 import os
 import nuke
 
-ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
-PY_DIR = os.path.join(ROOT_DIR, "py")
-nuke.pluginAddPath(PY_DIR.replace("\\", "/"))
+if not (nuke.env["hiero"] or nuke.env["studio"]):
+    ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
+    PY_DIR = os.path.join(ROOT_DIR, "py")
+    nuke.pluginAddPath(PY_DIR.replace("\\", "/"))
 
 
-# Parte del LGA_viewer_SnapShot_Buttons
-def OnViewerCreate(node=None):
-    """Callback que se ejecuta cuando se crea un viewer"""
-    import LGA_viewer_SnapShot_Buttons
-    from LGA_QtAdapter_ToolPack import QtCore
+    # Parte del LGA_viewer_SnapShot_Buttons
+    def OnViewerCreate(node=None):
+        """Callback que se ejecuta cuando se crea un viewer"""
+        import LGA_viewer_SnapShot_Buttons
+        from LGA_QtAdapter_ToolPack import QtCore
 
-    # Usar un timer para retrasar la ejecucion hasta que el widget Qt este listo
-    QTimer = QtCore.QTimer
+        # Usar un timer para retrasar la ejecucion hasta que el widget Qt este listo
+        QTimer = QtCore.QTimer
 
-    # Ejecutar launch() despues de un pequeno delay para que el widget este listo
-    QTimer.singleShot(100, LGA_viewer_SnapShot_Buttons.launch)
+        # Ejecutar launch() despues de un pequeno delay para que el widget este listo
+        QTimer.singleShot(100, LGA_viewer_SnapShot_Buttons.launch)
 
 
-# Registrar el callback para cuando se cree un viewer
-nuke.addOnCreate(OnViewerCreate, nodeClass="Viewer")
+    # Registrar el callback para cuando se cree un viewer
+    nuke.addOnCreate(OnViewerCreate, nodeClass="Viewer")
