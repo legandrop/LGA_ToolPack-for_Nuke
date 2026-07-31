@@ -1,6 +1,8 @@
 # ChangeLog
 
 ## v2.57
+- Nueva tool `Duplicate Publish` en la sección READ n WRITE: duplica en disco la secuencia del Read seleccionado renombrándola con el número de versión del script actual, para poder re-renderizar solo un rango corto sin volver a procesar la secuencia completa. Antes eso se hacía a mano con copy/paste y rename desde el explorador. La tool avisa y pide confirmación cuando el basename de la secuencia no coincide con el del script, cuando el rango del Read difiere de los frames que hay en disco y cuando el destino ya tiene frames. El escaneo y la copia corren en threads aparte, con barra de progreso cancelable y sin bloquear la UI de Nuke. [ ToolPack - Agregar Duplicate Publish ]
+
 - El instalador ordena `~/.nuke/init.py` de forma canónica en Windows y macOS: recolecta todos los bloques `pluginAddPath` de LGA, los reordena según el orden oficial (Layout, ToolPack-B, ToolPack, NodePack, OpenInNukeX, Defaults, CollectedTools), elimina duplicados y deja intactos los paths ajenos. Antes cada plataforma resolvía el orden de una manera distinta y macOS simplemente agregaba al final. [ ToolPack - Unificar el orden del init.py ]
 
 - El startup del pack queda aislado de Hiero y Nuke Studio: `menu.py` pasa a ser un wrapper mínimo que consulta los flags oficiales de host antes de importar `LGA_ToolPack_menu.py`, mientras `init.py` aplica el mismo guard antes de agregar `py/` o registrar el callback del Viewer. La configuración global de `~/.nuke/init.py` puede conservar así su instalación simple basada únicamente en `pluginAddPath`. [ ToolPack - Evitar carga en Hiero y Nuke Studio ]

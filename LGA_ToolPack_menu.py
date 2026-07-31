@@ -179,6 +179,17 @@ add_tool(
 
 add_tool(
     n,
+    label="  Duplicate Publish",
+    key="Duplicate_Publish",
+    module="LGA_RnW_DuplicatePublish",
+    attr="main",
+    icon=icon_RnW,
+    context=None,
+)
+
+
+add_tool(
+    n,
     label="  Write Presets",
     key="Write_Presets",
     module="LGA_Write_Presets",

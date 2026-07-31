@@ -57,6 +57,7 @@ Read_From_Write = True
 - **Media_Manager**: Gestor de medios multimedia
 - **Media_Path_Replacer**: Reemplazador de rutas de medios
 - **Read_From_Write**: Leer desde Write
+- **Duplicate_Publish**: Duplicar la secuencia de un Read con la versión del script
 - **Write_Presets**: Preajustes de Write
 - **Write_Focus**: Enfoque de Write
 - **Write_Add_Send_Mail**: Opción de envío de mail en Write
