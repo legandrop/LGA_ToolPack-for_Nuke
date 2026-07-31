@@ -1,12 +1,15 @@
 """
 ____________________________________________________________________
 
-  LGA_RnW_DuplicatePublish v1.00 | Lega
+  LGA_RnW_DuplicatePublish v1.01 | Lega
 
   Duplica en disco la secuencia de un Read renombrandola con el
   numero de version del script actual. Sirve para re-renderizar solo
   un rango corto sin tener que volver a procesar la secuencia entera.
 
+  v1.01: Cuando el rango del Read no coincide con los frames en disco
+         se ofrecen tres opciones (Cancel, Copy read range, Copy disk
+         range) en vez de asumir siempre el rango del disco.
   v1.00: Version inicial.
 ____________________________________________________________________
 """
@@ -382,6 +385,66 @@ class MessageDialog(BaseDialog):
             super(MessageDialog, self).keyPressEvent(event)
 
 
+# Codigo base de resultado para las opciones; 0 y 1 los usa QDialog
+CHOICE_RESULT_OFFSET = 2
+
+
+class ChoiceDialog(BaseDialog):
+    """
+    Ventana con varias opciones excluyentes mas Cancel.
+    Cada opcion cierra el dialogo con su propio codigo de resultado.
+    """
+
+    def __init__(
+        self,
+        title,
+        blocks=None,
+        note_html=None,
+        options=None,
+        cancel_label="Cancel",
+        parent=None,
+    ):
+        super(ChoiceDialog, self).__init__(title, parent)
+
+        self.options = options or []
+
+        for block_title, block_value in blocks or []:
+            self.add_block(block_title, block_value)
+
+        if note_html:
+            self.add_note(note_html)
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
+
+        cancel_button = QPushButton(cancel_label)
+        cancel_button.setStyleSheet(BUTTON_STYLE)
+        cancel_button.clicked.connect(self.reject)
+        buttons_layout.addWidget(cancel_button)
+
+        for index, option in enumerate(self.options):
+            button = QPushButton(option[0])
+            button.setStyleSheet(BUTTON_STYLE)
+            code = index + CHOICE_RESULT_OFFSET
+            button.clicked.connect(
+                lambda _checked=False, result=code: self.done(result)
+            )
+            buttons_layout.addWidget(button)
+
+        self.main_layout.addLayout(buttons_layout)
+        self.setMinimumWidth(500)
+        self.adjustSize()
+
+    def keyPressEvent(self, event):
+        # Enter no elige por el usuario: hay mas de una opcion valida
+        if event.key() == Qt.Key_Escape:
+            self.reject()
+        elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            event.accept()
+        else:
+            super(ChoiceDialog, self).keyPressEvent(event)
+
+
 class ProgressDialog(BaseDialog):
     """Ventana con barra de progreso violeta para las tareas en background."""
 
@@ -490,6 +553,21 @@ def ask_confirmation(title, blocks=None, note_html=None, confirm_label="Continue
         [("Cancel", "reject"), (confirm_label, "accept")],
     )
     return dialog.exec_() == QDialog.Accepted
+
+
+def ask_choice(title, blocks=None, note_html=None, options=None, cancel_label="Cancel"):
+    """
+    Muestra una ventana con varias opciones. Devuelve el valor de la opcion
+    elegida, o None si el usuario cancela.
+    """
+    ensure_app()
+    options = options or []
+    dialog = ChoiceDialog(title, blocks, note_html, options, cancel_label)
+    result = dialog.exec_()
+    index = result - CHOICE_RESULT_OFFSET
+    if 0 <= index < len(options):
+        return options[index][1]
+    return None
 
 
 def show_error(message_html, blocks=None):
@@ -645,7 +723,8 @@ class DuplicateController(QObject):
             _release_controller()
             return
 
-        if not self._confirm_frame_range(source_frames):
+        frames_to_copy = self._choose_frames(source_frames)
+        if not frames_to_copy:
             _release_controller()
             return
 
@@ -653,11 +732,14 @@ class DuplicateController(QObject):
             _release_controller()
             return
 
-        self._start_copy(source_frames)
+        self._start_copy(frames_to_copy)
 
     # --- Confirmaciones ---------------------------------------------------
-    def _confirm_frame_range(self, source_frames):
-        """Avisa si el rango del Read no coincide con lo que hay en disco."""
+    def _choose_frames(self, source_frames):
+        """
+        Decide que frames se copian cuando el rango del Read no coincide con
+        lo que hay en disco. Devuelve la lista elegida o None si se cancela.
+        """
         read_first = self.context["read_first"]
         read_last = self.context["read_last"]
         disk_first = source_frames[0][0]
@@ -665,13 +747,18 @@ class DuplicateController(QObject):
         gaps = has_missing_frames(source_frames)
 
         if read_first == disk_first and read_last == disk_last and not gaps:
-            return True
+            return source_frames
 
-        read_text = "%d - %d (%d frames)" % (
-            read_first,
-            read_last,
-            read_last - read_first + 1,
-        )
+        # Frames del disco que caen dentro del rango del Read
+        frames_in_read_range = [
+            item for item in source_frames if read_first <= item[0] <= read_last
+        ]
+
+        read_total = read_last - read_first + 1
+        read_text = "%d - %d (%d frames)" % (read_first, read_last, read_total)
+        if len(frames_in_read_range) != read_total:
+            read_text += " - %d available on disk" % len(frames_in_read_range)
+
         disk_text = format_frame_range(source_frames)
         if gaps:
             disk_text += " - with missing frames inside the range"
@@ -679,18 +766,29 @@ class DuplicateController(QObject):
         note = (
             "<span style='color:%s; font-weight:bold;'>The Read range does not match "
             "the frames on disk.</span><br>"
-            "<span style='color:%s;'>Only the %d frames found on disk will be "
-            "copied.</span>"
-        ) % (COLOR_WARNING, COLOR_VALUE, len(source_frames))
+            "<span style='color:%s;'>Choose which frames to copy.</span>"
+        ) % (COLOR_WARNING, COLOR_VALUE)
 
-        return ask_confirmation(
+        options = []
+        if frames_in_read_range:
+            options.append(("Copy read range", "read"))
+        options.append(("Copy disk range", "disk"))
+
+        choice = ask_choice(
             "Duplicate Publish",
             [
                 ("Read range", plain_value(read_text)),
                 ("On disk", plain_value(disk_text)),
             ],
             note,
+            options,
         )
+
+        if choice == "read":
+            return frames_in_read_range
+        if choice == "disk":
+            return source_frames
+        return None
 
     def _confirm_destination(self, destination_frames):
         """Avisa si el destino ya tiene frames de esa version."""

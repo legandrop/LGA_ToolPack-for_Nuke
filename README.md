@@ -93,7 +93,7 @@ Genera un nodo Read a partir de la ruta y archivo del nodo Write seleccionado.
 
 Para no tener que volver a renderear una secuencia entera cuando sólo cambian unos pocos frames.<br>
 Con un Read seleccionado, copia su secuencia en disco renombrándola con el número de versión del script actual. Después alcanza con renderear encima únicamente el rango que cambió.<br>
-Si el nombre de la secuencia no coincide con el del script, si el rango del Read no coincide con los frames que hay en disco, o si el destino ya tiene frames, avisa y pide confirmación antes de copiar. La copia corre en segundo plano con barra de progreso y se puede cancelar.
+Si el nombre de la secuencia no coincide con el del script, o si el destino ya tiene frames, avisa y pide confirmación antes de copiar. Y si el rango del Read no coincide con los frames que hay en disco, deja elegir entre copiar el rango del Read o el rango completo del disco. La copia corre en segundo plano con barra de progreso y se puede cancelar.
 
 <br>
 
