@@ -1,5 +1,8 @@
 # ChangeLog
 
+## v2.58
+- El ZIP del release deja de incluir `docs/`, `default/` y `Doc_Media/Originals`, que no cumplen ninguna funcion en una instalacion: `docs/` se lee en GitHub, `default/` son dos carpetas vacias y `Originals` son las fuentes de edicion de los GIF y SVG. El pack instalado pasa de 22,7 MB a 4,4 MB. [ ToolPack - Reducir el contenido del release ]
+
 ## v2.57
 - `Duplicate Publish` deja elegir qué frames copiar cuando el rango del Read no coincide con lo que hay en disco. Antes avisaba y seguía siempre con el rango del disco, y el mensaje decía "Only the N frames found on disk will be copied" incluso cuando el disco tenía más frames que el Read, que es justo el caso donde la tool no puede decidir sola. Ahora la ventana ofrece Cancel, Copy read range y Copy disk range. `Copy read range` copia los frames que realmente existen dentro del rango del Read y avisa cuántos hay si faltan; si ese rango cae entero fuera de la secuencia, la opción no se ofrece. [ ToolPack - Elegir rango al duplicar publish ]
 
