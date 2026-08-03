@@ -77,6 +77,19 @@ Permite buscar y reemplazar rutas en los nodos Read y Write. Incluye preview en 
 
 
 
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Paths to Relative v1.0 | Lega
+
+Para que el proyecto sobreviva a un cambio de disco o de ubicación.<br>
+Convierte a rutas relativas las rutas absolutas de los nodos que apuntan a archivos: Read, Write, DeepRead, DeepWrite, ReadGeo, WriteGeo, Precomp, Vectorfield y OCIOFileTransform, incluyendo el knob `proxy`.<br>
+Las rutas se calculan contra el **Project Directory** de Project Settings, que es contra lo que Nuke resuelve los paths relativos. Ojo con esto: no los resuelve contra la ubicación del `.nk`. Si ese campo está vacío las rutas relativas no funcionan, así que la ventana ofrece dejarlo en `[python {nuke.script_directory()}]`, la misma expresión que pone el botón Script Directory.<br>
+Si hay nodos seleccionados actúa sólo sobre ellos; si no, recorre todo el script. Entra en los Groups, pero no adentro de los Precomps porque sus nodos internos vienen de otro `.nk`.<br>
+Antes de modificar nada abre una tabla de preview con un checkbox por fila, la columna del Group donde vive cada nodo, y colores: verde convertible, amarillo cuando la ruta sube muchos niveles, rojo cuando la media está en otra unidad y no existe ruta relativa posible.<br>
+Los knobs con expresiones TCL, como los Writes creados con Write Presets, no se tocan nunca. Todo el cambio se aplica en un solo paso de undo.
+
+<br>
+
+
+
 ## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Read from Write v2.3 | Fredrik Averpil
 
 [https://www.nukepedia.com/python/misc/readfromwrite](https://www.nukepedia.com/python/misc/readfromwrite)<br>

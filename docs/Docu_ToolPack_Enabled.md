@@ -56,6 +56,7 @@ Read_From_Write = True
 ### READ n WRITE TOOLS
 - **Media_Manager**: Gestor de medios multimedia
 - **Media_Path_Replacer**: Reemplazador de rutas de medios
+- **Paths_To_Relative**: Convertir rutas absolutas a relativas al script
 - **Read_From_Write**: Leer desde Write
 - **Duplicate_Publish**: Duplicar la secuencia de un Read con la versión del script
 - **Write_Presets**: Preajustes de Write

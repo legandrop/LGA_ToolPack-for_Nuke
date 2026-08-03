@@ -1,5 +1,10 @@
 # ChangeLog
 
+## v2.59
+- `Paths to Relative` calcula las rutas contra el Project Directory y no contra la carpeta del script. Nuke resuelve los relativos contra `root.project_directory`, no contra la ubicación del `.nk`: con ese knob vacío —que es el default— los resuelve contra el working directory del proceso y no encuentra nada, así que las rutas convertidas quedaban rotas aunque se vieran correctas. Ahora el ancla es el Project Directory evaluado cuando tiene valor, y cuando está vacío la ventana ofrece dejarlo en `[python {nuke.script_directory()}]`, la misma expresión del botón Script Directory de Project Settings, dentro del mismo bloque de undo. Si no hay rutas absolutas para convertir pero el knob sigue vacío, también se ofrece arreglarlo. [ ToolPack - Calcular relativos contra el Project Directory ]
+
+- Nueva tool `Paths to Relative` en la sección READ n WRITE: pasa a rutas relativas al directorio del script las rutas absolutas de los nodos que apuntan a archivos (Read, Write, DeepRead, ReadGeo, Precomp, Vectorfield, OCIOFileTransform), incluyendo el knob `proxy`. Si hay nodos seleccionados actúa solo sobre esos; si no, recorre todo el script entrando en los Groups pero no adentro de los Precomps, cuyos nodos internos vienen de otro `.nk`. Antes de escribir nada abre una tabla de preview con un checkbox por fila, la columna del Group que contiene cada nodo y marcas de color: verde convertible, amarillo cuando sube muchos niveles, rojo cuando la media está en otra unidad. Los knobs con expresiones TCL, como los Writes de Write Presets, nunca se tocan. El cambio va en un solo bloque de undo. [ ToolPack - Agregar Paths to Relative ]
+
 ## v2.58
 - El ZIP del release deja de incluir `docs/`, `default/` y `Doc_Media/Originals`, que no cumplen ninguna funcion en una instalacion: `docs/` se lee en GitHub, `default/` son dos carpetas vacias y `Originals` son las fuentes de edicion de los GIF y SVG. El pack instalado pasa de 22,7 MB a 4,4 MB. [ ToolPack - Reducir el contenido del release ]
 

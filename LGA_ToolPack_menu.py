@@ -167,6 +167,16 @@ add_tool(
 
 add_tool(
     n,
+    label="  Paths to Relative",
+    key="Paths_To_Relative",
+    module="LGA_RnW_PathsToRelative",
+    attr="main",
+    icon=icon_RnW,
+    context=None,
+)
+
+add_tool(
+    n,
     label="  Read from Write",
     key="Read_From_Write",
     module="readFromWrite",
