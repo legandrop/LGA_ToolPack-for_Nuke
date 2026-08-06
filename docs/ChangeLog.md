@@ -1,5 +1,8 @@
 # ChangeLog
 
+## v2.60
+- El instalador dejaba el `init.py` roto en cualquier equipo que tuviera sus `pluginAddPath` adentro de un bloque `if` —por ejemplo para discriminar por version de Nuke— y ademas reportaba exito. Al reordenar los paths se llevaba tambien las lineas indentadas, dejando el bloque sin cuerpo, y Nuke no arrancaba con un `IndentationError`. Ahora solo toca las lineas en columna 0 y respeta las indentadas donde estan. Suma ademas deduplicacion de paths repetidos, preservacion del BOM del archivo original y una validacion del resultado: si el `init.py` quedaria invalido, no lo modifica y aborta la instalacion. [ ToolPack - Corregir el manejo del init.py del instalador ]
+
 ## v2.59
 - `Paths to Relative` calcula las rutas contra el Project Directory y no contra la carpeta del script. Nuke resuelve los relativos contra `root.project_directory`, no contra la ubicación del `.nk`: con ese knob vacío —que es el default— los resuelve contra el working directory del proceso y no encuentra nada, así que las rutas convertidas quedaban rotas aunque se vieran correctas. Ahora el ancla es el Project Directory evaluado cuando tiene valor, y cuando está vacío la ventana ofrece dejarlo en `[python {nuke.script_directory()}]`, la misma expresión del botón Script Directory de Project Settings, dentro del mismo bloque de undo. Si no hay rutas absolutas para convertir pero el knob sigue vacío, también se ofrece arreglarlo. [ ToolPack - Calcular relativos contra el Project Directory ]
 
