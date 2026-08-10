@@ -1,0 +1,34 @@
+# Politica de line endings.
+#
+# Regla general: LF para codigo y documentacion. Excepcion: los scripts nativos
+# de Windows (.bat/.cmd/.ps1) necesitan CRLF.
+#
+# Gana el ULTIMO patron que matchea, asi que el default va primero.
+
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+*.sh  text eol=lf
+*.py  text eol=lf
+*.md  text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.psd binary
+*.zip binary
+*.7z  binary
+*.exe binary
+*.dll binary
+*.dylib binary
+*.so  binary
+*.nk  binary
+*.gizmo binary
