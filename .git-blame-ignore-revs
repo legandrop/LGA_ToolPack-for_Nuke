@@ -1,0 +1,14 @@
+# Commits mecanicos que `git blame` tiene que saltear.
+#
+# Un hash por linea, con arriba que fue. Tipico caso: una renormalizacion de
+# finales de linea, que toca decenas de archivos sin cambiar una sola cosa del
+# contenido y deja todo el blame apuntando a ese commit.
+#
+# OJO: este archivo solo no hace nada. Hay que activarlo por repo y por maquina:
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Es config local y no viaja en el clon.
+
+# Renormalizacion de finales de linea, al sumar el .gitattributes.
+95969251b188a8f92e1b16419e1a53702a7ef655
