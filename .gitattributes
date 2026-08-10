@@ -30,5 +30,8 @@
 *.dll binary
 *.dylib binary
 *.so  binary
-*.nk  binary
-*.gizmo binary
+# Los .nk y .gizmo son TEXTO plano (`set cut_paste_input ...`), no
+# binarios. Declararlos binary perdia el diff y el merge. Van con LF
+# explicito y sin conversion sorpresa.
+*.nk    text eol=lf
+*.gizmo text eol=lf
