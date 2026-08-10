@@ -1,5 +1,12 @@
 # ChangeLog
 
+## v2.61
+- El preset `EXR Publish DWAA` pasa a escribir siempre en `ACES - ACES2065-1` en vez de seguir el default del proyecto: el publish es el entregable de intercambio y no tiene que moverse si cambia el config. Los demas presets EXR siguen en default. [ ToolPack - Fijar ACES2065-1 en el preset EXR Publish ]
+
+- La compresion DWAA de todos los presets EXR baja de nivel 60 a 45. [ ToolPack - Bajar el nivel DWAA a 45 ]
+
+- Los presets de `Write Presets` con `colorspace = default` dejaban el Write en `default (ACES2065-1)` en vez del colorspace que el proyecto resuelve por default, que con un config ACES es `scene_linear (ACEScg)`. El script seteaba el knob legacy `colorspace` al string literal `"default"`, y eso lo marca como modificado, lo desincroniza de `ocioColorspace` y congela el label en el default viejo. Ahora, cuando el preset pide `default`, no se toca ningun knob de color: el Write queda con el default dinamico de Nuke, que se resuelve solo segun el OCIO config del proyecto y el file_type. Los presets con un colorspace explicito, incluido el camino `Output - Rec.709` con display/view, siguen igual. [ ToolPack - Respetar el colorspace default dinamico en Write Presets ]
+
 ## v2.60
 - El instalador dejaba el `init.py` roto en cualquier equipo que tuviera sus `pluginAddPath` adentro de un bloque `if` —por ejemplo para discriminar por version de Nuke— y ademas reportaba exito. Al reordenar los paths se llevaba tambien las lineas indentadas, dejando el bloque sin cuerpo, y Nuke no arrancaba con un `IndentationError`. Ahora solo toca las lineas en columna 0 y respeta las indentadas donde estan. Suma ademas deduplicacion de paths repetidos, preservacion del BOM del archivo original y una validacion del resultado: si el `init.py` quedaria invalido, no lo modifica y aborta la instalacion. [ ToolPack - Corregir el manejo del init.py del instalador ]
 

@@ -1,13 +1,17 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.74 | Lega
+  LGA_Write_Presets v2.75 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
+  v2.75: Los presets con colorspace "default" ya no escriben el knob. Se deja el
+         default dinamico de Nuke, que se resuelve segun el OCIO config del
+         proyecto. Antes quedaba fijado en ACES2065-1 en vez de ACEScg.
+
   v.274 fix presets matte script
-  
+
   v2.73: Ajustes UI.
   
   v2.72: Detecta OCIO 1.3+/v2 y ajusta los presets Output Rec.709 para usar transformType=display con el display/view del proyecto.
@@ -235,6 +239,18 @@ def apply_colorspace_settings(write_node, preset, color_context):
     use_display_transform = (
         preset_colorspace == "Output - Rec.709" and color_context["is_ocio_v2"]
     )
+
+    # Si el preset pide "default", no tocar ningun knob de color. El default del
+    # Write es dinamico: Nuke lo resuelve segun el OCIO config del proyecto y el
+    # file_type. Escribir el string literal "default" en el knob legacy
+    # "colorspace" lo marca como modificado, lo desincroniza de "ocioColorspace"
+    # y el panel termina mostrando el default viejo (ACES2065-1) en vez del que
+    # corresponde al config actual (ACEScg).
+    if not use_display_transform and preset_colorspace in ("", "default"):
+        debug_print(
+            "[Write_Presets] Colorspace 'default': se deja el default dinamico de Nuke"
+        )
+        return
 
     if use_display_transform and transform_knob and display_knob and view_knob:
         transform_knob.setValue("display")
