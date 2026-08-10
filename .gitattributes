@@ -35,3 +35,16 @@
 # explicito y sin conversion sorpresa.
 *.nk    text eol=lf
 *.gizmo text eol=lf
+
+# --- Terceros vendorizados: NO se normalizan ---
+#
+# Criterio: arboles que son copia de un upstream identificable (carpeta con
+# numero de version, LICENSE propia, o build de un proyecto externo).
+# Normalizarlos reescribe bytes que no son nuestros: el dia que se compare
+# contra una version nueva de upstream, el diff dice que cambio todo, y
+# cualquier verificacion por hash del vendor deja de dar.
+#
+# Lo que vive adentro de un pack LGA y no tiene upstream que seguir SI se
+# normaliza: ahi el riesgo no existe y la consistencia vale mas.
+py/Send2Trash-1.8.2/** -text
+py/shotgun_api3/** -text
