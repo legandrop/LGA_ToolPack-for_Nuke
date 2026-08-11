@@ -1,6 +1,8 @@
 # ChangeLog
 
 ## v2.61
+
+- El `install.pdf` se reemplaza por `install_es.pdf` e `install_en.pdf`. La hoja vieja salia de exportar un Google Doc a mano y quedo congelada en el metodo manual: no menciona los instaladores que el ZIP trae desde hace varias versiones, y ademas daba el backup del `init.py` como `init.py.bak`, un nombre que los motores ya no usan: hoy guardan una copia numerada en `~/.nuke/LGA_init_backups/`. Las dos hojas se generan ahora desde una plantilla unica en el repo de release, con la version leida del `VERSION` del repo, asi que el texto comun deja de mantenerse por separado en cada producto. Se documenta tambien que en macOS el instalador va con `bash installer_mac.sh`: los `.sh` pierden el permiso de ejecucion dentro del `.zip` y `./installer_mac.sh` da `Permission denied`. [ ToolPack - Reemplazar install.pdf por las hojas en castellano e ingles ]
 - El preset `EXR Publish DWAA` pasa a escribir siempre en `ACES - ACES2065-1` en vez de seguir el default del proyecto: el publish es el entregable de intercambio y no tiene que moverse si cambia el config. Los demas presets EXR siguen en default. [ ToolPack - Fijar ACES2065-1 en el preset EXR Publish ]
 
 - La compresion DWAA de todos los presets EXR baja de nivel 60 a 45. [ ToolPack - Bajar el nivel DWAA a 45 ]
