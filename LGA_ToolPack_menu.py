@@ -14,7 +14,7 @@ import nukescripts
 import os
 
 # --- Config loader & helpers -------------------------------------------
-import configparser, importlib
+import importlib
 
 
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -39,54 +39,47 @@ PRODUCT_VERSION = _read_product_version()
 nuke.pluginAddPath(PY_DIR.replace("\\", "/"))
 
 
-def _ini_paths():
-    # user-level
-    home = os.path.expanduser("~")
-    user_ini = os.path.join(home, ".nuke", "_LGA_ToolPack_Enabled.ini")
-    # package-level (junto a este archivo)
-    pkg_ini = os.path.join(ROOT_DIR, "_LGA_ToolPack_Enabled.ini")
-    return user_ini, pkg_ini
-
-
-_TOOL_FLAGS = None  # cache
+# El estado de las tools lo resuelve LGA_ToolPack_Enabled, que lo lee de la
+# carpeta de datos del usuario y no de adentro del pack. Vive en py/ para que
+# el panel de Enable Tools use exactamente la misma logica que el menu.
+# `except Exception` y no `except ImportError`: un SyntaxError o un fallo de
+# encoding al importar no son ImportError, se propagarian y Nuke arrancaria sin
+# el menu TP entero, que es exactamente lo que se quiere evitar.
+try:
+    import LGA_ToolPack_Enabled as _enabled_config
+except Exception as _enabled_error:
+    # Si el modulo no carga, el menu tiene que armarse igual y con todo
+    # visible: es preferible mostrar de mas a dejar al usuario sin
+    # herramientas y sin forma de recuperarlas.
+    nuke.warning("No se pudo cargar LGA_ToolPack_Enabled: %s" % _enabled_error)
+    _enabled_config = None
+else:
+    # Siembra la config del usuario la primera vez, rescatando lo que hubiera
+    # configurado antes de que esa ubicacion existiera. Va en su propio try
+    # por el mismo motivo: sembrar es una comodidad, no una condicion para
+    # que exista el menu.
+    try:
+        _enabled_config.ensure_user_ini()
+    except Exception as _seed_error:
+        nuke.warning("No se pudo sembrar la config de LGA ToolPack: %s" % _seed_error)
 
 
 def load_tool_flags():
-    """Lee el INI (user pisa a package). Si falta o hay error => todo True."""
-    global _TOOL_FLAGS
-    if _TOOL_FLAGS is not None:
-        return _TOOL_FLAGS
+    """Estado efectivo de las tools. {} si el modulo de config no cargo.
 
-    cfg = configparser.ConfigParser()
-    cfg.optionxform = str  # respeta mayúsculas en claves
-    user_ini, pkg_ini = _ini_paths()
-
-    read_ok = False
-    for path in [pkg_ini, user_ini]:
-        if os.path.isfile(path):
-            try:
-                cfg.read(path, encoding="utf-8")
-                read_ok = True
-            except Exception:
-                pass
-
-    flags = {}
-    if read_ok and cfg.has_section("Tools"):
-        for key, val in cfg.items("Tools"):
-            v = str(val).strip().lower()
-            flags[key] = v in ("1", "true", "yes", "on")
-    else:
-        # sin archivo/section => defaults vacíos (=> True por defecto)
-        flags = {}
-
-    _TOOL_FLAGS = flags
-    return _TOOL_FLAGS
+    Se conserva por compatibilidad: es un nombre publico desde versiones
+    anteriores del pack y puede haber scripts de usuario apoyados en el.
+    """
+    if _enabled_config is None:
+        return {}
+    return _enabled_config.load_flags()
 
 
 def is_enabled(key: str) -> bool:
-    """Si no está en INI => True (default)."""
-    flags = load_tool_flags()
-    return flags.get(key, True)
+    """Si no está en ninguna capa => True (default)."""
+    if _enabled_config is None:
+        return True
+    return _enabled_config.is_enabled(key)
 
 
 def add_tool(menu, label, key, module, attr, shortcut=None, icon=None, context=2):
@@ -616,8 +609,22 @@ try:
 except Exception:
     icon_Settings = ""
 
-if is_enabled("Settings"):
-    n.addCommand("Settings", _settings_runner, icon=icon_Settings)
+# Settings ya no pasa por is_enabled(): es la configuracion del pack y tiene
+# que estar siempre. Apagarla dejaba al usuario sin acceso a los ajustes de
+# Write Focus, Show in Flow, Color Space Favs y el resto.
+n.addCommand("Settings", _settings_runner, icon=icon_Settings)
+
+
+def _enable_tools_runner():
+    import LGA_ToolPack_EnabledPanel
+
+    LGA_ToolPack_EnabledPanel.main()
+
+
+# Por el mismo motivo, y ademas porque es el unico camino de vuelta: un panel
+# que se puede desactivar a si mismo deja al usuario sin forma de reactivar
+# nada sin editar archivos a mano.
+n.addCommand("Enable Tools", _enable_tools_runner, icon=icon_Settings)
 
 
 # -----------------------------------------------------------------------------

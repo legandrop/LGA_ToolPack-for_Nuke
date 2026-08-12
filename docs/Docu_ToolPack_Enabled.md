@@ -1,282 +1,116 @@
 > **Regla de documentacion**: este archivo describe el estado actual del codigo. No es un historial de cambios, changelog ni bitacora temporal.
 > **Regla de documentacion**: este archivo debe incluir una seccion de referencias tecnicas con rutas completas a los archivos mas importantes relacionados, y para cada archivo nombrar las funciones, clases o metodos clave vinculados a este tema.
 
-# Sistema de Configuración de Herramientas LGA ToolPack
+# Activar y desactivar herramientas — LGA ToolPack
 
-## 🎯 ¿Qué es este sistema?
+Casi cada herramienta del pack se puede ocultar del menu. Una herramienta
+apagada no se muestra y ademas no se importa, asi que tampoco cuesta tiempo
+de arranque.
 
-El **Sistema de Configuración de Herramientas** es una funcionalidad avanzada del LGA ToolPack que permite a los usuarios personalizar completamente qué herramientas se cargan y muestran en el menú de Nuke. Esto proporciona un control total sobre el entorno de trabajo, optimizando la carga y evitando clutter en el menú.
+Las dos excepciones son `Settings` y `Enable Tools`: son los accesos a la
+configuracion del pack y estan siempre. No figuran en el manifiesto.
 
-## 📁 Archivos del Sistema
+## Para el usuario
 
-### Archivos de Configuración
-- **`_LGA_ToolPack_Enabled.ini`** (en carpeta del paquete): Configuración por defecto
-- **`_LGA_ToolPack_Enabled.ini`** (en `~/.nuke/`): Configuración personal del usuario
+Menu **TP > Enable Tools**. Se destilda lo que no se quiere y se guarda.
+Los cambios se ven **al reiniciar Nuke**: el menu se arma una sola vez, al
+inicio, y las tools apagadas no llegan a registrarse.
 
-### Archivos del Sistema
-- **`menu.py`**: Menú principal con el sistema integrado
-- **`Docu_ToolPack_Enabled.md`**: Esta documentación
+La eleccion se guarda **fuera del pack**:
 
-## ⚙️ Cómo Funciona
+| Sistema | Archivo |
+|---|---|
+| Windows | `%APPDATA%\LGA\ToolPack\Enabled.ini` |
+| macOS | `~/Library/Application Support/LGA/ToolPack/Enabled.ini` |
 
-### 1. Carga de Configuración
-```python
-# El sistema busca archivos .ini en este orden:
-1. ~/.nuke/_LGA_ToolPack_Enabled.ini (usuario) - PRIORIDAD
-2. LGA_ToolPack/_LGA_ToolPack_Enabled.ini (paquete) - DEFAULTS
-```
+Para volver a los valores de fabrica: boton **Reset** y despues **Save**.
+Borrar el archivo a mano puede no alcanzar: si quedo un ini viejo en
+`.nuke` —que por diseno no se borra nunca— el arranque siguiente lo
+vuelve a migrar.
 
-### 2. Evaluación de Herramientas
-- **True**: La herramienta se carga y muestra en el menú
-- **False**: La herramienta NO se carga ni muestra
-- **No existe**: Se asume **True** (compatibilidad hacia atrás)
+## Por que vive afuera del pack
 
-### 3. Carga Perezosa (Lazy Loading)
-- Los módulos de las herramientas se importan **solo** cuando están habilitadas
-- Mejora significativamente el tiempo de inicio de Nuke
-- Reduce el uso de memoria
+El instalador renombra la carpeta del pack a `LGA_ToolPack_backup` y copia la
+version nueva limpia. Todo lo que viva adentro se pierde en cada update. Antes
+el estado estaba ahi, y por eso se perdia.
 
-## 📝 Formato del Archivo .ini
+## Las dos piezas
 
-```ini
-[Tools]
-; LGA ToolPack – Tool Switches
-; Set to False to hide a tool from the menu AND avoid importing its script.
-; Leave True to keep it visible and load on demand.
-; Example: Media_Manager = False
+**`Enabled.default.ini`** (dentro del pack) es el manifiesto: la lista canonica de
+tools con su valor de fabrica, agrupadas por los marcadores `; === X ===` que
+el panel usa como titulos. Viaja con el pack y el instalador lo pisa en cada
+update, asi que una edicion a mano se pierde ahi. Mientras tanto si aplica:
+es la capa base de `load_flags()`, no solo una semilla inicial, asi que
+sirve para armar un ZIP pre-configurado. Lo que el usuario haya tocado
+desde el panel le gana igual.
 
-Media_Manager = True
-Media_Path_Replacer = True
-Read_From_Write = True
-; ... todas las demás herramientas
-```
+**`Enabled.ini`** (carpeta de datos del usuario) guarda **solo los overrides**:
+lo que difiere del manifiesto. Un usuario que no cambio nada tiene un archivo
+vacio. Eso es lo que hace que agregar o borrar tools entre versiones sea
+transparente: las tools nuevas aparecen habilitadas solas y las que ya no
+existen desaparecen sin dejar claves muertas.
 
-## 🛠️ Lista Completa de Herramientas Configurables
+Precedencia en runtime: manifiesto, y encima el archivo del usuario. Una clave
+que no esta en ninguno de los dos se considera habilitada.
 
-### READ n WRITE TOOLS
-- **Media_Manager**: Gestor de medios multimedia
-- **Media_Path_Replacer**: Reemplazador de rutas de medios
-- **Paths_To_Relative**: Convertir rutas absolutas a relativas al script
-- **Read_From_Write**: Leer desde Write
-- **Duplicate_Publish**: Duplicar la secuencia de un Read con la versión del script
-- **Write_Presets**: Preajustes de Write
-- **Write_Focus**: Enfoque de Write
-- **Write_Add_Send_Mail**: Opción de envío de mail en Write
-- **Show_in_Explorer**: Mostrar en Explorador
-- **Show_in_Flow**: Mostrar en Flow
-- **Color_Space_Favs**: Favoritos de espacio de color
+## Migracion desde el sistema viejo
 
-### FRAME RANGE TOOLS
-- **FR_Read_to_Project**: Leer → Proyecto
-- **FR_Read_to_Project_Res**: Leer → Proyecto (+Res)
+La primera vez que arranca, el pack siembra el archivo del usuario juntando lo
+que hubiera configurado antes, de menor a mayor prioridad:
 
-### ROTATE TRANSFORM SHORTCUTS
-- **Rotate_Commands**: Todos los comandos de rotación (4 comandos)
+1. inis historicos de los packs hermanos — hay tools que cambiaron de pack, y
+   quien apago `CopyCat_Cleaner` cuando vivia en LGA_ToolPack tiene que
+   seguir viendolo apagado ahora que vive en LGA_ToolPack-B;
+2. inis que quedaron dentro de las carpetas `<Pack>_backup`, para quien edito
+   el ini adentro del pack;
+3. el ini historico de `.nuke`, que es lo que documentaba el PDF viejo.
 
-### COPY n PASTE TOOLS
-- **Paste_To_Selected**: Pegar a seleccionado
-- **Copy_with_inputs**: Copiar con entradas
-- **Paste_with_inputs**: Pegar con entradas
-- **Duplicate_with_inputs**: Duplicar con entradas
+De los archivos ajenos solo se toman las claves que este pack reconoce.
 
-### NODE BUILDS & KNOBS
-- **Build_Iteration**: Construir iteración
-- **Build_Roto_BlurMask**: Construir roto + blur en máscara de entrada
-- **Build_Merge_SwitchOps**: Construir merge (máscara) | Cambiar operaciones
-- **Build_Grade**: Construir grade
-- **Build_Grade_Highlights**: Construir grade de highlights
-- **Disable_A_B**: Deshabilitar A-B
-- **Channels_Cycle**: Ciclo de canales
-- **Channel_HotBox**: HotBox de canales
+El ini historico **no se borra ni se renombra nunca**: si alguien revierte a
+una version anterior del pack, ese codigo lo vuelve a leer y encuentra su
+configuracion.
 
-### VA TOOLS
-- **Viewer_Rec709**: Visor Rec709
-- **Snapshot_Tools**: Herramientas de snapshot (Take + Show Hold)
-- **Reset_Workspace**: Reiniciar workspace
-- **Restart_NukeX**: Reiniciar NukeX
+**Limite conocido:** el rescate desde `<Pack>_backup` depende de que esa
+carpeta siga estando. El instalador la borra al empezar la instalacion
+siguiente, asi que dos instalaciones seguidas sin abrir Nuke en el medio se la
+llevan puesta. Los usuarios cubiertos por el ini de `.nuke` no dependen de
+esto.
 
-### HERRAMIENTAS ESPECIALES
-- **Settings**: Configuraciones del ToolPack
-- **Documentation**: Siempre disponible (no configurable)
+## Que pasa cuando algo falla
 
-## 🚀 Cómo Configurar
+- **Manifiesto ilegible o ausente:** se avisa por `nuke.warning`, el panel
+  muestra un error en vez de una grilla vacia y **se bloquea el guardado**. Sin
+  manifiesto todo pareceria igual al default y guardar dejaria el archivo del
+  usuario vacio, borrandole la configuracion justo cuando cree que la guarda.
+- **Archivo del usuario ilegible:** se avisa y se cae a los valores de fabrica.
+- **Sin carpeta de datos del sistema:** la config va a
+  `<.nuke>/LGA_Settings/ToolPack/Enabled.ini`. No se escribe sobre el ini
+  historico, que puede tener comentarios y claves de otros packs.
+- **El modulo de config no carga:** el menu se arma igual y con todo visible.
+  Es preferible mostrar de mas a dejar al usuario sin herramientas.
 
-### Paso 1: Localizar el Archivo
-1. Abre tu carpeta personal de Nuke: `~/.nuke/`
-2. Si no existe, crea el archivo: `_LGA_ToolPack_Enabled.ini`
+## Referencias tecnicas
 
-### Paso 2: Copiar la Configuración Base
-Copia el contenido del archivo de defaults desde la carpeta del paquete:
-```
-LGA_ToolPack/_LGA_ToolPack_Enabled.ini
-```
+**`LGA_ToolPack/py/LGA_ToolPack_Enabled.py`**
+- `get_user_path()` — resuelve el archivo del usuario, con fallback al `.nuke`.
+- `get_nuke_dir()` — el `.nuke` REAL donde quedo instalado el pack; el
+  instalador acepta rutas arbitrarias, asi que no se usa el home del usuario.
+- `read_defaults()` / `read_default_groups()` — manifiesto y su agrupacion
+  para el panel. Las claves salen siempre de `read_defaults()`.
+- `load_flags()` / `is_enabled(key)` — estado efectivo, cacheado.
+- `write_user_overrides(flags)` — escritura atomica de solo los overrides.
+- `ensure_user_ini()` — sembrado one-shot descrito arriba.
 
-### Paso 3: Personalizar
-Edita las líneas cambiando `True` por `False` para deshabilitar herramientas:
+**`LGA_ToolPack/py/LGA_ToolPack_EnabledPanel.py`**
+- `EnabledPanel` — grilla de checkboxes agrupada como el menu.
+- `main()` — abre el panel y lo mantiene vivo.
 
-```ini
-[Tools]
-; Deshabilitar herramientas que no uso
-Media_Manager = False
-Color_Space_Favs = False
-Rotate_Commands = False
-Snapshot_Tools = False
+**`LGA_ToolPack/LGA_ToolPack_menu.py`**
+- `is_enabled(key)` / `add_tool(...)` — registran cada tool solo si esta
+  habilitada, con import diferido.
+- Los comandos de menu `Settings` y `Enable Tools` **no** pasan por
+  `is_enabled()`. `Settings` es la configuracion del pack, y `Enable Tools`
+  es el unico camino de vuelta si el usuario apaga todo lo demas.
 
-; Mantener las que sí uso
-Read_From_Write = True
-Viewer_Rec709 = True
-```
-
-### Paso 4: Aplicar Cambios
-1. Guarda el archivo
-2. Reinicia Nuke
-3. Las herramientas deshabilitadas no aparecerán en el menú
-
-> **Nota**: La herramienta **Documentation** siempre está disponible en el menú y no se puede deshabilitar.
-
-## 💡 Ventajas del Sistema
-
-### Para Usuarios Individuales
-- **Personalización**: Solo ver las herramientas que necesitas
-- **Performance**: Inicio más rápido de Nuke
-- **Limpieza**: Menú menos cluttered
-- **Flexibilidad**: Cambiar configuración sin reinstalar
-
-### Para Estudios/Equipos
-- **Consistencia**: Configuraciones estándar por rol
-- **Mantenimiento**: Fácil actualizar sin afectar usuarios
-- **Escalabilidad**: Nuevas herramientas se agregan automáticamente
-
-### Para Desarrolladores
-- **Modularidad**: Código más organizado
-- **Debugging**: Fácil identificar problemas de carga
-- **Mantenibilidad**: Cambios centralizados
-- **Compatibilidad**: Sistema backward-compatible
-
-## 🔧 Casos de Uso Comunes
-
-### Artista de Rotoscopia
-```ini
-[Tools]
-; Solo herramientas de roto
-Build_Roto_BlurMask = True
-Rotate_Commands = True
-; Deshabilitar otras herramientas
-Media_Manager = False
-Color_Space_Favs = False
-; ... etc
-```
-
-### Artista Minimalista
-```ini
-[Tools]
-; Configuración básica
-Read_From_Write = True
-Viewer_Rec709 = True
-; Deshabilitar comandos complejos
-Rotate_Commands = False
-Snapshot_Tools = False
-Select_Nodes = False
-Easy_Navigate = False
-```
-
-### Artista de Revisión
-```ini
-[Tools]
-; Solo herramientas de revisión y comparación
-Viewer_Rec709 = True
-Snapshot_Tools = True
-Color_Space_Favs = True
-; Deshabilitar herramientas de edición compleja
-Build_Iteration = False
-Build_Roto_BlurMask = False
-Select_Nodes = False
-```
-
-### Artista de Compositing
-```ini
-[Tools]
-; Herramientas de composición
-Build_Merge_SwitchOps = True
-Build_Grade = True
-Build_Grade_Highlights = True
-; Deshabilitar otras
-; ... etc
-```
-
-### Pipeline TD
-```ini
-[Tools]
-; Todas las herramientas disponibles
-Media_Manager = True
-Media_Path_Replacer = True
-; ... todas en True
-```
-
-## ⚠️ Notas Importantes
-
-### Compatibilidad
-- Si no existe el archivo .ini, **todas las herramientas se habilitan por defecto**
-- Valores no reconocidos se tratan como `True`
-- El sistema es completamente backward-compatible
-
-### Troubleshooting
-- **Herramienta no aparece**: Verificar que esté en `True` en el .ini
-- **Error al cargar**: Revisar sintaxis del archivo .ini
-- **Cambios no aplican**: Reiniciar Nuke completamente
-
-### Archivos de Configuración
-- **Usuario**: `~/.nuke/_LGA_ToolPack_Enabled.ini` - **Pisa** la configuración del paquete
-- **Paquete**: `LGA_ToolPack/_LGA_ToolPack_Enabled.ini` - Valores por defecto
-
-## 🎨 Ejemplos Avanzados
-
-### Configuración por Entorno de Producción
-```ini
-[Tools]
-; Para producciones VFX complejas
-Build_Iteration = True
-Build_Roto_BlurMask = True
-Channels_Cycle = True
-Channel_HotBox = True
-
-; Deshabilitar herramientas básicas
-FR_Read_to_Project = False
-FR_Read_to_Project_Res = False
-```
-
-### Configuración Minimalista
-```ini
-[Tools]
-; Solo lo esencial
-Read_From_Write = True
-Write_Presets = True
-
-; Todo lo demás deshabilitado
-Media_Manager = False
-Color_Space_Favs = False
-; ... etc = False
-```
-
-## 🔄 Actualizaciones y Nuevas Herramientas
-
-Cuando se actualiza el LGA ToolPack:
-
-1. **Nuevas herramientas**: Se agregan automáticamente con `True` por defecto
-2. **Configuración existente**: Se mantiene sin cambios
-3. **Compatibilidad**: Nunca se pierden configuraciones personalizadas
-
-## 📞 Soporte
-
-Si tienes problemas con el sistema de configuración:
-
-1. Verifica la sintaxis del archivo .ini
-2. Asegúrate de que Nuke se reinició completamente
-3. Revisa la consola de Nuke por mensajes de warning
-4. Consulta esta documentación
-
----
-
-**Versión**: LGA ToolPack v2.43
-**Última actualización**: $(date)
-**Autor**: Sistema de configuración automática
+**`Enabled.default.ini`** — manifiesto de tools del pack.
