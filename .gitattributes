@@ -30,11 +30,46 @@
 *.dll binary
 *.dylib binary
 *.so  binary
+
+# Documentos, multimedia y binarios de build. Hoy git los detecta bien por los
+# bytes nulos, pero eso es una propiedad del CONTENIDO, no del repo: un archivo
+# sin ningun nulo en los primeros 8000 bytes se normalizaria en silencio y
+# quedaria corrupto. Se declaran para no depender de la heuristica.
+*.pdf   binary
+*.docx  binary
+*.xlsx  binary
+*.pptx  binary
+*.wav   binary
+*.mp3   binary
+*.aiff  binary
+*.au    binary
+*.mp4   binary
+*.mov   binary
+*.tif   binary
+*.tiff  binary
+*.bmp   binary
+*.exr   binary
+*.dpx   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.eot   binary
+*.pdb   binary
+*.pyd   binary
+*.pyc   binary
+*.lib   binary
+*.gz    binary
+*.tar   binary
+*.xz    binary
+*.car   binary
 # Los .nk y .gizmo son TEXTO plano (`set cut_paste_input ...`), no
 # binarios. Declararlos binary perdia el diff y el merge. Van con LF
 # explicito y sin conversion sorpresa.
 *.nk    text eol=lf
 *.gizmo text eol=lf
+
+# --- fin del bloque comun. Lo de abajo es propio de cada repo. ---
 
 # --- Terceros vendorizados: NO se normalizan ---
 #
