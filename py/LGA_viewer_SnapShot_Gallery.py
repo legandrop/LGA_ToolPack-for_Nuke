@@ -1,9 +1,13 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v0.54 - Lega
+  LGA_viewer_SnapShot_Gallery v0.55 - Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
+  v0.55 - El look sale de LGA_UI_Style_ToolPack: los tres grises de
+          texto y los cinco fondos distintos se colapsan a los roles
+          de la paleta, y la barra de scroll es la del pack. Los
+          mensajes de galeria vacia pasan al ingles.
   v0.53 - Shift click para revelar en explorador de archivos
         - Tooltips
   v0.54 - Thumb size persistente en config
@@ -19,6 +23,7 @@ import subprocess  # Importar subprocess para abrir archivos en macOS/Linux
 import platform  # Importar platform para detectar el SO
 import configparser
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui
+from LGA_UI_Style_ToolPack import SCROLLBAR, Color, Style
 from LGA_tooltip_helper import (
     TOOLTIP_BG,
     TOOLTIP_PADDING_PX,
@@ -477,16 +482,8 @@ class ThumbnailWidget(QLabel):
         self.update_size(size)
         self.setAlignment(Qt.AlignCenter)
         self.setStyleSheet(
-            """
-            QLabel {
-                border: 0px;
-                background-color: #2a2a2a;
-                margin: 2px;
-            }
-            QLabel:hover {
-                border: 0px;
-            }
-        """
+            "QLabel { border: 0px; background-color: %s; margin: 2px; }"
+            "QLabel:hover { border: 0px; }" % Color.SURFACE_RAISED
         )
         self.setup_tooltip()
 
@@ -654,7 +651,8 @@ class ThumbnailContainerWidget(QWidget):
         version_text = version if version else "---"
         self.version_label = QLabel(version_text)
         self.version_label.setStyleSheet(
-            "color: #cccccc; font-size: 12px; background-color: transparent; margin-left: 4px;"
+            "color: %s; font-size: 12px; background-color: transparent;"
+            " margin-left: 4px;" % Color.TEXT
         )
         self.version_label.setAlignment(Qt.AlignLeft)
         info_layout.addWidget(self.version_label)
@@ -736,13 +734,14 @@ class ProjectFolderWidget(QFrame):
         self.setStyleSheet(
             """
             QFrame {
-                border: 0px solid #444444;
+                border: 0px solid %s;
                 border-radius: 0px;
-                background-color: #262626;
+                background-color: %s;
                 margin: 0px;
                 padding: 0px;
             }
         """
+            % (Color.BORDER_STRONG, Color.SURFACE)
         )
 
         self.setup_ui()
@@ -774,7 +773,7 @@ class ProjectFolderWidget(QFrame):
 
         # Título del proyecto (clickeable)
         self.title_label = ClickableLabel(
-            f"<b style='color:#cccccc; font-size:13px;'>{display_project_name}</b>"
+            f"<b style='color:{Color.TEXT_STRONG}; font-size:13px;'>{display_project_name}</b>"
         )
         self.title_label.clicked.connect(self.toggle_expanded)
         header_layout.addWidget(self.title_label)
@@ -804,7 +803,7 @@ class ProjectFolderWidget(QFrame):
         # Si no hay imágenes, mostrar mensaje
         if not self.image_paths:
             no_images_label = QLabel(
-                "<i style='color:#888888;'>No hay snapshots en este proyecto</i>"
+                "<i style='color:%s;'>No snapshots in this project</i>" % Color.TEXT
             )
             thumbnails_layout.addWidget(no_images_label)
 
@@ -851,7 +850,7 @@ class ProjectFolderWidget(QFrame):
             "No se pudieron cargar los iconos de flecha, usando fallback de texto."
         )
         self.arrow_label.setText("▼" if self.is_expanded else "►")
-        self.arrow_label.setStyleSheet("color: #cccccc; font-size: 10px;")
+        self.arrow_label.setStyleSheet("color: %s; font-size: 10px;" % Color.TEXT)
         self.arrow_label.setFixedSize(12, 12)
 
     def update_arrow_icon(self):
@@ -868,7 +867,9 @@ class ProjectFolderWidget(QFrame):
         else:
             # Fallback a texto si no hay pixmap adecuado
             self.arrow_label.setText("▼" if self.is_expanded else "►")
-            self.arrow_label.setStyleSheet("color: #cccccc; font-size: 10px;")
+            self.arrow_label.setStyleSheet(
+                "color: %s; font-size: 10px;" % Color.TEXT
+            )
             self.arrow_label.setFixedSize(12, 12)
 
     def toggle_expanded(self, event=None):
@@ -910,7 +911,7 @@ class ProjectFolderWidget(QFrame):
         # Si no quedan thumbnails, mostrar mensaje
         if not self.thumbnails and self.thumbnails_widget:
             no_images_label = QLabel(
-                "<i style='color:#888888;'>No hay snapshots en este proyecto</i>"
+                "<i style='color:%s;'>No snapshots in this project</i>" % Color.TEXT
             )
             layout = self.thumbnails_widget.layout()
             if layout:
@@ -950,7 +951,7 @@ class ToolbarWidget(QWidget):
 
     def setup_ui(self):
         """Configura la interfaz del toolbar"""
-        self.setStyleSheet("background-color: #1d1d1d;")
+        self.setStyleSheet("background-color: %s;" % Color.SURFACE_SUNKEN)
 
         layout = QHBoxLayout(self)
         layout.setSpacing(10)
@@ -962,7 +963,8 @@ class ToolbarWidget(QWidget):
         # Label para el slider
         size_label = QLabel("Thumbnail Size")
         size_label.setStyleSheet(
-            "color: #cccccc; font-size: 12px; background-color: #1d1d1d;"
+            "color: %s; font-size: 12px; background-color: %s;"
+            % (Color.TEXT, Color.SURFACE_SUNKEN)
         )
         layout.addWidget(size_label, alignment=Qt.AlignVCenter)
 
@@ -982,12 +984,12 @@ class ToolbarWidget(QWidget):
             QSlider::groove:horizontal {{
                 border: 0px;
                 height: {SLIDER_BAR_HEIGHT}px;
-                background: #ADADAD;
+                background: {Color.TEXT};
                 border-radius: {SLIDER_BAR_HEIGHT // 2}px;
                 margin-top: 2px;
             }}
             QSlider::handle:horizontal {{
-                background: #ADADAD;
+                background: {Color.TEXT};
                 border: 0px;
                 width: {SLIDER_HANDLE_SIZE}px;
                 height: {SLIDER_HANDLE_SIZE}px;
@@ -995,7 +997,7 @@ class ToolbarWidget(QWidget):
                 border-radius: {handle_radius}px;
             }}
             QSlider::handle:horizontal:hover {{
-                background: #ffffff;
+                background: {Color.TEXT_STRONG};
             }}
         """
         )
@@ -1017,7 +1019,7 @@ class SnapshotGalleryWindow(QWidget):
 
         self.setWindowFlags(Qt.Window)
         self.setWindowTitle("LGA SnapShot Gallery")
-        self.setStyleSheet("background-color: #1d1d1d;")
+        self.setStyleSheet("background-color: %s;" % Color.WINDOW)
         self.setMinimumSize(1200, 900)
 
         # Establecer un nombre de objeto unico para esta ventana
@@ -1043,7 +1045,9 @@ class SnapshotGalleryWindow(QWidget):
 
         # Widget principal de la galería
         gallery_widget = QWidget()
-        gallery_widget.setStyleSheet("background-color: #262626; border-radius: 0px;")
+        gallery_widget.setStyleSheet(
+            "background-color: %s; border-radius: 0px;" % Color.SURFACE
+        )
         gallery_layout = QVBoxLayout(gallery_widget)
         gallery_layout.setContentsMargins(10, 10, 10, 10)
         gallery_layout.setSpacing(10)
@@ -1053,24 +1057,10 @@ class SnapshotGalleryWindow(QWidget):
         scroll_area.setWidgetResizable(True)
         scroll_area.setStyleSheet(
             """
-            QScrollArea {
-                border: none;
-                background-color: #232323;
-            }
-            QScrollBar:vertical {
-                background-color: #333333;
-                width: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #666666;
-                border-radius: 6px;
-                min-height: 20px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #888888;
-            }
+            QScrollArea { border: none; background-color: %s; }
         """
+            % Color.WINDOW
+            + SCROLLBAR
         )
 
         # Widget contenedor para el scroll
@@ -1100,10 +1090,10 @@ class SnapshotGalleryWindow(QWidget):
         if not gallery_path or not os.path.exists(gallery_path):
             # Mostrar mensaje si no existe la galería
             no_gallery_label = QLabel(
-                f"<div style='text-align: center; color: #888888; font-size: 14px;'>"
-                f"<b>No se encontró la carpeta de galería</b><br><br>"
-                f"Ruta esperada: {gallery_path if gallery_path else 'No definida'}<br><br>"
-                f"Toma algunos snapshots para crear la galería automáticamente."
+                f"<div style='text-align: center; color: {Color.TEXT}; font-size: 14px;'>"
+                f"<b>Gallery folder not found</b><br><br>"
+                f"Expected path: {gallery_path if gallery_path else 'not set'}<br><br>"
+                f"Take a few snapshots and it will be created automatically."
                 f"</div>"
             )
             no_gallery_label.setAlignment(Qt.AlignCenter)
@@ -1124,10 +1114,10 @@ class SnapshotGalleryWindow(QWidget):
         if not project_folders:
             # No hay proyectos
             no_projects_label = QLabel(
-                "<div style='text-align: center; color: #888888; font-size: 14px;'>"
-                "<b>No hay proyectos en la galería</b><br><br>"
-                "Toma algunos snapshots para empezar a llenar la galería."
-                "</div>"
+                "<div style='text-align: center; color: %s; font-size: 14px;'>"
+                "<b>No projects in the gallery</b><br><br>"
+                "Take a few snapshots to start filling it up."
+                "</div>" % Color.TEXT
             )
             no_projects_label.setAlignment(Qt.AlignCenter)
             self.scroll_layout.addWidget(no_projects_label)
@@ -1188,10 +1178,10 @@ class SnapshotGalleryWindow(QWidget):
         # Si no quedan proyectos, mostrar mensaje
         if not self.project_widgets:
             no_projects_label = QLabel(
-                "<div style='text-align: center; color: #888888; font-size: 14px;'>"
-                "<b>No hay proyectos en la galería</b><br><br>"
-                "Toma algunos snapshots para empezar a llenar la galería."
-                "</div>"
+                "<div style='text-align: center; color: %s; font-size: 14px;'>"
+                "<b>No projects in the gallery</b><br><br>"
+                "Take a few snapshots to start filling it up."
+                "</div>" % Color.TEXT
             )
             no_projects_label.setAlignment(Qt.AlignCenter)
             self.scroll_layout.addWidget(no_projects_label)
