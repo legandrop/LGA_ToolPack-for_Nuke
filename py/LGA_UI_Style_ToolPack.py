@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.04 | Lega
+  LGA_UI_Style_ToolPack v1.05 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.05: Color.ENTITY, para destacar el nombre de una task o de un
+         nodo sin colgarse del color de la paleta de paths.
   v1.04: Style.TOOLTIP, para que un pack sin el helper de tooltips
          del ToolPack igual los pinte como los demas.
   v1.03: Variantes de texto de los colores semanticos (OK_TEXT,
@@ -123,6 +125,12 @@ class Color(object):
     # los paths se separan, y esa es la senal que el usuario busca.
     PATH_COMMON = "#C56CF0"
     PATH_SEPARATOR = "#6A6A6E"
+
+    # Nombre propio de una entidad del pipeline destacado en un mensaje: una
+    # task, un preset, un nodo. Hoy vale lo mismo que PATH_COMMON y se ve
+    # igual, pero tiene token propio para que retocar la paleta de paths no le
+    # cambie el color a algo que no es un path.
+    ENTITY = "#C56CF0"
 
 
 # De la divergencia en adelante se recorre esta paleta en orden, IGUAL en los

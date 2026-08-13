@@ -2,6 +2,8 @@
 
 ## v2.63
 
+- El modulo de estilo suma `Color.ENTITY`, para destacar el nombre de una task o de un nodo en un mensaje. Antes esos nombres se pintaban con el color del prefijo comun de la paleta de paths, que se ve igual pero significa otra cosa: retocar la paleta de paths le habria cambiado el color a algo que no es un path. [ ToolPack - Agregar Color.ENTITY al modulo de estilo ]
+
 - El modulo de estilo suma `Style.TOOLTIP` con los mismos valores que `LGA_tooltip_helper`. No cambia nada en este pack, donde el helper existe: esta para que los otros dos packs, que lo importan en un `try` y se quedaban sin nada, puedan pintar sus tooltips sin depender de que el usuario tenga instalado este. [ ToolPack - Agregar Style.TOOLTIP al modulo de estilo ]
 
 - `Duplicate Publish` y `Color Space Favs` pasan al modulo de estilo unificado. En `Duplicate Publish` los botones eran todos iguales, asi que el cartel no decia cual ejecuta Enter: ahora en los avisos el ultimo va marcado en violeta. En el cartel de elegir rango no se marca ninguno, porque ahi Enter no elige y un boton marcado seria justo la suposicion que se saco en v1.01. En `Color Space Favs` la cruz de cerrar pasa de 20 a 26 px y se pinta al pasar por encima —era tan chica que errarle arrastraba la ventana en vez de cerrarla—, la tabla deja de pintarse mas oscura que la ventana que la contiene, y el alto se calcula midiendo cada parte en vez de con dos numeros fijos que dejaban la ultima fila cortada. [ ToolPack - Unificar el estilo de Duplicate Publish y Color Space Favs ]
