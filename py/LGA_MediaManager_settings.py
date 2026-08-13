@@ -1,12 +1,22 @@
 """
 _______________________________________
 
-  LGA_mediaManager v2.01 | Lega
+  LGA_MediaManager_settings v2.13 | Lega
+  Ventana de ajustes del Media Manager
+
+  v2.13: El look sale de LGA_UI_Style_ToolPack. Cada widget repetia
+         su propio bloque de QToolTip inline —el mismo, seis veces—
+         y la ventana iba mas clara que sus propios campos, con la
+         jerarquia al reves.
+  v2.12: El header decia LGA_mediaManager, el nombre de la
+         herramienta y no el de este modulo. Se sigue la numeracion
+         que traian los helpers del Media Manager.
 _______________________________________
 
 """
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
+from LGA_UI_Style_ToolPack import Metric, Style
 
 QApplication = QtWidgets.QApplication
 QTableWidget = QtWidgets.QTableWidget
@@ -97,7 +107,7 @@ class SettingsWindow(QWidget):
         # Reseteamos el layout cada vez que se llama a initUI
         self.layout = QVBoxLayout(self)  # Crear un nuevo layout
         self.setLayout(self.layout)
-        self.setStyleSheet("background-color: #2e2e2e;")
+        self.setStyleSheet(Style.FORM + Style.TOOLTIP)
         self.path_layouts = []  # Lista para almacenar los layouts de los paths
 
         # Configuracion de "Folder scan depth" con QSpinBox
@@ -105,35 +115,16 @@ class SettingsWindow(QWidget):
         folder_scan_hbox.setObjectName("Folder scan depth layout")
         label = QLabel("Folder scan depth:")
         label.setObjectName("Folder scan depth label")
-        label.setStyleSheet("font-weight: bold")  # Establecer el texto en negrita
+        label.setProperty("lgaTitle", True)
 
         self.folder_depth_spinbox = QSpinBox()
         self.folder_depth_spinbox.setRange(1, 10)
         folder_depth_value = int(self.settings_data.get("Folder scan depth", 3))
         self.folder_depth_spinbox.setValue(folder_depth_value)
-        self.folder_depth_spinbox.setFixedWidth(30)  # Limitar el ancho del QSpinBox
+        # 30 px eran los del spinbox sin caja; con el sizeHint real de Qt (77)
+        # el 10 no entraba y quedaba tapado por las flechitas.
+        self.folder_depth_spinbox.setFixedWidth(76)
         self.folder_depth_spinbox.setObjectName("Folder scan depth spinbox")
-        self.folder_depth_spinbox.setStyleSheet(
-            """
-            QSpinBox {
-                background-color: #282828;
-                color: #D3D3D3;
-                border: 0px solid black;
-                padding: 2px;
-                min-height: 17px;
-            }
-            QSpinBox::up-button, QSpinBox::down-button {
-                background-color: #282828;
-                border: 1px sold white;
-            }
-            QToolTip {
-                color: #D3D3D3;
-                background-color: #222222;
-                border: 1px solid #222222;
-                padding: 6px;
-            }
-        """
-        )
         self.folder_depth_spinbox.setToolTip(
             "Sets the number of folder levels to move up from the script's location to find the main shot folder"
         )
@@ -159,9 +150,7 @@ class SettingsWindow(QWidget):
         # Texto que dice "Copy to:"
         copy_to_label = QLabel("Copy to:")
         copy_to_label.setObjectName("Copy to label")
-        copy_to_label.setStyleSheet(
-            "font-weight: bold"
-        )  # Establecer el texto en negrita
+        copy_to_label.setProperty("lgaTitle", True)
 
         self.layout.addWidget(copy_to_label)
         self.layout.addSpacing(10)
@@ -197,23 +186,6 @@ class SettingsWindow(QWidget):
             button_name_line_edit.setFixedWidth(
                 283
             )  # Ancho fijo para la caja de entrada del nombre
-            button_name_line_edit.setStyleSheet(
-                """
-                QLineEdit {
-                    background-color: #282828;
-                    color: #D3D3D3;
-                    border: 0px solid black;
-                    padding: 2px;
-                    min-height: 17px;
-                }
-                QToolTip {
-                    color: #D3D3D3;
-                    background-color: #222222;
-                    border: 1px solid #222222;
-                    padding: 6px;
-                }
-            """
-            )
 
             button_name_hbox.addWidget(button_name_label)
             button_name_hbox.addWidget(button_name_line_edit)
@@ -230,37 +202,11 @@ class SettingsWindow(QWidget):
             path_line_edit.setToolTip(
                 "This is the path to the folder relative to the shot's base path"
             )
-            path_line_edit.setStyleSheet(
-                """
-                QLineEdit {
-                    background-color: #282828;
-                    color: #D3D3D3;
-                    border: 0px solid black;
-                    padding: 2px;
-                    min-height: 17px;
-                }
-                QToolTip {
-                    color: #D3D3D3;
-                    background-color: #222222;
-                    border: 1px solid #222222;
-                    padding: 6px;
-                }
-            """
-            )
             minus_button = QPushButton("-")
             minus_button.setObjectName(f"Path {i} minus button")
-            minus_button.setFixedWidth(30)
+            minus_button.setFixedWidth(Metric.CLOSE_BUTTON_SIZE)
             minus_button.setToolTip("Remove this path")
-            minus_button.setStyleSheet(
-                """
-                QToolTip {
-                    color: #D3D3D3;
-                    background-color: #222222;
-                    border: 1px solid #222222;
-                    padding: 6px;
-                }
-            """
-            )
+            minus_button.setStyleSheet(Style.BTN_ICON)
 
             minus_button.clicked.connect(self.create_remove_path_callback(i - 1))
 
@@ -281,16 +227,8 @@ class SettingsWindow(QWidget):
         self.add_path_button = QPushButton("+")
         self.add_path_button.setObjectName("Add path button")
         self.add_path_button.setToolTip("Add a new path")
-        self.add_path_button.setStyleSheet(
-            """
-            QToolTip {
-                color: #D3D3D3;
-                background-color: #222222;
-                border: 1px solid #222222;
-                padding: 6px;
-            }
-        """
-        )
+        self.add_path_button.setStyleSheet(Style.BTN_ICON)
+        self.add_path_button.setFixedWidth(Metric.CLOSE_BUTTON_SIZE)
         self.add_path_button.clicked.connect(self.add_path)
         add_path_hbox = QHBoxLayout()
         add_path_hbox.setObjectName("Add path hbox layout")
@@ -316,9 +254,11 @@ class SettingsWindow(QWidget):
         buttons_layout.setObjectName("Buttons layout")
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.setObjectName("Cancel button")
+        self.cancel_button.setStyleSheet(Style.BTN_SECONDARY)
         self.cancel_button.clicked.connect(self.close)
         self.save_button = QPushButton("Save Settings")
         self.save_button.setObjectName("Save button")
+        self.save_button.setStyleSheet(Style.BTN_PRIMARY)
         self.save_button.clicked.connect(self.save_settings)
 
         buttons_layout.addStretch()  # Agregar espacio flexible a la izquierda de los botones
@@ -378,23 +318,6 @@ class SettingsWindow(QWidget):
         button_name_line_edit.setFixedWidth(
             283
         )  # Ancho fijo para la caja de entrada del nombre
-        button_name_line_edit.setStyleSheet(
-            """
-            QLineEdit {
-                background-color: #282828;
-                color: #D3D3D3;
-                border: 0px solid black;
-                padding: 2px;
-                min-height: 17px;
-            }
-            QToolTip {
-                color: #D3D3D3;
-                background-color: #222222;
-                border: 1px solid #222222;
-                padding: 6px;
-            }
-        """
-        )
         button_name_hbox.addWidget(button_name_label)
         button_name_hbox.addWidget(button_name_line_edit)
         button_name_hbox.addStretch()  # Anadir un espacio para alinear el ancho con el boton de menos
@@ -407,36 +330,10 @@ class SettingsWindow(QWidget):
         path_line_edit.setToolTip(
             "This is the path to the folder relative to the shot's base path"
         )
-        path_line_edit.setStyleSheet(
-            """
-            QLineEdit {
-                background-color: #282828;
-                color: #D3D3D3;
-                border: 0px solid black;
-                padding: 2px;
-                min-height: 17px;
-            }
-            QToolTip {
-                color: #D3D3D3;
-                background-color: #222222;
-                border: 1px solid #222222;
-                padding: 6px;
-            }
-        """
-        )
         minus_button = QPushButton("-")
-        minus_button.setFixedWidth(30)
+        minus_button.setFixedWidth(Metric.CLOSE_BUTTON_SIZE)
         minus_button.setToolTip("Remove this path")
-        minus_button.setStyleSheet(
-            """
-            QToolTip {
-                color: #D3D3D3;
-                background-color: #222222;
-                border: 1px solid #222222;
-                padding: 6px;
-            }
-        """
-        )
+        minus_button.setStyleSheet(Style.BTN_ICON)
 
         minus_button.clicked.connect(self.create_remove_path_callback(index - 1))
 
