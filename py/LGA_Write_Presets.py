@@ -1,10 +1,15 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.75 | Lega
+  LGA_Write_Presets v2.76 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
+
+  v2.76: El look sale de LGA_UI_Style_ToolPack. La cruz de cerrar pasa de
+         20 a 26 px y se pinta al pasar por encima, la tabla deja de ser mas
+         oscura que su propia ventana, y el alto se calcula midiendo cada
+         parte en vez de con la barra de titulo clavada en 20 px.
 
   v2.75: Los presets con colorspace "default" ya no escriben el knob. Se deja el
          default dinamico de Nuke, que se resuelve segun el OCIO config del
@@ -59,6 +64,7 @@ _____________________________________________________________________________
 """
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore, QGuiApplication
+from LGA_UI_Style_ToolPack import Color, Metric, Style
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
@@ -140,10 +146,16 @@ except ImportError:
     )
 
 # Añadir al inicio del archivo
+# Color del prefijo que dice de donde sale cada preset.
+PREFIX_COLOR_SCRIPT = "#FF5C88"
+PREFIX_COLOR_READ = "#66E2FF"
+
+# Colores de identidad de cada formato de salida. No son estados ni parte de
+# la paleta de la app: cada uno identifica un formato de un vistazo.
 FORMAT_COLORS = {
     "EXR": "#FDFD91",  # Amarillo
     "MOV": "#A4A4FF",  # Azul
-    "MXF": "#ff8050",  # Azul
+    "MXF": "#ff8050",  # Naranja
     "TIFF": "#9AFD9A",  # Verde
     "PNG": "#FFA7D3",  # Rosa
 }
@@ -277,14 +289,10 @@ class NameInputDialog(QDialog):
 
         # Widget contenedor principal con esquinas redondeadas
         main_widget = QWidget(self)
+        main_widget.setAttribute(Qt.WA_StyledBackground, True)
         main_widget.setStyleSheet(
-            """
-            QWidget {
-                background-color: #222222;
-                border: none;
-                border-radius: 9px;  /* Esquinas redondeadas */
-            }
-        """
+            "QWidget { background-color: %s; border: none; border-radius: %dpx; }"
+            % (Color.WINDOW, Metric.RADIUS)
         )
 
         layout = QVBoxLayout(main_widget)
@@ -293,7 +301,7 @@ class NameInputDialog(QDialog):
         title = QLabel("Render Name")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet(
-            "color: #AAAAAA; font-family: Verdana; font-weight: bold; font-size: 10pt;"
+            "color: %s; font-weight: bold; font-size: 10pt;" % Color.TEXT_STRONG
         )
         layout.addWidget(title)
 
@@ -304,43 +312,24 @@ class NameInputDialog(QDialog):
         self.line_edit = QLineEdit(self)
         self.line_edit.setFixedHeight(24)
         self.line_edit.setFrame(False)
-        self.line_edit.setStyleSheet(
-            """
-            background-color: #3e3e3e;
-            color: #FFFFFF;
-            border-radius: 3px;
-        """
-        )
+        self.line_edit.setStyleSheet(Style.LINE_EDIT)
         self.line_edit.setText(initial_text)
         self.line_edit.setCursorPosition(len(initial_text))
         input_layout.addWidget(self.line_edit)
 
         # Agregar botón OK
         ok_button = QPushButton("OK", self)
-        ok_button.setFixedSize(50, 24)
-        ok_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #323232;
-                color: #B0B0B0;
-                border: none;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #282828;
-            }
-            QPushButton:pressed {
-                background-color: #505050;
-            }
-        """
-        )
+        # Sin alto fijo: BTN_PRIMARY reserva 7 px de padding arriba y abajo,
+        # y forzando 24 el texto quedaba a 1 px del borde.
+        ok_button.setMinimumWidth(50)
+        ok_button.setStyleSheet(Style.BTN_PRIMARY)
         ok_button.clicked.connect(self.accept)
         input_layout.addWidget(ok_button)
 
         layout.addLayout(input_layout)
 
         help_label = QLabel(
-            '<span style="font-size:7pt; color:#AAAAAA;">Enter to confirm</span>',
+            '<span style="font-size:7pt; color:%s;">Enter to confirm</span>' % Color.TEXT,
             self,
         )
         help_label.setAlignment(Qt.AlignCenter)
@@ -886,7 +875,7 @@ class ColoredItemDelegate(QStyledItemDelegate):
                     # Verificar si el item tiene el flag ItemIsEnabled
                     is_enabled = bool(item.flags() & Qt.ItemIsEnabled)
 
-            base_color = "#2f2f2f" if is_hovered else "#222222"
+            base_color = Color.SURFACE_HOVER if is_hovered else Color.SURFACE
             painter.fillRect(option.rect, QColor(base_color))
 
             padding_left = 5
@@ -898,13 +887,16 @@ class ColoredItemDelegate(QStyledItemDelegate):
 
             # Color base segun si esta habilitado o no
             if not is_enabled:
-                base_color = QColor("#666666")  # Gris para items deshabilitados
-                prefix_color_script = QColor("#666666")
-                prefix_color_read = QColor("#666666")
+                base_color = QColor(Color.TEXT_DIM)  # Gris para items deshabilitados
+                prefix_color_script = QColor(Color.TEXT_DIM)
+                prefix_color_read = QColor(Color.TEXT_DIM)
             else:
-                base_color = QColor("white")
-                prefix_color_script = QColor("#ed2464")
-                prefix_color_read = QColor("#66e2ff")
+                base_color = QColor(Color.TEXT_STRONG)
+                # Los dos prefijos identifican de donde sale el preset. No son
+                # estados, asi que van con dos colores propios que se separan
+                # entre si de un vistazo.
+                prefix_color_script = QColor(PREFIX_COLOR_SCRIPT)
+                prefix_color_read = QColor(PREFIX_COLOR_READ)
 
             # Dibujar prefijo
             if prefix == "[Script]":
@@ -940,7 +932,7 @@ class ColoredItemDelegate(QStyledItemDelegate):
 
                     # Dibujar formato con color (gris si esta deshabilitado)
                     fmt_rect = remaining_rect.adjusted(before_width, 0, 0, 0)
-                    fmt_color = QColor("#666666") if not is_enabled else QColor(color)
+                    fmt_color = QColor(Color.TEXT_DIM) if not is_enabled else QColor(color)
                     painter.setPen(fmt_color)
                     painter.drawText(fmt_rect, Qt.AlignLeft | Qt.AlignVCenter, fmt)
 
@@ -1113,12 +1105,8 @@ class SelectedNodeInfo(QWidget):
         main_container = QWidget(self)
         main_container.setObjectName("mainContainer")
         main_container.setStyleSheet(
-            """
-            QWidget#mainContainer {
-                background-color: #282828;
-                border-radius: 9px;
-            }
-        """
+            "QWidget#mainContainer { background-color: %s; border-radius: %dpx; }"
+            % (Color.WINDOW, Metric.RADIUS)
         )
 
         # Layout principal
@@ -1127,16 +1115,14 @@ class SelectedNodeInfo(QWidget):
 
         # Crear la barra de título
         self.title_bar = QWidget(self)
-        self.title_bar.setFixedHeight(20)
+        # El alto de la barra lo manda la cruz de cerrar: si la barra queda
+        # mas baja, el boton no entra y el area clickeable se recorta.
+        self.title_bar.setFixedHeight(Metric.CLOSE_BUTTON_SIZE)
         self.title_bar.setAutoFillBackground(True)
         self.title_bar.setStyleSheet(
-            """
-            QWidget {
-                background-color: #282828;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-            }
-        """
+            "QWidget { background-color: %s; border-top-left-radius: %dpx;"
+            " border-top-right-radius: %dpx; }"
+            % (Color.WINDOW, Metric.RADIUS, Metric.RADIUS)
         )
 
         title_bar_layout = QHBoxLayout(self.title_bar)
@@ -1145,17 +1131,18 @@ class SelectedNodeInfo(QWidget):
 
         self.title_label = QLabel(self.windowTitle(), self)
         self.title_label.setStyleSheet(
-            "color: #B0B0B0; border: none; font-weight: bold;"
+            "color: %s; border: none; font-weight: bold;" % Color.TEXT_STRONG
         )
         title_bar_layout.addWidget(self.title_label, alignment=Qt.AlignCenter)
 
         title_bar_layout.addStretch(1)
 
-        close_button = QPushButton("X", self)
-        close_button.setFixedSize(20, 20)
-        close_button.setStyleSheet(
-            "background-color: none; color: #B0B0B0; border: none;"
-        )
+        # Era una X de 20 px sin caja: habia que apuntarle, y errarle
+        # arrastraba la ventana en vez de cerrarla.
+        close_button = QPushButton(u"✕", self)
+        close_button.setFixedSize(Metric.CLOSE_BUTTON_SIZE, Metric.CLOSE_BUTTON_SIZE)
+        close_button.setStyleSheet(Style.BTN_CLOSE)
+        close_button.setCursor(Qt.PointingHandCursor)
         close_button.clicked.connect(self.close)
         title_bar_layout.addWidget(close_button)
         title_bar_layout.setSpacing(0)
@@ -1257,35 +1244,47 @@ class SelectedNodeInfo(QWidget):
             self.table.setItem(row, 0, item)
 
         self.table.resizeColumnsToContents()
+        # La tabla va un escalon POR ENCIMA de la ventana. Antes iba en
+        # #222222 sobre una ventana #282828, o sea mas oscura que su propio
+        # contenedor, y se leia hundida.
         self.table.setStyleSheet(
             """
             QTableView {
-                background-color: #222222;
+                background-color: %(surface)s;
                 border: none;
-                border-bottom-left-radius: 4px;
-                border-bottom-right-radius: 4px;
-                gridline-color: #1c1c1c;
+                border-bottom-left-radius: %(radius)dpx;
+                border-bottom-right-radius: %(radius)dpx;
+                gridline-color: %(border)s;
             }
             QTableView::item {
-                padding-left: 0px;    /* Aumentado el padding izquierdo */
-                padding-right: 0px;   /* Aumentado el padding derecho */
-                padding-top: 5px;      /* Mantener padding vertical */
+                padding-left: 0px;
+                padding-right: 0px;
+                padding-top: 5px;
                 padding-bottom: 5px;
-                color: #f0f0f0;
+                color: %(text)s;
             }
             QTableView::item:selected {
-                background-color: #212121;
-                color: #f0f0f0;
+                background-color: %(selected)s;
+                color: %(text_strong)s;
             }
             QTableView::item:!selected:hover {
-                background-color: #2f2f2f;
-                color: #ffffff;
+                background-color: %(hover)s;
+                color: %(text_strong)s;
             }
             QTableView::item:selected:hover {
-                background-color: #252525;
-                color: #ffffff;
+                background-color: %(hover)s;
+                color: %(text_strong)s;
             }
         """
+            % {
+                "surface": Color.SURFACE,
+                "border": Color.BORDER,
+                "hover": Color.SURFACE_HOVER,
+                "selected": Color.SURFACE_SELECTED,
+                "text": Color.TEXT,
+                "text_strong": Color.TEXT_STRONG,
+                "radius": Metric.RADIUS_SMALL,
+            }
         )
 
     def adjust_window_size(self):
@@ -1318,21 +1317,27 @@ class SelectedNodeInfo(QWidget):
         max_width = screen_rect.width() * 0.8
         final_width = min(width, max_width)
 
-        # Calcular la altura basada en la altura de los headers y las filas
-        height = (
-            self.table.horizontalHeader().height() + 20
-        )  # Altura del encabezado + espacio adicional
+        # Alto: se suma lo que MIDE cada cosa, no numeros fijos. La barra de
+        # titulo estaba clavada en 20 px, asi que al agrandar la cruz de cerrar
+        # la ventana quedaba corta y cortaba la ultima fila.
+        # Hay dos layouts anidados: el de la ventana (sin margenes) y el del
+        # contenedor redondeado, que si los tiene. Sumar solo uno dejaba la
+        # ultima fila cortada.
+        height = 0
+        for layout in (self.layout(), self.table.parentWidget().layout()):
+            if layout is None:
+                continue
+            margins = layout.contentsMargins()
+            height += margins.top() + margins.bottom()
+            # spacing() es el hueco ENTRE items: con un solo item no hay
+            # ninguno, y sumarlo dejaba una franja muerta al pie.
+            height += layout.spacing() * max(0, layout.count() - 1)
+
+        height += self.title_bar.height()
+        height += 2 * self.table.frameWidth()
+        height += self.table.horizontalHeader().height()
         for i in range(self.table.rowCount()):
             height += self.table.rowHeight(i)
-
-        # Agregar un relleno total de 10 píxeles
-        height += 0
-
-        # Incluir la altura de la barra de título personalizada
-        title_bar_height = 20
-        height += title_bar_height
-
-        # Nota: Ya no hay botón extra que sumar a la altura
 
         # Asegurarse de que la altura no supera el 80% del alto de pantalla
         max_height = screen_rect.height() * 0.8
