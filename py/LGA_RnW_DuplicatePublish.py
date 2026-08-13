@@ -1,12 +1,15 @@
 """
 ____________________________________________________________________
 
-  LGA_RnW_DuplicatePublish v1.01 | Lega
+  LGA_RnW_DuplicatePublish v1.02 | Lega
 
   Duplica en disco la secuencia de un Read renombrandola con el
   numero de version del script actual. Sirve para re-renderizar solo
   un rango corto sin tener que volver a procesar la secuencia entera.
 
+  v1.02: El look sale de LGA_UI_Style_ToolPack. Los botones dejan de
+         ser todos iguales: el que ejecuta Enter va marcado en violeta
+         y el resto grises, como en el resto del pack.
   v1.01: Cuando el rango del Read no coincide con los frames en disco
          se ofrecen tres opciones (Cancel, Copy read range, Copy disk
          range) en vez de asumir siempre el rango del disco.
@@ -22,6 +25,7 @@ import time
 import nuke
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore
+from LGA_UI_Style_ToolPack import Color, Metric, Style
 
 QApplication = QtWidgets.QApplication
 QDialog = QtWidgets.QDialog
@@ -50,55 +54,15 @@ def debug_print(*message):
 # ---------------------------------------------------------------------------
 #                                  Estilos
 # ---------------------------------------------------------------------------
-# Paleta compartida con el resto de las apps (LGA_Base_QT_C_Py)
-COLOR_WINDOW_BG = "#212121"
-COLOR_BLOCK_BG = "#292929"
-COLOR_TITLE = "#E8E8E8"
-COLOR_VALUE = "#AEAEAE"
-COLOR_VIOLET = "#443a91"
-COLOR_VIOLET_TRACK = "#393959"
-COLOR_WARNING = "#ffd369"
-COLOR_ERROR = "#ff6b6b"
-COLOR_OK = "#6bc9ff"
+# Todo el look sale de LGA_UI_Style_ToolPack. Los alias conservan los nombres
+# con los que el resto del archivo ya llamaba a cada color.
+COLOR_TITLE = Color.TEXT_STRONG
+COLOR_VALUE = Color.TEXT
+COLOR_WARNING = Color.WARNING_TEXT
+COLOR_ERROR = Color.ERROR_TEXT
+COLOR_OK = Color.INFO
 
-BUTTON_STYLE = """
-    QPushButton {
-        background-color: #2a2a2a;
-        color: #cccccc;
-        border: none;
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: bold;
-        padding: 8px 20px;
-        min-width: 80px;
-    }
-    QPushButton:hover {
-        background-color: #443a91;
-    }
-    QPushButton:pressed {
-        background-color: #2d265e;
-    }
-"""
-
-PROGRESS_STYLE = """
-    QProgressBar {
-        background-color: %s;
-        border: none;
-        border-radius: 5px;
-        text-align: center;
-        color: #cccccc;
-        font-size: 11px;
-        min-height: 18px;
-        max-height: 18px;
-    }
-    QProgressBar::chunk {
-        background-color: %s;
-        border-radius: 5px;
-    }
-""" % (
-    COLOR_VIOLET_TRACK,
-    COLOR_VIOLET,
-)
+PROGRESS_STYLE = Style.PROGRESS
 
 
 # Coloreado de paths reutilizado de la ventana Write Path Review para mantener
@@ -298,21 +262,18 @@ class BaseDialog(QDialog):
         super(BaseDialog, self).__init__(parent)
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setWindowTitle(title)
-        self.setStyleSheet(
-            "background-color: %s; border-radius: 10px;" % COLOR_WINDOW_BG
-        )
+        self.setStyleSheet(Style.WINDOW)
         self.setModal(True)
 
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(18, 18, 18, 18)
+        self.main_layout.setContentsMargins(*([Metric.DIALOG_MARGIN] * 4))
         self.main_layout.setSpacing(14)
 
     def add_block(self, title, value_html):
         """Agrega un bloque con titulo y valor sobre fondo propio."""
         content_widget = QWidget()
-        content_widget.setStyleSheet(
-            "QWidget { background-color: %s; border-radius: 6px; }" % COLOR_BLOCK_BG
-        )
+        content_widget.setAttribute(Qt.WA_StyledBackground, True)
+        content_widget.setStyleSheet(Style.PANEL)
 
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(12, 10, 12, 10)
@@ -363,9 +324,14 @@ class MessageDialog(BaseDialog):
         buttons_layout = QHBoxLayout()
         buttons_layout.addStretch()
 
-        for label, role in buttons or [("OK", "accept")]:
+        button_specs = buttons or [("OK", "accept")]
+        for index, (label, role) in enumerate(button_specs):
             button = QPushButton(label)
-            button.setStyleSheet(BUTTON_STYLE)
+            # El ultimo es el que ejecuta Enter, y es el unico marcado.
+            is_default = index == len(button_specs) - 1
+            button.setStyleSheet(
+                Style.BTN_PRIMARY if is_default else Style.BTN_SECONDARY
+            )
             if role == "accept":
                 button.clicked.connect(self.accept)
             else:
@@ -418,13 +384,16 @@ class ChoiceDialog(BaseDialog):
         buttons_layout.addStretch()
 
         cancel_button = QPushButton(cancel_label)
-        cancel_button.setStyleSheet(BUTTON_STYLE)
+        cancel_button.setStyleSheet(Style.BTN_SECONDARY)
         cancel_button.clicked.connect(self.reject)
         buttons_layout.addWidget(cancel_button)
 
         for index, option in enumerate(self.options):
             button = QPushButton(option[0])
-            button.setStyleSheet(BUTTON_STYLE)
+            # Aca NO se marca ninguna: este dialogo traga Enter a proposito
+            # porque hay mas de una opcion valida y ninguna es la recomendada.
+            # Un boton marcado seria justo la suposicion que se saco en v1.01.
+            button.setStyleSheet(Style.BTN_SECONDARY)
             code = index + CHOICE_RESULT_OFFSET
             button.clicked.connect(
                 lambda _checked=False, result=code: self.done(result)
@@ -474,7 +443,7 @@ class ProgressDialog(BaseDialog):
             buttons_layout = QHBoxLayout()
             buttons_layout.addStretch()
             self.cancel_button = QPushButton("Cancel")
-            self.cancel_button.setStyleSheet(BUTTON_STYLE)
+            self.cancel_button.setStyleSheet(Style.BTN_SECONDARY)
             self.cancel_button.clicked.connect(self.request_cancel)
             buttons_layout.addWidget(self.cancel_button)
             self.main_layout.addLayout(buttons_layout)

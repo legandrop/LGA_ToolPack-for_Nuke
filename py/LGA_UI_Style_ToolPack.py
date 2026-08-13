@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.02 | Lega
+  LGA_UI_Style_ToolPack v1.03 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,9 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.03: Variantes de texto de los colores semanticos (OK_TEXT,
+         WARNING_TEXT, ERROR_TEXT) y el celeste informativo, y PROGRESS
+         para las barras de progreso.
   v1.02: Style.FORM, la hoja completa de una ventana de ajustes, y
          SCROLLBAR como bloque suelto que comparten TABLE y FORM.
   v1.01: BTN_ICON para los botones cuadrados con un glifo, los colores
@@ -81,6 +84,7 @@ class Color(object):
     ACCENT = "#443A91"
     ACCENT_HOVER = "#774DCB"
     ACCENT_DISABLED = "#2A2540"
+    ACCENT_TRACK = "#393959"  # riel de una barra de progreso
 
     # --- estados semanticos ------------------------------------------------
     # Verde: la operacion se puede hacer. Amarillo: se puede pero mirala.
@@ -88,6 +92,21 @@ class Color(object):
     OK = "#6A9960"
     WARNING = "#B09040"
     ERROR = "#A06060"
+
+    # Los mismos tres estados, pero para TEXTO adentro de un mensaje. Van mas
+    # claros a proposito: los de arriba estan calibrados para una barra o un
+    # fondo, donde un color saturado grita; una palabra suelta de 12 px sobre
+    # el fondo de la ventana con esos valores casi no se lee.
+    # OK_TEXT cierra la terna aunque hoy no lo use nadie: si faltara, el
+    # primero que necesite un "listo" en verde volveria a inventar un hex.
+    OK_TEXT = "#8FCB7E"
+    WARNING_TEXT = "#FFD369"
+    ERROR_TEXT = "#FF6B6B"
+
+    # Informativo: ni bien ni mal, "esto es lo que va a pasar". Es el celeste
+    # de la paleta de paths, asi que un destino resaltado en un mensaje se lee
+    # con el mismo idioma que el path que lo acompana.
+    INFO = "#6BC9FF"
 
     # Las dos etapas de un search & replace encadenado. No son estados: son
     # dos operaciones distintas que hay que poder separar de un vistazo sobre
@@ -382,6 +401,30 @@ QComboBox QAbstractItemView {
     }
 
     CHECKBOX = "color: %s; padding: 2px; background: transparent;" % Color.TEXT
+
+    # Barra de progreso. El riel va en un violeta apagado y el relleno en el
+    # violeta de la app: es la misma senal que el boton de accion, asi que se
+    # lee como "esto es lo que pediste, avanzando".
+    PROGRESS = """
+QProgressBar {
+    background-color: %(track)s;
+    border: none;
+    border-radius: %(radius)dpx;
+    text-align: center;
+    color: %(text)s;
+    font-size: 11px;
+    min-height: 18px;
+    max-height: 18px;
+}
+QProgressBar::chunk { background-color: %(accent)s; border-radius: %(radius)dpx; }
+""" % {
+        "track": Color.ACCENT_TRACK,
+        "accent": Color.ACCENT,
+        # El porcentaje se lee SOBRE el relleno violeta: con el gris del
+        # cuerpo el contraste queda abajo de AA y el numero no se lee.
+        "text": Color.TEXT_STRONG,
+        "radius": Metric.RADIUS,
+    }
 
     # --- ventana de formulario ---------------------------------------------
     # Hoja completa para una ventana de ajustes: en vez de llamar a

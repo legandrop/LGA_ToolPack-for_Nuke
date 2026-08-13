@@ -1,9 +1,14 @@
 """
 ________________________________________________________________________
 
-  LGA_RnW_ColorSpace_Favs v1.47 | Lega
+  LGA_RnW_ColorSpace_Favs v1.48 | Lega
   Tool for applying OCIO color spaces to selected Read and Write nodes
   
+  v1.48: El look sale de LGA_UI_Style_ToolPack. La cruz de cerrar pasa
+         de 20 a 26 px y se pinta al pasar por encima; la tabla deja de
+         ser mas oscura que su propia ventana; y el alto de la ventana
+         se calcula con el alto real de la barra de titulo, que estaba
+         clavado en 20 y cortaba la ultima fila.
   v1.47: Ajustes UI.
   v1.46: Agregado botón "Save Current" para guardar el colorspace activo como favorito.
 ________________________________________________________________________
@@ -11,6 +16,7 @@ ________________________________________________________________________
 """
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui
+from LGA_UI_Style_ToolPack import Color, Metric, Style
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
@@ -328,13 +334,8 @@ class SelectedNodeInfo(QWidget):
 
         self.setObjectName("colorFavWindow")
         self.setStyleSheet(
-            """
-            QWidget#colorFavWindow {
-                background-color: #282828;
-                border: none;
-                border-radius: 9px;
-            }
-        """
+            "QWidget#colorFavWindow { background-color: %s; border: none;"
+            " border-radius: %dpx; }" % (Color.WINDOW, Metric.RADIUS)
         )
 
         self.drag_position = None
@@ -342,25 +343,35 @@ class SelectedNodeInfo(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 6, 10, 8)
 
+        # El alto de la barra lo manda la cruz de cerrar: si la barra queda
+        # mas baja, el boton no entra y el area clickeable se recorta.
         self.title_bar = QWidget(self)
-        self.title_bar.setFixedHeight(20)
+        self.title_bar.setFixedHeight(Metric.CLOSE_BUTTON_SIZE)
         self.title_bar.setAutoFillBackground(True)
-        self.title_bar.setStyleSheet("background-color: #282828; border: none;")
+        self.title_bar.setStyleSheet(
+            "background-color: %s; border: none;" % Color.WINDOW
+        )
         title_bar_layout = QHBoxLayout(self.title_bar)
         title_bar_layout.setContentsMargins(0, 0, 0, 0)
         title_bar_layout.addStretch(1)
 
         self.title_label = QLabel(self.windowTitle(), self)
         self.title_label.setAlignment(Qt.AlignCenter)
-        self.title_label.setStyleSheet("color: #B0B0B0; font-weight: bold;")
+        self.title_label.setStyleSheet(
+            "color: %s; font-weight: bold;" % Color.TEXT_STRONG
+        )
         title_bar_layout.addWidget(self.title_label, alignment=Qt.AlignCenter)
         title_bar_layout.addStretch(1)
 
-        close_button = QPushButton("X", self)
-        close_button.setFixedSize(20, 20)
-        close_button.setStyleSheet(
-            "background-color: none; color: #B0B0B0; border: none;"
+        # Era una X de 20 px sin caja: habia que apuntarle, y errarle
+        # arrastraba la ventana en vez de cerrarla. Ahora mide lo mismo que en
+        # el resto del pack y se pinta en rojo al pasar por encima.
+        close_button = QPushButton(u"✕", self)
+        close_button.setFixedSize(
+            Metric.CLOSE_BUTTON_SIZE, Metric.CLOSE_BUTTON_SIZE
         )
+        close_button.setStyleSheet(Style.BTN_CLOSE)
+        close_button.setCursor(Qt.PointingHandCursor)
         close_button.clicked.connect(self.close)
         title_bar_layout.addWidget(close_button)
 
@@ -380,36 +391,48 @@ class SelectedNodeInfo(QWidget):
 
         # Configurar la paleta de la tabla para cambiar el color de seleccion a gris claro
         palette = self.table.palette()
-        palette.setColor(QPalette.Highlight, QColor(230, 230, 230))  # Gris claro
-        palette.setColor(QPalette.HighlightedText, QColor(Qt.black))
+        palette.setColor(QPalette.Highlight, QColor(Color.SURFACE_SELECTED))
+        palette.setColor(QPalette.HighlightedText, QColor(Color.TEXT_STRONG))
         self.table.setPalette(palette)
 
         # Configurar el estilo de la tabla
+        # La tabla va un escalon POR ENCIMA de la ventana. Antes iba en
+        # #222222 sobre una ventana #282828, o sea mas oscura que su propio
+        # contenedor, y se leia hundida.
         self.table.setStyleSheet(
             """
             QTableView {
-                background-color: #222222;
+                background-color: %(surface)s;
                 border: none;
-                border-bottom-left-radius: 4px;
-                border-bottom-right-radius: 4px;
-                gridline-color: #1c1c1c;
+                border-bottom-left-radius: %(radius)dpx;
+                border-bottom-right-radius: %(radius)dpx;
+                gridline-color: %(border)s;
             }
             QTableView::item {
                 padding-left: 0px;
                 padding-right: 0px;
                 padding-top: 5px;
                 padding-bottom: 5px;
-                color: #cccccc;
+                color: %(text)s;
             }
             QTableView::item:hover {
-                background-color: #2f2f2f;
-                color: #ffffff;
+                background-color: %(hover)s;
+                color: %(text_strong)s;
             }
             QTableView::item:selected {
-                background-color: #212121;
-                color: #f0f0f0;
+                background-color: %(selected)s;
+                color: %(text_strong)s;
             }
         """
+            % {
+                "surface": Color.SURFACE,
+                "border": Color.BORDER,
+                "hover": Color.SURFACE_HOVER,
+                "selected": Color.SURFACE_SELECTED,
+                "text": Color.TEXT,
+                "text_strong": Color.TEXT_STRONG,
+                "radius": Metric.RADIUS_SMALL,
+            }
         )
 
         # Configurar el comportamiento de seleccion para seleccionar filas enteras
@@ -424,27 +447,7 @@ class SelectedNodeInfo(QWidget):
         layout.addWidget(self.table)
 
         self.save_button = QPushButton("Save Current")
-        self.save_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #443a91;
-                color: #cccccc;
-                border: none;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: bold;
-                padding: 8px 0px;
-                margin-top: 4px;
-                margin-bottom: 0px;
-            }
-            QPushButton:hover {
-                background-color: #372e7a;
-            }
-            QPushButton:pressed {
-                background-color: #2d265e;
-            }
-        """
-        )
+        self.save_button.setStyleSheet(Style.BTN_PRIMARY)
         self.save_button.setCursor(Qt.PointingHandCursor)
         self.save_button.clicked.connect(self.save_current_colorspace)
         layout.addWidget(self.save_button)
@@ -491,17 +494,32 @@ class SelectedNodeInfo(QWidget):
         max_width = screen_rect.width() * 0.8
         final_width = min(width, max_width)
 
-        # Calcular la altura basada en la altura de los headers y las filas
-        height = self.table.horizontalHeader().height() + 10
+        # La ventana tambien tiene que dar para el titulo y la cruz de cerrar:
+        # con una lista de nombres cortos la tabla mandaba un ancho en el que
+        # el titulo no entraba y quedaba recortado.
+        title_width = (
+            self.title_label.sizeHint().width()
+            + 2 * Metric.CLOSE_BUTTON_SIZE
+            + 4 * Metric.SPACING
+        )
+        final_width = max(final_width, title_width)
+
+        # Alto: se suma lo que MIDE cada cosa, no numeros fijos. La version
+        # anterior sumaba un +10 y un +40 magicos que no contemplaban ni las
+        # separaciones del layout ni el alto real del boton, asi que la ultima
+        # fila quedaba cortada y aparecia un scrollbar en una ventana que
+        # justamente se dimensiona sola para no tenerlo.
+        layout = self.layout()
+        margins = layout.contentsMargins()
+
+        height = margins.top() + margins.bottom()
+        height += 2 * layout.spacing()  # barra de titulo | tabla | boton
+        height += self.title_bar.height()
+        height += self.save_button.sizeHint().height()
+        height += 2 * self.table.frameWidth()
+        height += self.table.horizontalHeader().height()
         for i in range(self.table.rowCount()):
             height += self.table.rowHeight(i)
-
-        # Agregar un relleno justo para el botón inferior y espaciado extra
-        height += 40
-
-        # Incluir la altura de la barra de titulo personalizada
-        title_bar_height = 20
-        height += title_bar_height
 
         # Asegurarse de que la altura no supera el 80% del alto de pantalla
         max_height = screen_rect.height() * 0.8
