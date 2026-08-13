@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_ToolPack_EnabledPanel v1.02 | Lega
+  LGA_ToolPack_EnabledPanel v1.03 | Lega
 
   Panel para activar y desactivar las herramientas del pack.
 
@@ -9,6 +9,8 @@ ____________________________________________________________________
   la eleccion del usuario fuera del pack, para que sobreviva a los
   updates.
 
+  v1.03: El look sale de LGA_UI_Style_ToolPack: grupos con marco y
+         titulo, botones del pack y el path de la config coloreado.
   v1.02: Se corrige el tooltip de Reset, que decia lo contrario de
          lo que hace, y aclara que despues hay que guardar.
   v1.01: Tooltips por LGA_tooltip_helper y aviso claro si el
@@ -20,6 +22,7 @@ ____________________________________________________________________
 import sys
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore
+from LGA_UI_Style_ToolPack import Color, Metric, Style, colorize_path
 
 import LGA_ToolPack_Enabled as enabled_config
 
@@ -61,6 +64,7 @@ class EnabledPanel(QtWidgets.QWidget):
         super().__init__()
         self.setWindowTitle("LGA ToolPack - Enable Tools")
         self.setToolTip(TOOLTIPS["window"])
+        self.setStyleSheet(Style.FORM)
         self._checkboxes = {}
         self._defaults = enabled_config.read_defaults()
         self._build_ui()
@@ -69,6 +73,8 @@ class EnabledPanel(QtWidgets.QWidget):
 
     def _build_ui(self):
         root = QtWidgets.QVBoxLayout(self)
+        root.setContentsMargins(*([Metric.WINDOW_MARGIN] * 4))
+        root.setSpacing(Metric.SPACING)
         apply_tooltip_stylesheet(self)
 
         groups = enabled_config.read_default_groups()
@@ -83,7 +89,7 @@ class EnabledPanel(QtWidgets.QWidget):
             "Untick a tool to hide it from the menu and skip loading it.\n"
             "Changes take effect after restarting Nuke."
         )
-        header.setStyleSheet("color: #999;")
+        header.setStyleSheet("color: %s;" % Color.TEXT_DIM)
         root.addWidget(header)
 
         scroll = QtWidgets.QScrollArea()
@@ -129,8 +135,9 @@ class EnabledPanel(QtWidgets.QWidget):
         root.addWidget(scroll)
 
         path = enabled_config.get_user_path()
-        path_label = QtWidgets.QLabel(path or "")
-        path_label.setStyleSheet("color: #777; font-size: 10px;")
+        path_label = QtWidgets.QLabel(colorize_path(path) if path else "")
+        path_label.setTextFormat(Qt.RichText)
+        path_label.setStyleSheet("font-size: 10px;")
         path_label.setToolTip(TOOLTIPS["path"])
         path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         root.addWidget(path_label)
@@ -149,6 +156,7 @@ class EnabledPanel(QtWidgets.QWidget):
         root.addWidget(message)
 
         close = QtWidgets.QPushButton("Close")
+        close.setStyleSheet(Style.BTN_SECONDARY)
         close.clicked.connect(self.close)
         buttons = QtWidgets.QHBoxLayout()
         buttons.addStretch()
@@ -157,25 +165,31 @@ class EnabledPanel(QtWidgets.QWidget):
 
     def _build_buttons(self):
         buttons = QtWidgets.QHBoxLayout()
+        buttons.setSpacing(8)
 
         all_on = QtWidgets.QPushButton("All On")
+        all_on.setStyleSheet(Style.BTN_SMALL)
         all_on.setToolTip(TOOLTIPS["all_on"])
         all_on.clicked.connect(lambda: self._set_all(True))
 
         all_off = QtWidgets.QPushButton("All Off")
+        all_off.setStyleSheet(Style.BTN_SMALL)
         all_off.setToolTip(TOOLTIPS["all_off"])
         all_off.clicked.connect(lambda: self._set_all(False))
 
         reset = QtWidgets.QPushButton("Reset")
+        reset.setStyleSheet(Style.BTN_SMALL)
         reset.setToolTip(TOOLTIPS["reset"])
         reset.clicked.connect(self._reset)
 
         save = QtWidgets.QPushButton("Save")
+        save.setStyleSheet(Style.BTN_PRIMARY)
         save.setToolTip(TOOLTIPS["save"])
         save.setDefault(True)
         save.clicked.connect(self._save)
 
         cancel = QtWidgets.QPushButton("Cancel")
+        cancel.setStyleSheet(Style.BTN_SECONDARY)
         cancel.setToolTip(TOOLTIPS["cancel"])
         cancel.clicked.connect(self.close)
 

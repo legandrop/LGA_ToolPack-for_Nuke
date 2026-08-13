@@ -1,8 +1,12 @@
 """
 _____________________________________________________________________________________________________
 
-  LGA_ToolPack_settings v0.46 | Lega
+  LGA_ToolPack_settings v0.47 | Lega
   Configuracion de la herramienta LGA_ToolPack
+
+  v0.47: El look sale de LGA_UI_Style_ToolPack. Era la unica ventana
+         del pack sin ninguna hoja de estilo, asi que heredaba el tema
+         de Nuke y no se parecia a las demas.
 _____________________________________________________________________________________________________
 """
 
@@ -13,6 +17,7 @@ import typing  # Importar typing
 from typing import Optional, Tuple
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui, QGuiApplication
+from LGA_UI_Style_ToolPack import Metric, Style
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
@@ -182,6 +187,10 @@ class SettingsWindow(QWidget):
         super().__init__()
         self.setWindowTitle("LGA ToolPack Settings")
         self.setMinimumWidth(500)  # Más ancho para la ventana
+        # Una sola hoja para toda la ventana: antes no habia ninguna y los
+        # controles heredaban el tema de Nuke, asi que esta era la unica
+        # ventana del pack que no se veia como las demas.
+        self.setStyleSheet(Style.FORM)
         self.initUI()
         # Centrar la ventana en la pantalla (horizontal y vertical) DESPUES de show()
         self.show()
@@ -195,11 +204,13 @@ class SettingsWindow(QWidget):
 
     def initUI(self):
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(*([Metric.WINDOW_MARGIN] * 4))
+        main_layout.setSpacing(Metric.SPACING)
 
         # --- Write Focus Section ---
         write_focus_layout = QVBoxLayout()
         write_focus_title = QLabel("Write Focus")
-        write_focus_title.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        write_focus_title.setProperty("lgaTitle", True)
         write_focus_layout.addWidget(write_focus_title)
         write_focus_form_layout = QFormLayout()
         self.write_focus_input = QLineEdit()
@@ -223,6 +234,7 @@ class SettingsWindow(QWidget):
         )
         write_focus_layout.addLayout(write_focus_form_layout)
         self.save_write_focus_button = QPushButton("Save")
+        self.save_write_focus_button.setStyleSheet(Style.BTN_PRIMARY)
         self.save_write_focus_button.clicked.connect(self.save_write_focus_settings)
         write_focus_layout.addWidget(self.save_write_focus_button, 0, Qt.AlignRight)
         main_layout.addLayout(write_focus_layout)
@@ -232,7 +244,6 @@ class SettingsWindow(QWidget):
         # Divisor
         line1 = QFrame()
         line1.setFrameShape(QFrame.HLine)
-        line1.setFrameShadow(QFrame.Sunken)
         main_layout.addWidget(line1)
         # Espaciado después del divisor
         main_layout.addSpacing(LINE_SPACING)
@@ -240,7 +251,7 @@ class SettingsWindow(QWidget):
         # --- Render Complete Mail Settings Section ---
         render_mail_layout = QVBoxLayout()
         render_mail_title = QLabel("Render Complete")
-        render_mail_title.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        render_mail_title.setProperty("lgaTitle", True)
         render_mail_layout.addWidget(render_mail_title)
         render_mail_form_layout = QFormLayout()
         self.render_mail_from_input = QLineEdit()
@@ -284,6 +295,7 @@ class SettingsWindow(QWidget):
             debug_print(f"Error al cargar ruta wav: {e}")
             self.wav_path_input.setText("")
         self.wav_browse_btn = QPushButton("Browse")
+        self.wav_browse_btn.setStyleSheet(Style.BTN_SECONDARY)
         self.wav_browse_btn.clicked.connect(self.browse_wav_file)
         sound_layout.addWidget(self.wav_path_input)
         sound_layout.addWidget(self.wav_browse_btn)
@@ -299,6 +311,7 @@ class SettingsWindow(QWidget):
         render_mail_form_layout.addRow("To (Recipient):", self.render_mail_to_input)
         render_mail_layout.addLayout(render_mail_form_layout)
         self.save_render_mail_button = QPushButton("Save")
+        self.save_render_mail_button.setStyleSheet(Style.BTN_PRIMARY)
         self.save_render_mail_button.clicked.connect(self.save_render_mail_settings)
         render_mail_layout.addWidget(self.save_render_mail_button, 0, Qt.AlignRight)
         main_layout.addLayout(render_mail_layout)
@@ -306,14 +319,13 @@ class SettingsWindow(QWidget):
         main_layout.addSpacing(LINE_SPACING)
         line2 = QFrame()
         line2.setFrameShape(QFrame.HLine)
-        line2.setFrameShadow(QFrame.Sunken)
         main_layout.addWidget(line2)
         main_layout.addSpacing(LINE_SPACING)
 
         # --- Show in Flow Section ---
         show_flow_layout = QVBoxLayout()
         show_flow_title = QLabel("Show in Flow")
-        show_flow_title.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        show_flow_title.setProperty("lgaTitle", True)
         show_flow_layout.addWidget(show_flow_title)
         show_flow_form_layout = QFormLayout()
         self.username_input = QLineEdit()
@@ -341,6 +353,7 @@ class SettingsWindow(QWidget):
 
         # Boton Save para configuracion de Show/Flow
         self.save_show_flow_button = QPushButton("Save")
+        self.save_show_flow_button.setStyleSheet(Style.BTN_PRIMARY)
         self.save_show_flow_button.clicked.connect(self.save_show_flow_settings)
         show_flow_layout.addWidget(self.save_show_flow_button, 0, Qt.AlignRight)
 
@@ -349,14 +362,13 @@ class SettingsWindow(QWidget):
         main_layout.addSpacing(LINE_SPACING)
         line3 = QFrame()
         line3.setFrameShape(QFrame.HLine)
-        line3.setFrameShadow(QFrame.Sunken)
         main_layout.addWidget(line3)
         main_layout.addSpacing(LINE_SPACING)
 
         # --- Color Space Favs Section ---
         color_space_layout = QVBoxLayout()
         color_space_title = QLabel("Color Space Favorites")
-        color_space_title.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        color_space_title.setProperty("lgaTitle", True)
         color_space_layout.addWidget(color_space_title)
         color_space_layout.addWidget(
             QLabel("Enter favorite OCIO color spaces (one per line):")
@@ -382,6 +394,7 @@ class SettingsWindow(QWidget):
                 self, "Error", f"Could not load Color Space Favorites:\n{e}"
             )
         self.save_color_space_button = QPushButton("Save")
+        self.save_color_space_button.setStyleSheet(Style.BTN_PRIMARY)
         self.save_color_space_button.clicked.connect(self.save_color_space_settings)
         color_space_layout.addWidget(self.save_color_space_button, 0, Qt.AlignRight)
         main_layout.addLayout(color_space_layout)
@@ -389,16 +402,16 @@ class SettingsWindow(QWidget):
         main_layout.addSpacing(LINE_SPACING)
         line4 = QFrame()
         line4.setFrameShape(QFrame.HLine)
-        line4.setFrameShadow(QFrame.Sunken)
         main_layout.addWidget(line4)
         main_layout.addSpacing(LINE_SPACING)
 
         # --- Write Presets Section (Placeholder) ---
         write_presets_layout = QVBoxLayout()
         write_presets_title = QLabel("Write Presets")
-        write_presets_title.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        write_presets_title.setProperty("lgaTitle", True)
         write_presets_layout.addWidget(write_presets_title)
         self.open_write_presets_btn = QPushButton("Open Editor")
+        self.open_write_presets_btn.setStyleSheet(Style.BTN_SECONDARY)
         self.open_write_presets_btn.clicked.connect(
             self.show_write_presets_not_implemented
         )

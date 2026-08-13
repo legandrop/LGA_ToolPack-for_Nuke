@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.01 | Lega
+  LGA_UI_Style_ToolPack v1.02 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.02: Style.FORM, la hoja completa de una ventana de ajustes, y
+         SCROLLBAR como bloque suelto que comparten TABLE y FORM.
   v1.01: BTN_ICON para los botones cuadrados con un glifo, los colores
          de las dos etapas de un search & replace, y selection-color en
          los campos de texto.
@@ -153,6 +155,46 @@ class Metric(object):
 # ---------------------------------------------------------------------------
 #                                  Estilos
 # ---------------------------------------------------------------------------
+# Barra de scroll. Va suelta y no adentro de un estilo concreto porque la
+# comparten la tabla, los campos de texto multilinea y cualquier area
+# scrolleable: cuando estaba copiada en cada tool cada una le puso un ancho
+# distinto (8 o 12 px) y el salto se notaba al comparar dos ventanas.
+SCROLLBAR = """
+QScrollBar:vertical {
+    background: %(window)s;
+    width: %(sb)dpx;
+    margin: 0px;
+    border-radius: %(sb_radius)dpx;
+}
+QScrollBar::handle:vertical {
+    background: %(border)s;
+    min-height: 30px;
+    border-radius: %(sb_radius)dpx;
+}
+QScrollBar::handle:vertical:hover { background: %(border_hover)s; }
+QScrollBar:horizontal {
+    background: %(window)s;
+    height: %(sb)dpx;
+    margin: 0px;
+    border-radius: %(sb_radius)dpx;
+}
+QScrollBar::handle:horizontal {
+    background: %(border)s;
+    min-width: 30px;
+    border-radius: %(sb_radius)dpx;
+}
+QScrollBar::handle:horizontal:hover { background: %(border_hover)s; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0px; height: 0px; background: none; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+""" % {
+    "window": Color.WINDOW,
+    "border": Color.BORDER_STRONG,
+    "border_hover": Color.BORDER_HOVER,
+    "sb": Metric.SCROLLBAR_WIDTH,
+    "sb_radius": Metric.SCROLLBAR_WIDTH // 2,
+}
+
+
 class Style(object):
     """QSS listo para usar. Se arma con la paleta de arriba, nunca con hex."""
 
@@ -341,6 +383,90 @@ QComboBox QAbstractItemView {
 
     CHECKBOX = "color: %s; padding: 2px; background: transparent;" % Color.TEXT
 
+    # --- ventana de formulario ---------------------------------------------
+    # Hoja completa para una ventana de ajustes: en vez de llamar a
+    # setStyleSheet widget por widget —que es como estaban las de Settings y
+    # Enable Tools, o sea sin llamarlo nunca y heredando el tema de Nuke— se
+    # aplica esta al contenedor y toma todos sus hijos.
+    #
+    # NO define un QPushButton default a proposito: el de accion se marca a
+    # mano con BTN_PRIMARY y el resto con BTN_SECONDARY. Si el violeta viniera
+    # por default, una ventana con cinco Save tendria cinco botones gritando
+    # lo mismo.
+    #
+    # La excepcion son los QMessageBox: como son hijos de la ventana, el
+    # QWidget { background-color } de abajo tambien los alcanza, y quedaban
+    # con el fondo del pack y los botones del tema del host. Se les da el
+    # boton secundario para que el cartel cierre coherente.
+    FORM = """
+QWidget { background-color: %(window)s; color: %(text)s; }
+QLabel { background: transparent; color: %(text)s; }
+QLabel[lgaTitle="true"] {
+    color: %(text_strong)s;
+    font-weight: bold;
+    font-size: 11pt;
+}
+QFrame[frameShape="4"], QFrame[frameShape="5"] {
+    background-color: %(border)s;
+    border: none;
+    max-height: 1px;
+}
+QCheckBox { color: %(text)s; background: transparent; padding: 2px; }
+QMessageBox QPushButton {
+    background-color: %(raised)s;
+    border: 1px solid %(border_strong)s;
+    color: %(text)s;
+    padding: 5px 16px;
+    border-radius: %(radius)dpx;
+    min-width: 64px;
+}
+QMessageBox QPushButton:hover { background-color: %(hover)s; color: %(text_strong)s; }
+QGroupBox {
+    border: 1px solid %(border)s;
+    border-radius: %(radius)dpx;
+    margin-top: 10px;
+    padding: 8px 4px 4px 4px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 8px;
+    padding: 0px 4px;
+    color: %(text_strong)s;
+    font-weight: bold;
+}
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background-color: %(surface)s;
+    color: %(text)s;
+    border: 1px solid %(border_strong)s;
+    border-radius: %(radius)dpx;
+    padding: 4px 8px;
+    selection-background-color: %(accent)s;
+    selection-color: %(text_strong)s;
+}
+QLineEdit:hover, QTextEdit:hover, QPlainTextEdit:hover {
+    border-color: %(border_hover)s;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus {
+    border-color: %(accent_hover)s;
+}
+%(scrollbar)s
+""" % {
+        "scrollbar": SCROLLBAR,
+        "window": Color.WINDOW,
+        "surface": Color.SURFACE,
+        "raised": Color.SURFACE_RAISED,
+        "hover": Color.SURFACE_HOVER,
+        "border": Color.BORDER,
+        "border_strong": Color.BORDER_STRONG,
+        "border_hover": Color.BORDER_HOVER,
+        "accent": Color.ACCENT,
+        "accent_hover": Color.ACCENT_HOVER,
+        "text": Color.TEXT,
+        "text_strong": Color.TEXT_STRONG,
+        "radius": Metric.RADIUS_SMALL,
+    }
+
     # --- tabla -------------------------------------------------------------
     # La barra de scroll va incluida: cuando estaba suelta cada tool le ponia
     # un ancho distinto (8 / 12 px) y se notaba al comparar dos ventanas.
@@ -362,45 +488,16 @@ QHeaderView::section {
 }
 QTableWidget::item { padding-left: 6px; padding-right: 6px; }
 QTableWidget::item:selected { background-color: %(selected)s; color: %(text_strong)s; }
-QScrollBar:vertical {
-    background: %(window)s;
-    width: %(sb)dpx;
-    margin: 0px;
-    border-radius: %(sb_radius)dpx;
-}
-QScrollBar::handle:vertical {
-    background: %(border)s;
-    min-height: 30px;
-    border-radius: %(sb_radius)dpx;
-}
-QScrollBar::handle:vertical:hover { background: %(border_hover)s; }
-QScrollBar:horizontal {
-    background: %(window)s;
-    height: %(sb)dpx;
-    margin: 0px;
-    border-radius: %(sb_radius)dpx;
-}
-QScrollBar::handle:horizontal {
-    background: %(border)s;
-    min-width: 30px;
-    border-radius: %(sb_radius)dpx;
-}
-QScrollBar::handle:horizontal:hover { background: %(border_hover)s; }
-QScrollBar::add-line, QScrollBar::sub-line { width: 0px; height: 0px; background: none; }
-QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
-""" % {
-        "window": Color.WINDOW,
+%(scrollbar)s""" % {
         "surface": Color.SURFACE,
         "border_soft": Color.BORDER,
         "border": Color.BORDER_STRONG,
-        "border_hover": Color.BORDER_HOVER,
         "text": Color.TEXT,
         "text_strong": Color.TEXT_STRONG,
         "selected": Color.SURFACE_SELECTED,
         "header_bg": Color.SURFACE_HEADER,
         "header_fg": Color.TEXT_HEADER,
-        "sb": Metric.SCROLLBAR_WIDTH,
-        "sb_radius": Metric.SCROLLBAR_WIDTH // 2,
+        "scrollbar": SCROLLBAR,
     }
 
     # Bloque de detalle tecnico (traceback, salida de un proceso). Va mas
