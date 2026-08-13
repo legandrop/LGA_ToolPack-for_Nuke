@@ -1,9 +1,12 @@
 """
 _______________________________________________
 
-  LGA_mediaPathReplacer v2.04 | Lega
+  LGA_mediaPathReplacer v2.05 | Lega
   Search and replace for Read and Write nodes
 
+  v2.05 - El look sale de LGA_UI_Style_ToolPack. La ventana pasa al
+          fondo de la app: iba mas clara que su propia tabla, asi que
+          la tabla se veia hundida. Textos de UI al ingles.
   v2.04 - Seleccion de texto en path original
   v2.03 - Checkboxes persistentes
 
@@ -12,6 +15,7 @@ _______________________________________________
 """
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
+from LGA_UI_Style_ToolPack import Color, Metric, Style
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
@@ -43,10 +47,10 @@ app = QApplication.instance() or QApplication([])
 
 _PRESET_TRASH_W = 26
 _PRESET_PLACEHOLDER_NOMATCH = "----"
-_PRESET_PLACEHOLDER_EMPTY = "(sin presets)"
+_PRESET_PLACEHOLDER_EMPTY = "(no presets)"
 _STAGE_COLORS = {
-    1: "#6a9960",  # Search & Replace 1
-    2: "#c4787a",  # Search & Replace 2
+    1: Color.MATCH_A,  # Search & Replace 1
+    2: Color.MATCH_B,  # Search & Replace 2
 }
 _PRESET_FIELDS = (
     "sr1_search",
@@ -60,136 +64,20 @@ _OPTIONS_SR_COL_WIDTH = 455
 _OPTIONS_PRESET_COL_WIDTH = 310
 _WINDOW_WIDTH = 1360
 
-_TABLE_STYLE = """
-QTableWidget {
-    background-color: #272727;
-    border: 1px solid #333333;
-    color: #a7a7a7;
-    gridline-color: #4d4d4d;
-    outline: none;
-}
-QHeaderView::section {
-    background-color: #2B2B2B;
-    color: #999999;
-    padding: 4px 8px;
-    border: 0px;
-    border-bottom: 1px solid #444444;
-    font-weight: bold;
-}
-QTableWidget::item { padding-left: 6px; padding-right: 6px; }
-QTableWidget::item:selected { background-color: #353535; color: #cccccc; }
-QTableWidget QScrollBar:vertical {
-    background-color: #252525;
-    width: 8px;
-    margin: 0px;
-    border-radius: 4px;
-}
-QTableWidget QScrollBar::handle:vertical {
-    background-color: #2E2E2E;
-    min-height: 30px;
-    border-radius: 4px;
-}
-QTableWidget QScrollBar::handle:vertical:hover {
-    background-color: #3D3D3D;
-}
-QTableWidget QScrollBar::add-line:vertical,
-QTableWidget QScrollBar::sub-line:vertical {
-    height: 0px;
-    background: none;
-}
-QTableWidget QScrollBar::add-page:vertical,
-QTableWidget QScrollBar::sub-page:vertical {
-    background: transparent;
-}
-QTableWidget QScrollBar:horizontal {
-    background-color: #252525;
-    height: 8px;
-    margin: 0px;
-    border-radius: 4px;
-}
-QTableWidget QScrollBar::handle:horizontal {
-    background-color: #2E2E2E;
-    min-width: 30px;
-    border-radius: 4px;
-}
-QTableWidget QScrollBar::handle:horizontal:hover {
-    background-color: #3D3D3D;
-}
-QTableWidget QScrollBar::add-line:horizontal,
-QTableWidget QScrollBar::sub-line:horizontal {
-    width: 0px;
-    background: none;
-}
-QTableWidget QScrollBar::add-page:horizontal,
-QTableWidget QScrollBar::sub-page:horizontal {
-    background: transparent;
-}
-"""
-
-_BTN_PRIMARY = """
-QPushButton {
-    background-color: #443a91;
-    border: none;
-    color: #B2B2B2;
-    padding: 7px 18px;
-    border-radius: 5px;
-    font-weight: bold;
-}
-QPushButton:hover { background-color: #774dcb; color: #ffffff; }
-QPushButton:disabled { background-color: #2a2540; color: #666666; border: none; }
-"""
-
-_BTN_SMALL = """
-QPushButton {
-    background-color: #2e2e2e;
-    border: 1px solid #444444;
-    color: #999999;
-    padding: 3px 10px;
-    border-radius: 3px;
-    font-size: 11px;
-}
-QPushButton:hover { background-color: #383838; color: #cccccc; }
-QPushButton:disabled { background-color: #272727; color: #555555; }
-"""
-
-_BTN_SMALL_TIGHT = """
-QPushButton {
-    background-color: #2e2e2e;
-    border: 1px solid #4b4b4b;
-    color: #a7a7a7;
-    padding: 3px 6px;
-    border-radius: 3px;
-    font-size: 11px;
-}
-QPushButton:hover { background-color: #383838; color: #cccccc; }
-QPushButton:disabled { background-color: #272727; color: #555555; }
-"""
-
-_COMBO_STYLE = """
-QComboBox {
-    background-color: #272727;
-    color: #a7a7a7;
-    border: 1px solid #444444;
-    border-radius: 3px;
-    padding: 4px 8px;
-}
-QComboBox:hover { border-color: #555555; }
-QComboBox:disabled { color: #666666; border-color: #3a3a3a; }
-QComboBox::drop-down { border: none; width: 22px; }
-QComboBox::down-arrow { image: none; width: 0; height: 0; }
-QComboBox QAbstractItemView {
-    background-color: #272727;
-    color: #a7a7a7;
-    border: 1px solid #333333;
-    selection-background-color: #353535;
-    selection-color: #cccccc;
-}
-"""
+# Todo el look sale de LGA_UI_Style_ToolPack. Los alias conservan los nombres
+# con los que el resto del archivo ya llamaba a cada estilo.
+_TABLE_STYLE = Style.TABLE
+_BTN_PRIMARY = Style.BTN_PRIMARY
+_BTN_SMALL = Style.BTN_SMALL
+_BTN_SMALL_TIGHT = Style.BTN_ICON
+_COMBO_STYLE = Style.COMBO
 
 
 def _section_label(text):
     lbl = QLabel(text)
-    lbl.setStyleSheet("color: #CCCCCC; font-weight: bold; padding-top: 4px;")
+    lbl.setStyleSheet(
+        "color: %s; font-weight: bold; padding-top: 4px;" % Color.TEXT_STRONG
+    )
     return lbl
 
 
@@ -197,7 +85,7 @@ def _separator(orientation="h"):
     sep = QFrame()
     sep.setFrameShape(QFrame.HLine if orientation == "h" else QFrame.VLine)
     sep.setFrameShadow(QFrame.Plain)
-    sep.setStyleSheet("color: #5a5a5a; margin: 0px;")
+    sep.setStyleSheet("color: %s; margin: 0px;" % Color.BORDER_HOVER)
     return sep
 
 
@@ -227,7 +115,7 @@ def _colorize_with_map(text, color_by_index):
                         % (cur_color, _html_escape(raw))
                     )
                 else:
-                    chunks.append("<span style='color:#a7a7a7;'>%s</span>" % _html_escape(raw))
+                    chunks.append("<span style='color:%s;'>%s</span>" % (Color.TEXT, _html_escape(raw)))
             cur_chars = [ch]
             cur_color = c
         else:
@@ -241,12 +129,12 @@ def _colorize_with_map(text, color_by_index):
                 % (cur_color, _html_escape(raw))
             )
         else:
-            chunks.append("<span style='color:#a7a7a7;'>%s</span>" % _html_escape(raw))
+            chunks.append("<span style='color:%s;'>%s</span>" % (Color.TEXT, _html_escape(raw)))
 
     return "".join(chunks)
 
 
-def _cell_html_label(html, bg="#272727"):
+def _cell_html_label(html, bg=Color.SURFACE):
     lbl = QLabel()
     lbl.setTextFormat(Qt.RichText)
     lbl.setText(html)
@@ -255,7 +143,7 @@ def _cell_html_label(html, bg="#272727"):
     return lbl
 
 
-def _path_preview_cell(original_html, renamed_html, bg="#272727"):
+def _path_preview_cell(original_html, renamed_html, bg=Color.SURFACE):
     w = QWidget()
     w.setStyleSheet("background:%s;" % bg)
 
@@ -265,14 +153,14 @@ def _path_preview_cell(original_html, renamed_html, bg="#272727"):
     layout.setVerticalSpacing(0)
 
     original_lbl = QLabel(
-        "<span style='color:#a7a7a7; font-weight:600;'>Original:</span>"
+        "<span style='color:%s; font-weight:600;'>Original:</span>" % Color.TEXT
     )
     original_lbl.setTextFormat(Qt.RichText)
     original_lbl.setStyleSheet("background:%s;" % bg)
     original_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
     renamed_lbl = QLabel(
-        "<span style='color:#a7a7a7; font-weight:600;'>Renamed:</span>"
+        "<span style='color:%s; font-weight:600;'>Renamed:</span>" % Color.TEXT
     )
     renamed_lbl.setTextFormat(Qt.RichText)
     renamed_lbl.setStyleSheet("background:%s;" % bg)
@@ -281,8 +169,8 @@ def _path_preview_cell(original_html, renamed_html, bg="#272727"):
     original_path_lbl = QLabel(original_html)
     original_path_lbl.setTextFormat(Qt.RichText)
     original_path_lbl.setStyleSheet(
-        "background:%s; selection-background-color:#505050; selection-color:#d0d0d0;"
-        % bg
+        "background:%s; selection-background-color:%s; selection-color:%s;"
+        % (bg, Color.ACCENT, Color.TEXT_STRONG)
     )
     original_path_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
     original_path_lbl.setCursor(Qt.IBeamCursor)
@@ -311,67 +199,53 @@ def _path_preview_cell(original_html, renamed_html, bg="#272727"):
 
 def _show_save_preset_dialog(parent=None):
     """Diálogo estilo Import Shots para nombrar preset."""
-    _BTN_SECONDARY = (
-        "QPushButton { background-color:#3a3a3a; border:1px solid #555555;"
-        " color:#CCCCCC; padding:7px 18px; border-radius:3px; }"
-        "QPushButton:hover { background-color:#4a4a4a; }"
-    )
-    _BTN_PRIMARY_DIS = (
-        "QPushButton { background-color:#443a91; border:1px solid #5a4faa;"
-        " color:#CCCCCC; padding:7px 18px; border-radius:3px; font-weight:bold; }"
-        "QPushButton:hover { background-color:#774dcb; }"
-        "QPushButton:disabled { background-color:#2a2a4a; color:#666; border-color:#444; }"
-    )
-    _LINE_STYLE = (
-        "QLineEdit { background-color:#272727; border:1px solid #555555;"
-        " color:#cccccc; padding:5px 8px; border-radius:3px; }"
-        "QLineEdit:focus { border:1px solid #666666; }"
-    )
-
     dlg = QtWidgets.QDialog(parent)
-    dlg.setWindowTitle("Guardar preset")
-    dlg.setMinimumWidth(380)
+    dlg.setWindowTitle("Save Preset")
+    dlg.setMinimumWidth(Metric.DIALOG_MIN_WIDTH)
     dlg.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
     dlg.setStyleSheet(
-        "QDialog { background-color:#2B2B2B; border:1px solid #555555; }"
-        "QLabel  { color:#a7a7a7; }"
+        "QDialog { background-color:%s; border:1px solid %s; }"
+        "QLabel  { color:%s; background: transparent; }"
+        % (Color.WINDOW, Color.BORDER_STRONG, Color.TEXT)
     )
     dlg.setAttribute(Qt.WA_DeleteOnClose, True)
 
     layout = QVBoxLayout(dlg)
-    layout.setContentsMargins(24, 20, 24, 20)
-    layout.setSpacing(10)
+    layout.setContentsMargins(*([Metric.DIALOG_MARGIN] * 4))
+    layout.setSpacing(Metric.SPACING)
 
     header_row = QHBoxLayout()
-    title_lbl = QLabel("Guardar preset de paths")
-    title_lbl.setStyleSheet("color:#d9a441; font-size:13px; font-weight:bold;")
+    title_lbl = QLabel("Save path preset")
+    title_lbl.setStyleSheet(
+        "color:%s; font-size:13px; font-weight:bold;" % Color.TEXT_STRONG
+    )
     header_row.addWidget(title_lbl)
     header_row.addStretch()
     layout.addLayout(header_row)
 
     sep = QFrame()
     sep.setFrameShape(QFrame.HLine)
-    sep.setStyleSheet("background:#444444;")
+    sep.setStyleSheet("background:%s;" % Color.BORDER_STRONG)
     sep.setFixedHeight(1)
     layout.addWidget(sep)
 
-    name_prompt = QLabel("Nombre del preset:")
-    name_prompt.setStyleSheet("color:#a7a7a7; font-size:11px;")
+    name_prompt = QLabel("Preset name:")
+    name_prompt.setStyleSheet("color:%s; font-size:11px;" % Color.TEXT)
     layout.addWidget(name_prompt)
 
     line = QLineEdit()
-    line.setPlaceholderText("Ej: Cambio rutas comp")
-    line.setStyleSheet(_LINE_STYLE)
+    line.setPlaceholderText("e.g. Comp path swap")
+    line.setStyleSheet(Style.LINE_EDIT)
     layout.addWidget(line)
 
     layout.addSpacing(8)
 
     btn_row = QHBoxLayout()
     btn_row.addStretch()
-    btn_cancel = QPushButton("Cancelar")
-    btn_save = QPushButton("Guardar")
-    btn_cancel.setStyleSheet(_BTN_SECONDARY)
-    btn_save.setStyleSheet(_BTN_PRIMARY_DIS)
+    btn_cancel = QPushButton("Cancel")
+    btn_save = QPushButton("Save")
+    btn_cancel.setStyleSheet(Style.BTN_SECONDARY)
+    btn_save.setStyleSheet(Style.BTN_PRIMARY)
     btn_save.setEnabled(False)
     btn_row.addWidget(btn_cancel)
     btn_row.addSpacing(8)
@@ -493,9 +367,9 @@ class _PresetDelegate(QStyledItemDelegate):
         painter.save()
 
         bg = (
-            QtGui.QColor("#353535")
+            QtGui.QColor(Color.SURFACE_SELECTED)
             if (option.state & QStyle.State_Selected)
-            else QtGui.QColor("#2B2B2B")
+            else QtGui.QColor(Color.SURFACE_HEADER)
         )
         painter.fillRect(option.rect, bg)
 
@@ -505,7 +379,7 @@ class _PresetDelegate(QStyledItemDelegate):
             6, 0, -(_PRESET_TRASH_W + 4) if deletable else -4, 0
         )
 
-        painter.setPen(QtGui.QColor("#a7a7a7"))
+        painter.setPen(QtGui.QColor(Color.TEXT))
         painter.drawText(
             text_rect,
             Qt.AlignVCenter | Qt.AlignLeft,
@@ -561,9 +435,12 @@ class SearchAndReplaceWidget(QWidget):
 
     def initUI(self):
         self.setWindowTitle("Search and Replace in Paths")
+        # La ventana va al fondo de la app. Antes iba en #2B2B2B, que es mas
+        # CLARO que el #272727 de la tabla: la tabla quedaba hundida respecto
+        # de su ventana y la jerarquia se leia al reves.
         self.setStyleSheet(
-            "QWidget { background-color: #2B2B2B; color: #a7a7a7; }"
-            "QCheckBox { color: #a7a7a7; }"
+            "QWidget { background-color: %s; color: %s; }"
+            "QCheckBox { color: %s; }" % (Color.WINDOW, Color.TEXT, Color.TEXT)
         )
 
         self.layout = QVBoxLayout(self)
@@ -599,17 +476,14 @@ class SearchAndReplaceWidget(QWidget):
         self.layout.addWidget(self.preview_table, 1)
 
         self.summary_label = QLabel("")
-        self.summary_label.setStyleSheet("color:#888888; padding:2px 6px;")
+        self.summary_label.setStyleSheet(
+            "color:%s; padding:2px 6px;" % Color.TEXT_DIM
+        )
         self.layout.addWidget(self.summary_label)
 
         self.layout.addWidget(_separator())
 
-        line_style = (
-            "QLineEdit { background-color:#272727; border:1px solid #444;"
-            " color:#a7a7a7; padding:4px 8px; border-radius:3px;"
-            " selection-background-color:#505060; selection-color:#d0d0d0; }"
-            "QLineEdit:focus { border:1px solid #555555; }"
-        )
+        line_style = Style.LINE_EDIT
 
         # Bloque de opciones
         opts_row = QHBoxLayout()
@@ -628,9 +502,9 @@ class SearchAndReplaceWidget(QWidget):
         self.sr1_replace_input.setStyleSheet(line_style)
         self.sr1_case_checkbox = QCheckBox("Case Sensitive")
         self.sr1_case_checkbox.setFocusPolicy(Qt.NoFocus)
-        self.sr1_case_checkbox.setStyleSheet("color:#a7a7a7; padding:2px;")
+        self.sr1_case_checkbox.setStyleSheet(Style.CHECKBOX)
         sr1_swap = QPushButton("⇄")
-        sr1_swap.setStyleSheet(_BTN_SMALL)
+        sr1_swap.setStyleSheet(Style.BTN_ICON)
         sr1_swap.setFixedWidth(28)
         sr1_swap.setFocusPolicy(Qt.NoFocus)
         sr1_swap.clicked.connect(
@@ -662,9 +536,9 @@ class SearchAndReplaceWidget(QWidget):
         self.sr2_replace_input.setStyleSheet(line_style)
         self.sr2_case_checkbox = QCheckBox("Case Sensitive")
         self.sr2_case_checkbox.setFocusPolicy(Qt.NoFocus)
-        self.sr2_case_checkbox.setStyleSheet("color:#a7a7a7; padding:2px;")
+        self.sr2_case_checkbox.setStyleSheet(Style.CHECKBOX)
         sr2_swap = QPushButton("⇄")
-        sr2_swap.setStyleSheet(_BTN_SMALL)
+        sr2_swap.setStyleSheet(Style.BTN_ICON)
         sr2_swap.setFixedWidth(28)
         sr2_swap.setFocusPolicy(Qt.NoFocus)
         sr2_swap.clicked.connect(
@@ -690,7 +564,7 @@ class SearchAndReplaceWidget(QWidget):
         preset_row = QHBoxLayout()
         preset_row.setSpacing(10)
         preset_lbl = QLabel("Preset:")
-        preset_lbl.setStyleSheet("color:#a7a7a7;")
+        preset_lbl.setStyleSheet("color:%s;" % Color.TEXT)
         preset_row.addWidget(preset_lbl)
         self.preset_combo = QComboBox()
         self.preset_combo.setStyleSheet(_COMBO_STYLE)
@@ -1153,13 +1027,13 @@ class SearchAndReplaceWidget(QWidget):
 
     def _buildNodeCell(self, node_name, node_type):
         w = QWidget()
-        w.setStyleSheet("background-color:#272727;")
+        w.setStyleSheet("background-color:%s;" % Color.SURFACE)
         layout = QHBoxLayout(w)
         layout.setContentsMargins(6, 2, 6, 2)
         layout.setSpacing(6)
 
         icon_lbl = QLabel()
-        icon_lbl.setStyleSheet("background-color:#272727;")
+        icon_lbl.setStyleSheet("background-color:%s;" % Color.SURFACE)
         pix = self.pix_read if node_type == "Read" else self.pix_write
         if pix and not pix.isNull():
             icon_lbl.setPixmap(
@@ -1174,7 +1048,9 @@ class SearchAndReplaceWidget(QWidget):
         layout.addWidget(icon_lbl, 0)
 
         txt_lbl = QLabel(node_name)
-        txt_lbl.setStyleSheet("color:#a7a7a7; background-color:#272727;")
+        txt_lbl.setStyleSheet(
+            "color:%s; background-color:%s;" % (Color.TEXT, Color.SURFACE)
+        )
         txt_lbl.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         layout.addWidget(txt_lbl, 1)
         return w
@@ -1238,7 +1114,8 @@ class SearchAndReplaceWidget(QWidget):
                 row_idx,
                 1,
                 _cell_html_label(
-                    "<span style='color:#a7a7a7;'>%s</span>" % _html_escape(row_data["node_type"])
+                    "<span style='color:%s;'>%s</span>"
+                    % (Color.TEXT, _html_escape(row_data["node_type"]))
                 ),
             )
             self.preview_table.setCellWidget(

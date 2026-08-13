@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.00 | Lega
+  LGA_UI_Style_ToolPack v1.01 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,9 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.01: BTN_ICON para los botones cuadrados con un glifo, los colores
+         de las dos etapas de un search & replace, y selection-color en
+         los campos de texto.
   v1.00: Version inicial, con los valores que ya compartian de hecho
          LGA_RnW_PathsToRelative y LGA_mediaPathReplacer.
 ____________________________________________________________________
@@ -83,6 +86,13 @@ class Color(object):
     OK = "#6A9960"
     WARNING = "#B09040"
     ERROR = "#A06060"
+
+    # Las dos etapas de un search & replace encadenado. No son estados: son
+    # dos operaciones distintas que hay que poder separar de un vistazo sobre
+    # el mismo path, asi que van en dos tonos que no se confunden entre si ni
+    # con el verde de OK.
+    MATCH_A = OK
+    MATCH_B = "#C4787A"
 
     # --- paths -------------------------------------------------------------
     # La parte COMUN de un par origen/destino va en lavanda: es el mismo color
@@ -228,6 +238,31 @@ QPushButton:disabled { background-color: %(surface)s; color: %(text_dim)s; }
         "radius": Metric.RADIUS_SMALL,
     }
 
+    # Boton cuadrado con un glifo adentro (swap, papelera). Va aparte de
+    # BTN_SMALL porque ese reserva 12 px de padding horizontal por lado: en un
+    # boton de ancho fijo no queda lugar para el glifo y Qt lo elide a "...".
+    BTN_ICON = """
+QPushButton {
+    background-color: %(raised)s;
+    border: 1px solid %(border)s;
+    color: %(text)s;
+    padding: 3px 2px;
+    border-radius: %(radius)dpx;
+    font-size: 11px;
+}
+QPushButton:hover { background-color: %(hover)s; color: %(text_strong)s; }
+QPushButton:disabled { background-color: %(surface)s; color: %(text_dim)s; }
+""" % {
+        "raised": Color.SURFACE_RAISED,
+        "surface": Color.SURFACE,
+        "hover": Color.SURFACE_HOVER,
+        "border": Color.BORDER_STRONG,
+        "text": Color.TEXT,
+        "text_strong": Color.TEXT_STRONG,
+        "text_dim": Color.TEXT_DIM,
+        "radius": Metric.RADIUS_SMALL,
+    }
+
     # La cruz de cerrar de las ventanas sin frame. Sin caja hasta el hover,
     # asi no compite con el boton de accion.
     BTN_CLOSE = """
@@ -256,6 +291,7 @@ QLineEdit {
     border-radius: %(radius)dpx;
     padding: 4px 8px;
     selection-background-color: %(accent)s;
+    selection-color: %(text_strong)s;
 }
 QLineEdit:hover { border-color: %(border_hover)s; }
 QLineEdit:focus { border-color: %(accent_hover)s; }
@@ -267,6 +303,7 @@ QLineEdit:disabled { color: %(text_dim)s; border-color: %(border)s; }
         "accent": Color.ACCENT,
         "accent_hover": Color.ACCENT_HOVER,
         "text": Color.TEXT,
+        "text_strong": Color.TEXT_STRONG,
         "text_dim": Color.TEXT_DIM,
         "radius": Metric.RADIUS_SMALL,
     }
