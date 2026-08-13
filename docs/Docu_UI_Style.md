@@ -76,6 +76,7 @@ otros dos y un pack terminaría usando el estilo de otro sin que nada avise.
 | Tabla | `Style.TABLE` |
 | Área scrolleable que no es tabla ni form | `SCROLLBAR` (concatenado a lo tuyo) |
 | Barra de progreso | `Style.PROGRESS` |
+| Pastilla de estado con texto encima | `Color.OK_BG` / `WARNING_BG` / `ERROR_BG` |
 | Un path en un mensaje | `colorize_path()` |
 | Un origen y un destino | `colorize_path_pair()` |
 | Destacar en blanco una palabra | `emphasis()` |
@@ -131,6 +132,13 @@ flotando en el medio de un hueco.
 
 **El `&` de un título de `QGroupBox` se lo come Qt** como marca de mnemónico.
 `ALIGN & DISTRIBUTE` sale `ALIGN  DISTRIBUTE`. Se duplica: `title.replace("&", "&&")`.
+
+**Una tabla cuyo fondo lo pinta un delegado propio no lleva `Style.TABLE`.**
+La regla `QTableWidget::item:selected` de la hoja le gana al `setBackground()`
+del item y a la paleta que setea el delegado, así que al seleccionar una fila se
+pierde su color — y si ese color es la información, se pierde la información.
+`CopyCat Cleaner` lo resuelve anulando la regla; `Update Folder Favs` directamente
+no aplica la hoja.
 
 **`Style.FORM` incluye `QWidget { background-color }`, que alcanza a los
 `QMessageBox` hijos.** Por eso trae también una regla para sus botones: sin ella

@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.06 | Lega
+  LGA_UI_Style_ToolPack v1.07 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.07: OK_BG, WARNING_BG y ERROR_BG, para el fondo de una pastilla
+         de estado con texto encima.
   v1.06: Style.FORM pinta tambien los QSpinBox. Las flechitas NO se
          tocan: estilarlas sin redefinir ::up-arrow deja el boton
          gris y sin el triangulo, o sea sin senal de que se clickea.
@@ -109,6 +111,13 @@ class Color(object):
     OK_TEXT = "#8FCB7E"
     WARNING_TEXT = "#FFD369"
     ERROR_TEXT = "#FF6B6B"
+
+    # Los mismos tres estados otra vez, pero para el FONDO de una pastilla con
+    # texto encima. Van oscurecidos: un verde de fondo a la intensidad de OK se
+    # come cualquier texto que le pongas arriba.
+    OK_BG = "#244C19"
+    WARNING_BG = "#6B4A0F"
+    ERROR_BG = "#5A1A1A"
 
     # Informativo: ni bien ni mal, "esto es lo que va a pasar". Es el celeste
     # de la paleta de paths, asi que un destino resaltado en un mensaje se lee
