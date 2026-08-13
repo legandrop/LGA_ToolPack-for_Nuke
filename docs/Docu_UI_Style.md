@@ -1,0 +1,176 @@
+# Estilo de las ventanas — cómo se hace una UI de las tools
+
+Fuente de verdad de **cómo se ve** una ventana de las tools de LGA. El módulo es
+`py/LGA_UI_Style_ToolPack.py` y existe una copia idéntica en cada uno de los
+otros tres repos.
+
+## La regla
+
+**Ningún script define un color, una medida ni un bloque de QSS propio.** Todo
+sale del módulo:
+
+```python
+from LGA_UI_Style_ToolPack import SCROLLBAR, Color, Metric, Style, colorize_path
+
+dialog.setStyleSheet(Style.WINDOW)
+convert_button.setStyleSheet(Style.BTN_PRIMARY)
+cancel_button.setStyleSheet(Style.BTN_SECONDARY)
+label.setText("Saving to:<br>%s" % colorize_path(destination))
+```
+
+El motivo no es cosmético. Antes cada tool copiaba su propio bloque de estilos y
+los valores se fueron separando: el mismo gris de texto aparecía como `#a7a7a7`,
+`#aeaeae`, `#aaaaaa` y `#cccccc`, y el mismo fondo como `#272727`, `#282828`,
+`#212121` y `#1f1f1f`. Vistas una detrás de otra, las ventanas no se leían como
+la misma app. Y cada copia arrastraba sus propios bugs: la barra de estado de
+`Paths to Relative` nunca se vio en ninguna versión, y el alto de `Write Presets`
+y de `Color Space Favs` estaba calculado con la barra de título clavada en 20 px.
+
+## Las cuatro copias
+
+| Repo | Módulo |
+|---|---|
+| `LGA_ToolPack` | `py/LGA_UI_Style_ToolPack.py` |
+| `LGA_ToolPack-B` | `py/LGA_UI_Style_ToolPackB.py` |
+| `LGA_ToolPack-Layout` | `py/LGA_UI_Style_ToolPack_Layout.py` |
+| HieroTools | `LGA_NKS_Shared/LGA_UI_Style_HieroTools.py` |
+
+**Son código idéntico a propósito.** Los cuatro repos son independientes y un
+usuario puede tener instalado uno solo, así que no pueden importarse entre sí.
+Lo único que difiere es el docstring: nombre del módulo, su propio historial de
+versiones y la ruta del ejemplo de import.
+
+**Si se cambia un valor, se cambia en las cuatro.** Verificarlo comparando el
+cuerpo a partir de la línea del `class Color`:
+
+```bash
+python - <<'EOF'
+import io
+def body(p):
+    s = io.open(p, encoding="utf-8").read()
+    return s[s.index("#                                  Paleta"):]
+a = body("LGA_ToolPack/py/LGA_UI_Style_ToolPack.py")
+for p in ("LGA_ToolPack-B/py/LGA_UI_Style_ToolPackB.py",
+          "LGA_ToolPack-Layout/py/LGA_UI_Style_ToolPack_Layout.py",
+          "Python/Startup/LGA_HieroTools/LGA_NKS_Shared/LGA_UI_Style_HieroTools.py"):
+    print(p, body(p) == a)
+EOF
+```
+
+Los nombres de módulo son distintos justamente porque los tres `py/` conviven en
+el path de Nuke: con el mismo nombre, el primero de la lista le ganaría a los
+otros dos y un pack terminaría usando el estilo de otro sin que nada avise.
+
+## Qué usar en cada caso
+
+| Situación | Qué usar |
+|---|---|
+| Fondo de una ventana | `Style.WINDOW` |
+| Ventana de ajustes, con campos y grupos | `Style.FORM` (toma todos los hijos) |
+| Caja apoyada sobre la ventana | `Style.PANEL` |
+| El botón que ejecuta la acción | `Style.BTN_PRIMARY` |
+| Cancel, Close, cualquier otro | `Style.BTN_SECONDARY` |
+| Botón auxiliar de una fila de herramientas | `Style.BTN_SMALL` |
+| Botón cuadrado con un glifo (swap, `+`, `-`) | `Style.BTN_ICON` |
+| La cruz de cerrar de una ventana sin frame | `Style.BTN_CLOSE` |
+| Tabla | `Style.TABLE` |
+| Área scrolleable que no es tabla ni form | `SCROLLBAR` (concatenado a lo tuyo) |
+| Barra de progreso | `Style.PROGRESS` |
+| Un path en un mensaje | `colorize_path()` |
+| Un origen y un destino | `colorize_path_pair()` |
+| Destacar en blanco una palabra | `emphasis()` |
+
+## Las reglas que no son negociables
+
+- **El botón de acción va SIEMPRE último, a la derecha, y es el único violeta.**
+  Si hay dos violetas, el usuario no sabe cuál ejecuta Enter. Si el diálogo
+  *traga* Enter a propósito —porque hay más de una opción válida y ninguna es la
+  recomendada— entonces **no se marca ninguno**: un botón marcado que Enter no
+  activa es un cartel que miente.
+- **El cuerpo del mensaje va gris (`Color.TEXT`), el blanco se reserva.**
+  `Color.TEXT_STRONG` es solo para lo que decide la respuesta: cuántos, dónde, y
+  la advertencia. Si se destaca todo, no se destaca nada.
+- **Todo path va coloreado y en su propia línea**, debajo del texto. Embebido en
+  el medio de una oración se corta por donde cae el wrap y se vuelve ilegible.
+- **La jerarquía de fondos no se invierte.** `WINDOW` es el fondo, `SURFACE` va
+  encima, `SURFACE_RAISED` encima de eso. Una tabla más oscura que su propia
+  ventana se lee hundida — pasaba en `Media Path Replacer`, `Write Presets` y
+  `Color Space Favs`, en los tres al revés.
+- **`Metric.CLOSE_BUTTON_SIZE` es 26 px y no baja.** Una cruz de 20 px sin caja
+  obliga a apuntarle, y errarle arrastra la ventana en vez de cerrarla.
+- **Textos de UI en inglés.** Comentarios, logs y changelog en castellano.
+
+## Trampas conocidas
+
+Cada una de estas apareció en una tool real y costó una corrección.
+
+**Un `QWidget` pelado no pinta el `background` del QSS.** Hace falta
+`setAttribute(Qt.WA_StyledBackground, True)`. `QLabel` y `QFrame` sí lo pintan.
+
+**El `padding` de `QTableWidget::item` también se le aplica al widget de la
+celda.** Una columna de 5 px con `padding: 6px` a cada lado deja el widget en
+**0 px de ancho**. Para una barra de color de estado, pintar el fondo del
+`QTableWidgetItem` en vez de meter un cell widget.
+
+**El campo de adentro de un `QSpinBox` es un `QLineEdit`** y le cae la regla de
+`QLineEdit` del form: suma un segundo borde y un segundo padding adentro de su
+propia caja. Por eso `Style.FORM` lo neutraliza explícitamente. Y el spinbox se
+deja **nativo**: en cuanto el QSS le define caja o flechas, Qt deja de dibujar
+los triángulos y la sub-control termina tapando el número.
+
+**Un alto de ventana calculado con números fijos se rompe al primer cambio.**
+Sumar lo que *mide* cada parte: márgenes del layout, `spacing() * (count() - 1)`
+—con un solo item no hay ningún hueco—, alto real de la barra de título, del
+botón, del header de la tabla y de cada fila. Con layouts anidados hay que
+recorrerlos todos.
+
+**Para fijar el alto de apertura de algo que puede crecer**, poner el
+`setMaximumHeight`, llamar `adjustSize()` y **soltarlo enseguida**
+(`QWIDGETSIZE_MAX`). Dejado puesto, agrandar la ventana deja la caja clavada
+flotando en el medio de un hueco.
+
+**El `&` de un título de `QGroupBox` se lo come Qt** como marca de mnemónico.
+`ALIGN & DISTRIBUTE` sale `ALIGN  DISTRIBUTE`. Se duplica: `title.replace("&", "&&")`.
+
+**`Style.FORM` incluye `QWidget { background-color }`, que alcanza a los
+`QMessageBox` hijos.** Por eso trae también una regla para sus botones: sin ella
+el cartel queda con el fondo del pack y los botones del tema del host.
+
+**Los tooltips los aplica `LGA_tooltip_helper`**, que sólo agrega su CSS si el
+stylesheet no tiene ya un `QToolTip`. Por eso `Style.FORM` **no** define uno. El
+helper vive sólo en el ToolPack: los otros packs usan `Style.TOOLTIP` como
+fallback cuando no está.
+
+## Cómo verificar un cambio sin abrir Nuke
+
+Las ventanas son PySide puro. Se pueden instanciar y `grab()` a PNG stubbeando
+`nuke` y el adapter, con el **mismo PySide6 que trae Nuke** (6.5.3 en Nuke 17):
+
+```python
+import sys, types
+nuke = types.ModuleType("nuke")
+class _Any(types.ModuleType):
+    def __getattr__(self, name):
+        return lambda *a, **k: None
+nuke.__class__ = _Any
+sys.modules["nuke"] = nuke
+
+from PySide6 import QtWidgets, QtGui, QtCore
+adapter = types.ModuleType("LGA_QtAdapter_ToolPack")
+adapter.QtWidgets, adapter.QtGui, adapter.QtCore = QtWidgets, QtGui, QtCore
+sys.modules["LGA_QtAdapter_ToolPack"] = adapter
+
+app = QtWidgets.QApplication([])
+import LGA_RnW_PathsToRelative as T
+w = T.PathsToRelativeWindow(rows, skipped, False, anchor, state, raw)
+w.show(); app.processEvents(); w.grab().save("out.png")
+```
+
+Es mucho más rápido que reiniciar Nuke y permite medir píxeles en vez de mirar a
+ojo. Para chequear que un QSS parsea, instalar un `qInstallMessageHandler` y
+confirmar que no llegue ningún `Could not parse stylesheet`.
+
+## Dónde tocar
+
+`py/LGA_UI_Style_ToolPack.py` y sus tres copias. Nada más. Cambiar un valor ahí
+lo cambia en todas las ventanas migradas a la vez — que es el punto.
