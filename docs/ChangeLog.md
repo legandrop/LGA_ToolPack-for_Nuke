@@ -1,5 +1,11 @@
 # ChangeLog
 
+## v2.63
+
+- Nuevo `py/LGA_UI_Style_ToolPack.py`: fuente unica de la paleta, las medidas y el QSS de todas las ventanas del pack. Cada tool venia copiando su propio bloque de estilos y los valores se habian separado —el mismo gris de texto aparecia como `#a7a7a7`, `#aeaeae`, `#aaaaaa` y `#cccccc`, y el mismo fondo como `#272727`, `#282828`, `#212121` y `#1f1f1f`—, asi que vistas una detras de otra las ventanas no se leian como la misma app. Trae ademas el coloreado de paths por nivel de directorio, con la misma paleta que usan las apps Qt/C++ de LGA. [ ToolPack - Agregar el modulo de estilo unificado ]
+
+- `Paths to Relative` pasa a ese modulo y se le corrigen tres cosas: la barra de color de estado de cada fila nunca se vio, porque el `padding` que el stylesheet le pone a los items de la tabla tambien se le aplicaba al widget de la celda y dejaba la columna de 5 px en 0 de ancho —ahora se pinta como fondo del item—; la ventana abria siempre en 580 px de alto y con tres filas dejaba media pantalla vacia, y ahora abre con el alto justo; y el Project Directory del encabezado va coloreado por nivel. [ ToolPack - Unificar el estilo de Paths to Relative ]
+
 ## v2.62
 
 - `Settings` sale de la lista de herramientas activables. Es la configuracion del pack —Write Focus, Show in Flow, Color Space Favs, el mail de render— asi que apagarla dejaba al usuario sin acceso a sus propios ajustes, y encima desde un panel que tampoco podia volver a prenderla sin editar archivos. Ahora el comando se registra siempre, igual que `Enable Tools`. A quien lo tenga apagado en su ini viejo la clave se le descarta sola en la migracion. [ ToolPack - Sacar Settings de las herramientas activables ]

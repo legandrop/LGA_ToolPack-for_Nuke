@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_RnW_PathsToRelative v1.01 | Lega
+  LGA_RnW_PathsToRelative v1.02 | Lega
 
   Convierte a rutas relativas las rutas absolutas de los nodos que
   apuntan a archivos. Nuke resuelve los relativos contra el Project
@@ -10,6 +10,11 @@ ____________________________________________________________________
   Si hay nodos seleccionados actua solo sobre esos; si no, recorre
   todo el script. Nunca toca knobs con expresiones TCL o Python.
 
+  v1.02: El look sale de LGA_UI_Style_ToolPack. La barra de estado de
+         cada fila se pinta como fondo del item: como cell widget el
+         padding de la tabla la dejaba en 0 px de ancho y nunca se vio.
+         La ventana abre con el alto justo para las filas que hay y el
+         Project Directory va coloreado.
   v1.01: Las rutas se calculan contra el Project Directory y no contra
          la carpeta del script. Si ese knob esta vacio los relativos no
          resuelven, asi que se ofrece dejarlo en
@@ -24,6 +29,7 @@ import re
 import nuke
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
+from LGA_UI_Style_ToolPack import Color, Metric, Style, colorize_path
 
 QApplication = QtWidgets.QApplication
 QDialog = QtWidgets.QDialog
@@ -85,6 +91,10 @@ STATUS_CONVERT = "convert"
 STATUS_DEEP = "deep"
 STATUS_BLOCKED = "blocked"
 
+# Techo de tamano de Qt. Es el valor con el que se SUELTA un setMaximumHeight
+# puesto solo para el adjustSize de apertura; Qt no lo exporta a Python.
+QWIDGETSIZE_MAX = 16777215
+
 # Motivos por los que un knob no entra en la tabla
 SKIP_RELATIVE = "already relative"
 SKIP_EXPRESSION = "expression"
@@ -94,91 +104,20 @@ SKIP_EMPTY = "empty"
 # ---------------------------------------------------------------------------
 #                                  Estilos
 # ---------------------------------------------------------------------------
-COLOR_WINDOW_BG = "#212121"
-COLOR_TEXT = "#a7a7a7"
-COLOR_TEXT_DIM = "#6e6e6e"
-COLOR_TITLE = "#E8E8E8"
-COLOR_CONVERT = "#6a9960"
-COLOR_DEEP = "#b09040"
-COLOR_BLOCKED = "#a06060"
+# Todo el look sale de LGA_UI_Style_ToolPack. Los alias de abajo existen para
+# que el resto del archivo siga leyendose con nombres del dominio de la tool
+# (convert / deep / blocked) en vez de con los nombres genericos de la paleta.
+COLOR_TEXT = Color.TEXT
+COLOR_TEXT_DIM = Color.TEXT_DIM
+COLOR_TITLE = Color.TEXT_STRONG
+COLOR_CONVERT = Color.OK
+COLOR_DEEP = Color.WARNING
+COLOR_BLOCKED = Color.ERROR
 
-TABLE_STYLE = """
-QTableWidget {
-    background-color: #272727;
-    border: 1px solid #333333;
-    color: #a7a7a7;
-    gridline-color: #333333;
-    outline: none;
-}
-QHeaderView::section {
-    background-color: #2B2B2B;
-    color: #999999;
-    padding: 4px 8px;
-    border: 0px;
-    border-bottom: 1px solid #444444;
-    font-weight: bold;
-}
-QTableWidget::item { padding-left: 6px; padding-right: 6px; }
-QScrollBar:vertical {
-    background: #242424;
-    width: 12px;
-    margin: 0px;
-}
-QScrollBar::handle:vertical {
-    background: #444444;
-    min-height: 24px;
-    border-radius: 5px;
-}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
-QScrollBar:horizontal {
-    background: #242424;
-    height: 12px;
-    margin: 0px;
-}
-QScrollBar::handle:horizontal {
-    background: #444444;
-    min-width: 24px;
-    border-radius: 5px;
-}
-QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; }
-"""
-
-BTN_PRIMARY = """
-QPushButton {
-    background-color: #443a91;
-    border: none;
-    color: #B2B2B2;
-    padding: 7px 18px;
-    border-radius: 5px;
-    font-weight: bold;
-}
-QPushButton:hover { background-color: #774dcb; color: #ffffff; }
-QPushButton:disabled { background-color: #2a2540; color: #666666; }
-"""
-
-BTN_CANCEL = """
-QPushButton {
-    background-color: #2a2a2a;
-    border: none;
-    color: #cccccc;
-    padding: 7px 18px;
-    border-radius: 5px;
-    font-weight: bold;
-}
-QPushButton:hover { background-color: #383838; }
-"""
-
-BTN_SMALL = """
-QPushButton {
-    background-color: #2e2e2e;
-    border: 1px solid #444444;
-    color: #999999;
-    padding: 3px 12px;
-    border-radius: 3px;
-    font-size: 11px;
-}
-QPushButton:hover { background-color: #383838; color: #cccccc; }
-"""
+TABLE_STYLE = Style.TABLE
+BTN_PRIMARY = Style.BTN_PRIMARY
+BTN_CANCEL = Style.BTN_SECONDARY
+BTN_SMALL = Style.BTN_SMALL
 
 
 # ---------------------------------------------------------------------------
@@ -484,13 +423,11 @@ class InfoDialog(QDialog):
         super(InfoDialog, self).__init__(parent)
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setWindowTitle(title)
-        self.setStyleSheet(
-            "background-color: %s; border-radius: 10px;" % COLOR_WINDOW_BG
-        )
+        self.setStyleSheet(Style.WINDOW)
         self.setModal(True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setContentsMargins(*([Metric.DIALOG_MARGIN] * 4))
         layout.setSpacing(16)
 
         message_label = QLabel(message_html)
@@ -514,7 +451,7 @@ class InfoDialog(QDialog):
 
         layout.addLayout(buttons_layout)
 
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(Metric.DIALOG_MIN_WIDTH)
         self.adjustSize()
 
     def keyPressEvent(self, event):
@@ -551,6 +488,13 @@ class PathsToRelativeWindow(QDialog):
     COL_ARROW = 6
     COL_TARGET = 7
 
+    WINDOW_WIDTH = 1150
+    # Alto de apertura de la tabla: piso para que no quede una franja de una
+    # fila, y techo para que una tabla larga no empuje la ventana fuera de una
+    # pantalla de 1080. De ahi en adelante scrollea.
+    TABLE_MIN_HEIGHT = 120
+    TABLE_MAX_HEIGHT = 520
+
     def __init__(
         self,
         rows,
@@ -573,12 +517,12 @@ class PathsToRelativeWindow(QDialog):
         self.applied_count = 0
 
         self.setWindowTitle("Paths to Relative")
-        self.setStyleSheet("background-color: %s;" % COLOR_WINDOW_BG)
+        self.setStyleSheet(Style.WINDOW)
         self.setModal(True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(10)
+        layout.setContentsMargins(*([Metric.WINDOW_MARGIN] * 4))
+        layout.setSpacing(Metric.SPACING)
 
         layout.addWidget(self._build_header())
         layout.addWidget(self._build_table())
@@ -589,17 +533,44 @@ class PathsToRelativeWindow(QDialog):
 
         layout.addLayout(self._build_footer())
 
-        self.resize(1150, 580)
+        self._size_to_content()
         self._update_status()
+
+    def _size_to_content(self):
+        """
+        Abre la ventana con el alto justo para las filas que hay.
+
+        Antes abria siempre en 580 px: con tres filas dejaba media pantalla de
+        tabla vacia debajo, que se lee como que la tool no termino de buscar.
+
+        El maximo del tabla es el alto de APERTURA, no un techo: se aplica solo
+        alrededor del adjustSize() y se suelta enseguida. Dejado puesto, la
+        tabla quedaba clavada flotando en el medio de un hueco negro cada vez
+        que el usuario agrandaba la ventana.
+        """
+        content = (
+            len(self.rows) * Metric.ROW_HEIGHT
+            + self.table.horizontalHeader().height()
+            + 2 * self.table.frameWidth()
+        )
+        content = max(self.TABLE_MIN_HEIGHT, min(content, self.TABLE_MAX_HEIGHT))
+
+        self.table.setMaximumHeight(content)
+        self.adjustSize()
+        self.table.setMaximumHeight(QWIDGETSIZE_MAX)
+
+        self.resize(self.WINDOW_WIDTH, self.height())
 
     # --- Construccion -----------------------------------------------------
     def _build_header(self):
         scope = "selected nodes" if self.from_selection else "the whole script"
+        # El ancla va coloreada y en su propia linea: es el path contra el que
+        # se calcula todo lo de la tabla, asi que tiene que leerse de un golpe.
         text = (
             "<span style='color:%s; font-size:13px;'>Paths made relative to the "
             "Project Directory, in %s.</span><br>"
-            "<span style='color:%s; font-size:12px;'>%s</span>"
-        ) % (COLOR_TITLE, scope, COLOR_TEXT_DIM, self.anchor_dir)
+            "<span style='font-size:12px;'>%s</span>"
+        ) % (COLOR_TITLE, scope, colorize_path(self.anchor_dir))
         label = QLabel(text)
         label.setStyleSheet("font-size:13px;")
         return label
@@ -613,7 +584,8 @@ class PathsToRelativeWindow(QDialog):
             return None
 
         container = QWidget()
-        container.setStyleSheet("background-color: #292929; border-radius: 6px;")
+        container.setAttribute(Qt.WA_StyledBackground, True)
+        container.setStyleSheet(Style.PANEL)
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(12, 10, 12, 10)
         container_layout.setSpacing(4)
@@ -643,9 +615,7 @@ class PathsToRelativeWindow(QDialog):
             "Set Project Directory to %s" % PROJECT_DIRECTORY_EXPRESSION
         )
         self.project_checkbox.setChecked(checked)
-        self.project_checkbox.setStyleSheet(
-            "color:%s; padding:2px; background: transparent;" % COLOR_TEXT
-        )
+        self.project_checkbox.setStyleSheet(Style.CHECKBOX)
         container_layout.addWidget(self.project_checkbox)
 
         return container
@@ -697,14 +667,18 @@ class PathsToRelativeWindow(QDialog):
         else:
             bar_color = COLOR_BLOCKED
 
-        # Col 0: barra de color con el estado de la fila
-        bar = QWidget()
-        bar.setStyleSheet("background: %s;" % bar_color)
-        table.setCellWidget(row_index, self.COL_BAR, bar)
+        # Col 0: barra de color con el estado de la fila.
+        # Va como fondo del ITEM y no como cell widget: el padding horizontal
+        # que el stylesheet le pone a QTableWidget::item tambien se le aplica
+        # al widget de la celda, y con una columna de 5 px lo dejaba en 0 de
+        # ancho. O sea que la barra existia desde siempre pero nunca se vio.
+        bar_item = QTableWidgetItem("")
+        bar_item.setBackground(QColor(bar_color))
+        table.setItem(row_index, self.COL_BAR, bar_item)
 
         # Col 1: checkbox; las filas imposibles quedan deshabilitadas
         checkbox = QCheckBox()
-        checkbox.setStyleSheet("padding:2px;")
+        checkbox.setStyleSheet(Style.CHECKBOX)
         checkbox.setChecked(not blocked)
         checkbox.setEnabled(not blocked)
         checkbox.stateChanged.connect(self._update_status)
@@ -747,7 +721,7 @@ class PathsToRelativeWindow(QDialog):
         target_item.setToolTip(row["target_text"])
         table.setItem(row_index, self.COL_TARGET, target_item)
 
-        table.setRowHeight(row_index, 24)
+        table.setRowHeight(row_index, Metric.ROW_HEIGHT)
 
     def _build_footer(self):
         footer = QHBoxLayout()
