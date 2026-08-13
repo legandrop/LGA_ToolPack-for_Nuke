@@ -2,6 +2,8 @@
 
 ## v2.63
 
+- El modulo de estilo suma `Metric.BUTTON_HEIGHT`. El boton marcado y el secundario comparten padding pero el secundario ademas lleva un borde de 1 px, asi que en una fila con los dos quedaba 2 px mas alto y 1 px mas arriba. Con el alto fijo alinean. [ ToolPack - Agregar Metric.BUTTON_HEIGHT al modulo de estilo ]
+
 - El modulo de estilo suma `OK_BG`, `WARNING_BG` y `ERROR_BG`, para el fondo de una pastilla de estado con texto encima. Los tres semanticos que ya estaban sirven para una barra o una linea de texto, pero a esa intensidad detras de un texto se lo comen. No cambia nada de lo que ya se ve en este pack: entra para que las cuatro copias del modulo sigan siendo el mismo archivo. [ ToolPack - Agregar los fondos de estado al modulo de estilo ]
 
 - Nuevo `docs/Docu_UI_Style.md`: como se hace una ventana de las tools. Documenta que usar en cada caso, las reglas que no se negocian —el boton de accion es el unico violeta y va ultimo, el blanco se reserva, la jerarquia de fondos no se invierte—, las siete trampas de Qt que ya costaron una correccion cada una, y como verificar un cambio de UI renderizando la ventana a PNG sin abrir Nuke, con el mismo PySide6 que trae Nuke 17. Tambien deja escrito que las cuatro copias del modulo de estilo son codigo identico a proposito y como comprobar que no derivaron. [ ToolPack - Documentar el sistema de estilo ]

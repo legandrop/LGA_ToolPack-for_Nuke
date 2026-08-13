@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.07 | Lega
+  LGA_UI_Style_ToolPack v1.08 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.08: Metric.BUTTON_HEIGHT, para que el boton marcado y el
+         secundario midan lo mismo en una fila de acciones.
   v1.07: OK_BG, WARNING_BG y ERROR_BG, para el fondo de una pastilla
          de estado con texto encima.
   v1.06: Style.FORM pinta tambien los QSpinBox. Las flechitas NO se
@@ -186,6 +188,10 @@ class Metric(object):
     RADIUS_SMALL = 3  # esquinas de controles chicos
 
     ROW_HEIGHT = 24  # alto de fila de tabla
+    # Alto de un boton de una fila de acciones. Va fijo en los dos roles porque
+    # BTN_SECONDARY suma un borde de 1 px sobre el mismo padding que
+    # BTN_PRIMARY: sin fijarlo, el secundario queda 2 px mas alto.
+    BUTTON_HEIGHT = 30
     SCROLLBAR_WIDTH = 10
 
     # La cruz de cerrar. 26 px es el minimo comodo para acertarle con el
