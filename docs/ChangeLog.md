@@ -2,6 +2,10 @@
 
 ## v2.63
 
+- El modulo de estilo deja de pisarle el campo interno a los `QSpinBox`. La hoja de formulario pinta los `QLineEdit`, y adentro de un spinbox el campo TAMBIEN es un `QLineEdit`: le caia un segundo borde y un segundo padding adentro de su propia caja, y el numero quedaba recortado contra las flechitas. El spinbox se deja nativo a proposito: en cuanto el QSS le define caja o flechas, Qt deja de dibujar los triangulos y la sub-control termina tapando el valor. [ ToolPack - Corregir el spinbox en el modulo de estilo ]
+
+- La ventana de ajustes del `Media Manager` pasa al modulo de estilo unificado. Cada widget traia copiado su propio bloque de `QToolTip` —el mismo, seis veces— y la ventana se pintaba en `#2e2e2e`, mas claro que el `#282828` de sus propios campos, asi que los campos se leian hundidos respecto de la ventana. Ahora hay una sola hoja para toda la ventana, los botones `+` y `-` dejan de ser los del tema de Nuke, y `Save Settings` es el violeta del pack con `Cancel` gris al lado. [ ToolPack - Unificar el estilo de los ajustes del Media Manager ]
+
 - El modulo de estilo suma `Color.ENTITY`, para destacar el nombre de una task o de un nodo en un mensaje. Antes esos nombres se pintaban con el color del prefijo comun de la paleta de paths, que se ve igual pero significa otra cosa: retocar la paleta de paths le habria cambiado el color a algo que no es un path. [ ToolPack - Agregar Color.ENTITY al modulo de estilo ]
 
 - El modulo de estilo suma `Style.TOOLTIP` con los mismos valores que `LGA_tooltip_helper`. No cambia nada en este pack, donde el helper existe: esta para que los otros dos packs, que lo importan en un `try` y se quedaban sin nada, puedan pintar sus tooltips sin depender de que el usuario tenga instalado este. [ ToolPack - Agregar Style.TOOLTIP al modulo de estilo ]
