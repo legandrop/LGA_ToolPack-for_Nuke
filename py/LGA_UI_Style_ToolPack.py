@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.03 | Lega
+  LGA_UI_Style_ToolPack v1.04 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.04: Style.TOOLTIP, para que un pack sin el helper de tooltips
+         del ToolPack igual los pinte como los demas.
   v1.03: Variantes de texto de los colores semanticos (OK_TEXT,
          WARNING_TEXT, ERROR_TEXT) y el celeste informativo, y PROGRESS
          para las barras de progreso.
@@ -401,6 +403,22 @@ QComboBox QAbstractItemView {
     }
 
     CHECKBOX = "color: %s; padding: 2px; background: transparent;" % Color.TEXT
+
+    # --- tooltip -----------------------------------------------------------
+    # Mismos valores que LGA_tooltip_helper. Existe aca duplicado porque ese
+    # helper vive SOLO en el ToolPack: los paneles de los otros dos packs lo
+    # importan en un try y se quedan sin nada si el usuario no tiene instalado
+    # el ToolPack, que es justo la dependencia cruzada que este modulo evita.
+    # Con esto, el pack que no tenga el helper igual pinta sus tooltips.
+    TOOLTIP = """
+QToolTip {
+    background-color: #1E1E1E;
+    color: #CCCCCC;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+}
+"""
 
     # Barra de progreso. El riel va en un violeta apagado y el relleno en el
     # violeta de la app: es la misma senal que el boton de accion, asi que se
