@@ -438,10 +438,7 @@ class SearchAndReplaceWidget(QWidget):
         # La ventana va al fondo de la app. Antes iba en #2B2B2B, que es mas
         # CLARO que el #272727 de la tabla: la tabla quedaba hundida respecto
         # de su ventana y la jerarquia se leia al reves.
-        self.setStyleSheet(
-            "QWidget { background-color: %s; color: %s; }"
-            "QCheckBox { color: %s; }" % (Color.WINDOW, Color.TEXT, Color.TEXT)
-        )
+        self.setStyleSheet(Style.WINDOW)
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(10, 10, 10, 10)

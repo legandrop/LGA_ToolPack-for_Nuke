@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_ToolPack_EnabledPanel v1.03 | Lega
+  LGA_ToolPack_EnabledPanel v1.04 | Lega
 
   Panel para activar y desactivar las herramientas del pack.
 
@@ -9,6 +9,10 @@ ____________________________________________________________________
   la eleccion del usuario fuera del pack, para que sobreviva a los
   updates.
 
+  v1.04: La ventana abre con el alto que necesita el contenido. Estaba
+         clavada en 620x620 y siempre mostraba scrollbar aunque faltaran
+         veinte pixeles; ademas ese alto se desactualizaba al agregar o
+         sacar una tool del manifiesto.
   v1.03: El look sale de LGA_UI_Style_ToolPack: grupos con marco y
          titulo, botones del pack y el path de la config coloreado.
   v1.02: Se corrige el tooltip de Reset, que decia lo contrario de
@@ -66,6 +70,7 @@ class EnabledPanel(QtWidgets.QWidget):
         self.setToolTip(TOOLTIPS["window"])
         self.setStyleSheet(Style.FORM)
         self._checkboxes = {}
+        self._scroll = None
         self._defaults = enabled_config.read_defaults()
         self._build_ui()
 
@@ -93,6 +98,7 @@ class EnabledPanel(QtWidgets.QWidget):
         root.addWidget(header)
 
         scroll = QtWidgets.QScrollArea()
+        self._scroll = scroll
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         content = QtWidgets.QWidget()
@@ -201,6 +207,41 @@ class EnabledPanel(QtWidgets.QWidget):
         buttons.addWidget(save)
         return buttons
 
+    # Ancho minimo de apertura: dos columnas de nombres de tools con aire.
+    MIN_WIDTH = 620
+
+    def preferred_size(self):
+        """
+        Tamano de apertura: el que necesita el contenido, con techo de
+        pantalla.
+
+        Antes abria clavada en 620x620 y siempre mostraba scrollbar aunque
+        faltaran veinte pixeles. El alto sale de medir el contenido del area
+        scrolleable, no de estimarlo: agregar o sacar una tool del manifiesto
+        cambia ese alto y un numero fijo se desactualiza al primer cambio.
+        """
+        if self._scroll is None:
+            return self.MIN_WIDTH, 620
+
+        content = self._scroll.widget()
+        content_size = content.sizeHint()
+
+        extra = self.height() - self._scroll.viewport().height()
+        width = content_size.width() + self._scroll.frameWidth() * 2
+        width += self.width() - self._scroll.viewport().width()
+        # Piso de ancho: el sizeHint del contenido es el MINIMO en el que las
+        # dos columnas entran, y a ese ancho los nombres quedan apretados
+        # contra el borde del grupo.
+        width = max(width, self.MIN_WIDTH)
+        height = content_size.height() + self._scroll.frameWidth() * 2 + extra
+
+        screen = QtWidgets.QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            width = min(width, int(available.width() * 0.9))
+            height = min(height, int(available.height() * 0.9))
+        return width, height
+
     # -- acciones ----------------------------------------------------------
 
     def _set_all(self, value):
@@ -251,8 +292,10 @@ def main():
     app = QApplication.instance() or QApplication(sys.argv)
     if panel_instance is None or not panel_instance.isVisible():
         panel_instance = EnabledPanel()
-        panel_instance.resize(620, 620)
         panel_instance.show()
+        # Despues del show(): antes de eso los layouts todavia no
+        # calcularon nada y el sizeHint del contenido miente.
+        panel_instance.resize(*panel_instance.preferred_size())
     else:
         panel_instance.raise_()
         panel_instance.activateWindow()

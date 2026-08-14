@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.08 | Lega
+  LGA_UI_Style_ToolPack v1.10 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,11 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.10: El checkbox deshabilitado se distingue del habilitado, y
+         Style.WINDOW tambien lo lleva: era la hoja de casi todas
+         las ventanas que quedaban con el checkbox del host.
+  v1.09: El checkbox se dibuja con el indicador de las apps Qt de LGA
+         en vez del nativo, que cambia con el tema del host.
   v1.08: Metric.BUTTON_HEIGHT, para que el boton marcado y el
          secundario midan lo mismo en una fila de acciones.
   v1.07: OK_BG, WARNING_BG y ERROR_BG, para el fondo de una pastilla
@@ -51,6 +56,9 @@ ____________________________________________________________________
          LGA_RnW_PathsToRelative y LGA_mediaPathReplacer.
 ____________________________________________________________________
 """
+
+import os
+
 
 # ---------------------------------------------------------------------------
 #                                  Paleta
@@ -84,6 +92,18 @@ class Color(object):
     BORDER = "#333333"  # borde de tablas y cajas
     BORDER_STRONG = "#444444"  # borde de controles interactivos
     BORDER_HOVER = "#555555"
+
+    # --- checkbox ----------------------------------------------------------
+    # Los mismos valores que usan las apps Qt/C++ de LGA (el dark_theme.qss de
+    # lga_base_qt_c_py), asi que un checkbox se ve igual en Nuke que en
+    # PipeSync o FileManagerS3. El apagado es un violeta casi neutro y el
+    # prendido el violeta de la marca, los dos mas oscuros que un boton porque
+    # el indicador es chico y a plena intensidad grita.
+    CHECKBOX_OFF = "#2A2832"
+    CHECKBOX_OFF_HOVER = "#3A3744"
+    CHECKBOX_ON = "#393455"
+    CHECKBOX_ON_HOVER = "#4C4770"
+    CHECKBOX_BORDER = "#272727"
 
     # Fondo del hover de los controles que no son el boton de accion, y de la
     # fila seleccionada de una tabla. Son dos escalones por encima de SURFACE:
@@ -199,6 +219,18 @@ class Metric(object):
     CLOSE_BUTTON_SIZE = 26
 
 
+# La tilde del checkbox viaja al lado de este modulo. QSS pide una ruta de
+# archivo y en Windows hay que pasarla con "/": con "\\" Qt no la resuelve y el
+# checkbox queda prendido pero sin tilde, que es peor que no estilarlo.
+_ICON_DIR = os.path.dirname(os.path.abspath(__file__))
+CHECKMARK_PATH = os.path.join(_ICON_DIR, "LGA_UI_checkmark.svg").replace("\\", "/")
+# Tilde apagada para el checkbox deshabilitado. Sin ella la tilde blanca
+# sobrevive a intensidad plena y lo apagado termina gritando mas que lo activo.
+CHECKMARK_OFF_PATH = os.path.join(_ICON_DIR, "LGA_UI_checkmark_off.svg").replace(
+    "\\", "/"
+)
+
+
 # ---------------------------------------------------------------------------
 #                                  Estilos
 # ---------------------------------------------------------------------------
@@ -248,7 +280,10 @@ class Style(object):
     # Fondo de la ventana. Va sin border-radius: una ventana con esquinas
     # redondeadas y sin frame deja los cuatro angulos del rectangulo pintados
     # por debajo, que se ve peor que la esquina cuadrada.
-    WINDOW = "background-color: %s; color: %s;" % (Color.WINDOW, Color.TEXT)
+    WINDOW = "QWidget { background-color: %s; color: %s; }" % (
+        Color.WINDOW,
+        Color.TEXT,
+    )
 
     # Caja apoyada sobre la ventana (avisos, agrupaciones).
     PANEL = "background-color: %s; border-radius: %dpx;" % (
@@ -428,7 +463,50 @@ QComboBox QAbstractItemView {
         "radius": Metric.RADIUS_SMALL,
     }
 
-    CHECKBOX = "color: %s; padding: 2px; background: transparent;" % Color.TEXT
+    # El indicador se dibuja a mano: el nativo de Qt es una tilde que cambia
+    # con el tema del host, asi que el mismo checkbox se veia distinto en Nuke,
+    # en Hiero y en las apps Qt. Nunca poner background al QCheckBox entero:
+    # colorea tambien el texto y el padding.
+    CHECKBOX = """
+QCheckBox {
+    color: %(text)s;
+    padding: 2px;
+    background: transparent;
+    border: none;
+}
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    background-color: %(off)s;
+    border: 1px solid %(border)s;
+    border-radius: %(radius)dpx;
+}
+QCheckBox::indicator:unchecked:hover { background-color: %(off_hover)s; }
+QCheckBox::indicator:checked {
+    background-color: %(on)s;
+    image: url(%(checkmark)s);
+}
+QCheckBox::indicator:checked:hover { background-color: %(on_hover)s; }
+QCheckBox:disabled { color: %(text_dim)s; }
+QCheckBox::indicator:disabled {
+    background-color: %(surface)s;
+    border-color: %(border)s;
+}
+QCheckBox::indicator:checked:disabled { image: url(%(checkmark_off)s); }
+""" % {
+        "text": Color.TEXT,
+        "off": Color.CHECKBOX_OFF,
+        "off_hover": Color.CHECKBOX_OFF_HOVER,
+        "on": Color.CHECKBOX_ON,
+        "on_hover": Color.CHECKBOX_ON_HOVER,
+        "border": Color.CHECKBOX_BORDER,
+        "surface": Color.SURFACE,
+        "checkmark": CHECKMARK_PATH,
+        "checkmark_off": CHECKMARK_OFF_PATH,
+        "text_dim": Color.TEXT_DIM,
+        "border": Color.BORDER_STRONG,
+        "radius": Metric.RADIUS_SMALL,
+    }
 
     # --- tooltip -----------------------------------------------------------
     # Mismos valores que LGA_tooltip_helper. Existe aca duplicado porque ese
@@ -470,6 +548,10 @@ QProgressBar::chunk { background-color: %(accent)s; border-radius: %(radius)dpx;
         "radius": Metric.RADIUS,
     }
 
+    # El fondo de ventana arrastra el checkbox: es la hoja que aplican
+    # casi todas las ventanas, y sin esto quedaban con el del host.
+    WINDOW = WINDOW + CHECKBOX
+
     # --- ventana de formulario ---------------------------------------------
     # Hoja completa para una ventana de ajustes: en vez de llamar a
     # setStyleSheet widget por widget —que es como estaban las de Settings y
@@ -498,7 +580,7 @@ QFrame[frameShape="4"], QFrame[frameShape="5"] {
     border: none;
     max-height: 1px;
 }
-QCheckBox { color: %(text)s; background: transparent; padding: 2px; }
+%(checkbox)s
 QMessageBox QPushButton {
     background-color: %(raised)s;
     border: 1px solid %(border_strong)s;
@@ -550,6 +632,7 @@ QSpinBox QLineEdit, QDoubleSpinBox QLineEdit {
 %(scrollbar)s
 """ % {
         "scrollbar": SCROLLBAR,
+        "checkbox": CHECKBOX,
         "window": Color.WINDOW,
         "surface": Color.SURFACE,
         "raised": Color.SURFACE_RAISED,
