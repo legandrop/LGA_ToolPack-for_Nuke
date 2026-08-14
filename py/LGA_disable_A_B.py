@@ -1,14 +1,23 @@
 """
 ________________________________________________________________________________
 
-  LGA_disable_A_B v1.8 | Lega
+  LGA_disable_A_B v1.9 | Lega
   Tool for creating A/B comparisons between selected nodes.
   Links the disable knob of nodes to a central Disable_A_B node for easy switching.
+
+  v1.9: El look de la ventana y los botones sale de LGA_UI_Style_ToolPack.
+        La tabla NO se toca: el fondo de cada celda es el color del nodo
+        puesto con setBackground(), y en cuanto el QSS define una regla de
+        QTableWidget::item Qt deja de respetarlo. El alto y el ancho pasan
+        a medirse, porque los margenes nuevos no entraban en el calculo
+        viejo y cortaban la ultima fila.
+  v1.8: Version anterior, sin changelog interno.
 ________________________________________________________________________________
 
 """
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
+from LGA_UI_Style_ToolPack import Metric, Style
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
@@ -45,7 +54,13 @@ def debug_print(*message):
 class CenteredCheckbox(QCheckBox):
     def __init__(self, parent=None):
         super(CenteredCheckbox, self).__init__(parent)
-        self.setStyleSheet("QCheckBox { margin-left: 50%; margin-right: 50%; }")
+        # background transparente: la hoja de la ventana es un QSS sin selector
+        # y Qt la propaga a los hijos, asi que el checkbox pintaba el fondo de
+        # la ventana OPACO encima del color del nodo de su fila.
+        self.setStyleSheet(
+            "QCheckBox { margin-left: 50%; margin-right: 50%;"
+            " background: transparent; }"
+        )
 
 
 class ColorMixDelegate(QStyledItemDelegate):
@@ -158,7 +173,15 @@ class SelectedNodeInfo(QWidget):
 
     def initUI(self):
         self.setWindowTitle("Select Nodes Groups")
+        # No aplicaba ninguna hoja a la ventana: heredaba el tema de Nuke. A la
+        # TABLA no se le aplica la del pack a proposito: el fondo de cada celda
+        # es el color del nodo puesto con setBackground(), y en cuanto el QSS
+        # define una regla de QTableWidget::item, Qt deja de respetarlo.
+        self.setStyleSheet(Style.WINDOW)
+
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(*([Metric.WINDOW_MARGIN] * 4))
+        layout.setSpacing(Metric.SPACING)
 
         # Create the table with 4 columns
         self.table = QTableWidget(len(self.nodes), 4, self)
@@ -198,15 +221,23 @@ class SelectedNodeInfo(QWidget):
 
         # Create a horizontal layout for buttons
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(8)
+        # Alineados a la derecha y con el de accion ultimo, como en el resto
+        # del pack. Estirados a lo ancho no se leian como botones.
+        button_layout.addStretch()
 
         # Create Disconnect button (only if a Disable_A_B node is selected)
         if self.disable_ab_node:
             self.disconnect_button = QPushButton("Disconnect")
+            self.disconnect_button.setStyleSheet(Style.BTN_SECONDARY)
+            self.disconnect_button.setFixedHeight(Metric.BUTTON_HEIGHT)
             button_layout.addWidget(self.disconnect_button)
             self.disconnect_button.clicked.connect(self.disconnect_nodes)
 
         # Create Connect button
         self.connect_button = QPushButton("Connect")
+        self.connect_button.setStyleSheet(Style.BTN_PRIMARY)
+        self.connect_button.setFixedHeight(Metric.BUTTON_HEIGHT)
         button_layout.addWidget(self.connect_button)
 
         # Add the button layout to the main layout
@@ -295,7 +326,8 @@ class SelectedNodeInfo(QWidget):
                 if col < 2:  # Las primeras dos columnas son checkboxes
                     checkbox = CenteredCheckbox()
                     checkbox.setStyleSheet(
-                        "QCheckBox { margin-left: 50%; margin-right: 50%; }"
+                        "QCheckBox { margin-left: 50%; margin-right: 50%;"
+                        " background: transparent; }"
                     )
                     item = QTableWidgetItem()
                     item.setBackground(node_qcolor)
@@ -378,6 +410,9 @@ class SelectedNodeInfo(QWidget):
         )  # Un poco de relleno para estetica
         for i in range(self.table.columnCount()):
             width += self.table.columnWidth(i) + 20  # Un poco de relleno entre columnas
+        # Los margenes del layout y el marco de la tabla se suman aparte: sin
+        # ellos la ultima columna no entra y aparece un scrollbar horizontal.
+        width += 2 * Metric.WINDOW_MARGIN + 2 * self.table.frameWidth()
 
         # Asegurarse de que el ancho no supera el 80% del ancho de pantalla
         screen = QApplication.primaryScreen()
@@ -385,17 +420,22 @@ class SelectedNodeInfo(QWidget):
         max_width = screen_rect.width() * 0.8
         final_width = min(width, max_width)
 
-        # Calcular la altura basada en la altura de los headers y las filas
-        height = self.table.horizontalHeader().height() + 20
+        # Alto: se suma lo que MIDE cada cosa. Los margenes y la separacion del
+        # layout se suman explicitamente; los rellenos fijos que habia antes no
+        # los contemplaban y con margenes la ventana cortaba la ultima fila.
+        height = self.table.horizontalHeader().height()
+        height += 2 * self.table.frameWidth()
         for i in range(self.table.rowCount()):
             height += self.table.rowHeight(i)
 
-        # Agregar un relleno total de 6 pixeles
-        height += 10
-
-        # Agregar la altura de los botones (solo una vez)
-        button_height = self.connect_button.sizeHint().height()
-        height += button_height
+        layout = self.layout()
+        margins = layout.contentsMargins()
+        height += margins.top() + margins.bottom()
+        height += layout.spacing() * max(0, layout.count() - 1)
+        # BUTTON_HEIGHT y no sizeHint(): el boton tiene alto fijo y el
+        # sizeHint sigue devolviendo lo que calcula el estilo por la
+        # fuente, que con una fuente chica queda por debajo y corta.
+        height += Metric.BUTTON_HEIGHT
 
         # Asegurarse de que la altura no supera el 80% del alto de pantalla
         max_height = screen_rect.height() * 0.8

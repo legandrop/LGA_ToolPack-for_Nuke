@@ -2,6 +2,8 @@
 
 ## v2.63
 
+- `Disable A/B` toma el fondo y los botones del modulo de estilo. La ventana no aplicaba ninguna hoja, asi que heredaba el tema de Nuke, y los dos botones iban estirados a lo ancho: ahora van en una fila a la derecha, con `Connect` marcado. La tabla no lleva la hoja de tabla del pack: el fondo de cada celda es el color del nodo en el Node Graph puesto con `setBackground()`, y en cuanto el QSS define una regla de `QTableWidget::item` Qt deja de respetarlo. Los checkboxes A/B pasan a fondo transparente: una hoja sin selector se propaga a los hijos, asi que pintaban el fondo de la ventana OPACO encima del color de su fila. El alto y el ancho de la ventana pasan a medirse en vez de estimarse con rellenos fijos, que con los margenes nuevos cortaban la ultima fila. [ ToolPack - Unificar el estilo de Disable A/B ]
+
 - El modulo de estilo suma `Metric.BUTTON_HEIGHT`. El boton marcado y el secundario comparten padding pero el secundario ademas lleva un borde de 1 px, asi que en una fila con los dos quedaba 2 px mas alto y 1 px mas arriba. Con el alto fijo alinean. [ ToolPack - Agregar Metric.BUTTON_HEIGHT al modulo de estilo ]
 
 - El modulo de estilo suma `OK_BG`, `WARNING_BG` y `ERROR_BG`, para el fondo de una pastilla de estado con texto encima. Los tres semanticos que ya estaban sirven para una barra o una linea de texto, pero a esa intensidad detras de un texto se lo comen. No cambia nada de lo que ya se ve en este pack: entra para que las cuatro copias del modulo sigan siendo el mismo archivo. [ ToolPack - Agregar los fondos de estado al modulo de estilo ]
