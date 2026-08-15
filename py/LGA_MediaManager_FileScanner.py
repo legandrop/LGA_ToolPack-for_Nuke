@@ -1,8 +1,17 @@
 """
-_______________________________________
+_______________________________________________________________________
 
-  LGA_mediaManager v2.12 | Lega
-_______________________________________
+  LGA_MediaManager_FileScanner v2.13 | Lega
+
+  Escaneo del proyecto, tabla de medias y relink de archivos offline.
+
+  v2.13: El relink rellena con ceros el frame al reconstruir el nombre
+         de la secuencia, y si ese frame no esta en la carpeta nueva
+         cae a un patron que acepta cualquier frame de la misma
+         secuencia. El estado relinkeado se compara con commonpath
+         normalizado y la fila queda deseleccionada para que se vea
+         el fondo del estado y no el de la seleccion.
+_______________________________________________________________________
 
 """
 
@@ -992,31 +1001,60 @@ class FileScanner(QWidget):
                     self, "Information", "Relink is only available for Offline files."
                 )
 
+    def build_search_patterns(self, file_name):
+        """
+        Arma los dos criterios de busqueda para el relink a partir del texto de la tabla.
+
+        Devuelve (exact_name, sequence_pattern, first_frame):
+          - exact_name: nombre exacto del primer frame, con el padding correcto.
+          - sequence_pattern: regex que acepta cualquier frame de la misma secuencia.
+          - first_frame: primer frame declarado en la tabla (sin padding).
+        """
+        base_name = os.path.basename(file_name).split("[")[0]
+        hashes_match = re.search(r"#+", base_name)
+
+        if not hashes_match:
+            # Archivo unico: el nombre ya viene completo
+            return os.path.basename(file_name).lower(), None, ""
+
+        hashes = hashes_match.group(0)
+        prefix, suffix = base_name.split(hashes, 1)
+
+        # Criterio primario: reconstruir el nombre exacto del primer frame.
+        # El rango de un Read offline viene sin padding (ej. [0-530]), asi que hay
+        # que rellenarlo al ancho de los '#' para que coincida con el archivo real.
+        exact_name = None
+        first_frame = ""
+        frame_range = re.search(r"\[(\d+)-\d+\]", file_name)
+        if frame_range:
+            first_frame = frame_range.group(1)
+            exact_name = (prefix + first_frame.zfill(len(hashes)) + suffix).lower()
+
+        # Criterio de respaldo: mismo nombre y mismo padding, cualquier numero de frame.
+        # Cubre el caso en que el frame inicial guardado en el nodo no existe en la
+        # carpeta nueva (secuencia recopiada con otro rango, primer frame faltante, etc).
+        sequence_pattern = re.compile(
+            re.escape(prefix) + r"\d{" + str(len(hashes)) + r"}" + re.escape(suffix) + r"$",
+            re.IGNORECASE,
+        )
+
+        return exact_name, sequence_pattern, first_frame
+
     def search_file_in_directory(self, directory, file_name):
         self.loading_window = LoadingWindow("Searching...", self)
         self.loading_window.show()
         QApplication.processEvents()
-        first_frame = ""
 
-        if "#" in file_name:
-            # Extraer el primer numero del rango de cuadros
-            frame_range = re.search(r"\[(\d+)-\d+\]", file_name)
-            if frame_range:
-                first_frame = frame_range.group(1)
-                # Reemplazar '#' por el primer numero de cuadro y eliminar el rango de cuadros del nombre
-                file_name_only = re.sub(
-                    r"#+", first_frame, os.path.basename(file_name).split("[")[0]
-                ).lower()
-            else:
-                file_name_only = os.path.basename(file_name).split("[")[0].lower()
-        else:
-            file_name_only = os.path.basename(file_name).lower()
+        exact_name, sequence_pattern, first_frame = self.build_search_patterns(file_name)
 
         nuke.executeInMainThread(
             lambda: self.logger.debug(
-                f"\nBuscando el archivo: {file_name_only} en {directory}"
+                f"\nBuscando el archivo: {exact_name} en {directory}"
+                f" (patron de respaldo: {sequence_pattern.pattern if sequence_pattern else 'ninguno'})"
             )
         )
+
+        fallback_path = None
 
         for root, dirs, files in os.walk(directory):
             if "$RECYCLE.BIN" in [
@@ -1027,17 +1065,39 @@ class FileScanner(QWidget):
                 continue
 
             for file in files:
-                if file.lower() == file_name_only:
+                if exact_name and file.lower() == exact_name:
                     new_file_path = os.path.join(root, file)
                     nuke.executeInMainThread(
                         lambda: self.logger.debug(
-                            f"Archivo encontrado: {new_file_path}"
+                            f"Archivo encontrado (match exacto): {new_file_path}"
                         )
                     )
                     self.update_read_node(file_name, new_file_path, first_frame)
                     self.loading_window.close()
                     return
 
+                # Se guarda el primer candidato del patron, pero se sigue recorriendo
+                # por si mas adelante aparece el match exacto, que tiene prioridad
+                if (
+                    fallback_path is None
+                    and sequence_pattern is not None
+                    and sequence_pattern.match(file)
+                ):
+                    fallback_path = os.path.join(root, file)
+
+        if fallback_path:
+            nuke.executeInMainThread(
+                lambda: self.logger.debug(
+                    f"Archivo encontrado (match por patron de secuencia): {fallback_path}"
+                )
+            )
+            self.update_read_node(file_name, fallback_path, first_frame)
+            self.loading_window.close()
+            return
+
+        nuke.executeInMainThread(
+            lambda: self.logger.debug("No se encontro ningun archivo compatible")
+        )
         self.loading_window.close()
         QMessageBox.information(self, "Information", "File not found.")
 
@@ -1087,19 +1147,38 @@ class FileScanner(QWidget):
                     # Actualizar el estado y el color de fondo
                     status_item = self.table.item(row, 2)
 
-                    # Verificar si la nueva ruta esta dentro de la carpeta del proyecto
-                    if (
-                        os.path.commonprefix([self.project_folder, new_file_path])
-                        == self.project_folder
-                    ):
+                    # Verificar si la nueva ruta esta dentro de la carpeta del proyecto.
+                    # Se usa commonpath sobre rutas normalizadas: commonprefix compara
+                    # caracter por caracter y falla por mayusculas o por carpetas
+                    # hermanas con el mismo prefijo (proj vs proj2).
+                    normi_new_directory = normalize_path_for_comparison(
+                        os.path.dirname(new_file_path)
+                    )
+                    normi_project_folder = normalize_path_for_comparison(
+                        self.project_folder
+                    )
+                    try:
+                        common_path = os.path.commonpath(
+                            [normi_new_directory, normi_project_folder]
+                        )
+                    except ValueError:
+                        # Rutas en unidades distintas: no hay path comun posible
+                        common_path = ""
+
+                    if common_path.replace("\\", "/") == normi_project_folder:
                         # Actualizar el estado a "OK" y cambiar el color correspondiente
-                        self.table.item(row, 2).setBackground(QColor("#25321e"))
-                        self.table.item(row, 2).setText("OK")
+                        status_item.setBackground(QColor("#25321e"))
+                        status_item.setText("OK")
 
                     else:
                         # Actualizar el estado a "Outside" y cambiar el color correspondiente
-                        self.table.item(row, 2).setBackground(QColor("#321e1e"))
-                        self.table.item(row, 2).setText("Outside")
+                        status_item.setBackground(QColor("#321e1e"))
+                        status_item.setText("Outside")
+
+                    # Deseleccionar la fila: la celda seleccionada se pinta con el color
+                    # de seleccion del stylesheet y tapaba el fondo del estado recien
+                    # aplicado, dejando en rojo una fila que ya estaba en OK
+                    self.table.clearSelection()
 
                     break
 
