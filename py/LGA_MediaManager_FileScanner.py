@@ -1,9 +1,13 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.13 | Lega
+  LGA_MediaManager_FileScanner v2.14 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
+
+  v2.14: Los botones y los tooltips salen del modulo de estilo. La hoja
+         de la tabla deja de pintar la seleccion: de eso se encarga el
+         delegado, que respeta el color propio de la columna Status.
 
   v2.13: El relink rellena con ceros el frame al reconstruir el nombre
          de la secuencia, y si ese frame no esta en la carpeta nueva
@@ -66,6 +70,34 @@ import logging
 QThreadPool = QtCore.QThreadPool
 
 from LGA_MediaManager_logging import configure_logger, debug_print
+from LGA_UI_Style_ToolPack import Color, Metric, Style
+
+try:
+    from LGA_tooltip_helper import apply_tooltip_stylesheet
+except ImportError:
+    # La ventana funciona igual sin el helper; solo pierde el look estandar.
+    def apply_tooltip_stylesheet(target=None):
+        pass
+
+
+# Los tooltips van en castellano y salen de aca, no hardcodeados en el widget,
+# para que la migracion a bilingue sea un cambio de datos.
+TOOLTIPS = {
+    "go_to_read": "Selecciona en el Node Graph el Read que usa esta media",
+    "explorer": "Abre la carpeta de la media en el explorador de archivos",
+    "relink": "Vuelve a apuntar el Read offline al archivo, buscandolo en la carpeta que elijas",
+    "delete": "Manda a la papelera los archivos seleccionados",
+    "copy_to": "Copia lo seleccionado a una carpeta del shot y reapunta el Read",
+    "settings": "Abre los ajustes del Media Manager",
+    "rescan": "Vuelve a escanear el shot y guarda la profundidad actual como la nueva default",
+    "resize": "Ajusta el alto de la ventana al contenido de la tabla",
+    "more": "Muestra u oculta los ajustes de la tabla",
+    "columns": "Muestra las columnas Folder Delete y Sequence",
+    "color": "Colorea cada nivel del path con un color distinto",
+    "font_size": "Tamano de la letra de la tabla",
+    "folder_depth": "Cuantas carpetas hay que subir desde el script para llegar a la carpeta del shot",
+    "version": "Lega | 2023",
+}
 
 
 def normalize_path_for_comparison(file_path):
@@ -144,15 +176,29 @@ class FileScanner(QWidget):
         # Crear layout para botones a la izquierda
         left_buttons_layout = QHBoxLayout()
 
+        apply_tooltip_stylesheet(self)
+
         # Crear botones Reveal, Delete, y Go to Read y agregarlos despues del checkbox
+        # Ninguno es el boton de accion de la ventana -son una fila de herramientas,
+        # cualquiera es valido segun lo que este seleccionado- asi que van todos
+        # secundarios y no hay violeta: marcar uno seria decir que Enter lo ejecuta.
         self.go_to_read_button = QPushButton("&Go to Read")
-        self.go_to_read_button.setToolTip("Go to the Read node in Nuke")
+        self.go_to_read_button.setToolTip(TOOLTIPS["go_to_read"])
         self.reveal_button = QPushButton("&Explorer")
-        self.reveal_button.setToolTip("Reveal the file location in the file explorer")
+        self.reveal_button.setToolTip(TOOLTIPS["explorer"])
         self.delete_button = QPushButton("&Delete")
-        self.delete_button.setToolTip("Delete the selected file")
+        self.delete_button.setToolTip(TOOLTIPS["delete"])
         self.relink_button = QPushButton("Re&link")
-        self.relink_button.setToolTip("Relink the selected offline file")
+        self.relink_button.setToolTip(TOOLTIPS["relink"])
+
+        for button in (
+            self.go_to_read_button,
+            self.reveal_button,
+            self.delete_button,
+            self.relink_button,
+        ):
+            button.setStyleSheet(Style.BTN_SECONDARY)
+            button.setFixedHeight(Metric.BUTTON_HEIGHT)
 
         self.relink_button.clicked.connect(self.relink)
         self.reveal_button.clicked.connect(self.reveal_selected)
@@ -164,8 +210,13 @@ class FileScanner(QWidget):
         self.copy_button.setText("&Copy to")
         self.copy_button.setPopupMode(QToolButton.InstantPopup)
         self.copy_menu = QMenu(self)
-        self.copy_button.setToolTip(
-            "Copy the selected files to a specific folder and update the corresponding Read node's path"
+        self.copy_button.setToolTip(TOOLTIPS["copy_to"])
+        # Mismo look que los otros botones de la fila. El estilo se deriva del
+        # secundario en vez de escribir uno propio: BTN_SECONDARY apunta a
+        # QPushButton y este es un QToolButton, que no lo recibiria.
+        self.copy_button.setStyleSheet(
+            Style.BTN_SECONDARY.replace("QPushButton", "QToolButton")
+            + "QToolButton::menu-indicator { image: none; }"
         )
 
         # Crear acciones dinamicamente basadas en las opciones cargadas
@@ -190,15 +241,21 @@ class FileScanner(QWidget):
 
         self.copy_button.setMenu(self.copy_menu)
 
-        # Establecer un ancho fijo para los botones
-        self.reveal_button.setFixedWidth(100)
-        self.go_to_read_button.setFixedWidth(100)
-        self.delete_button.setFixedWidth(100)
-        self.relink_button.setFixedWidth(100)
-        self.copy_button.setFixedWidth(100)
-        self.copy_button.setMaximumHeight(24)
-        self.copy_button.setMinimumHeight(24)
+        # Todos los botones de la fila miden lo mismo, y esa medida sale del texto
+        # mas largo: con un ancho fijo a ojo, el padding del estilo se comia la
+        # primera letra de "Go to Read".
+        self.copy_button.setFixedHeight(Metric.BUTTON_HEIGHT)
         self.copy_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        row_buttons = (
+            self.go_to_read_button,
+            self.reveal_button,
+            self.relink_button,
+            self.delete_button,
+            self.copy_button,
+        )
+        button_width = max(100, max(b.sizeHint().width() for b in row_buttons))
+        for button in row_buttons:
+            button.setFixedWidth(button_width)
 
         # Agregar botones al layout de botones
         left_buttons_layout.addWidget(self.go_to_read_button)
@@ -218,17 +275,17 @@ class FileScanner(QWidget):
         # Boton de la flecha
         self.are_buttons_hidden = True  # Estado inicial de los botones
         self.arrow_button = QPushButton(">")
+        self.arrow_button.setToolTip(TOOLTIPS["more"])
         self.arrow_button.clicked.connect(self.toggle_buttons_visibility)
-        self.arrow_button.setStyleSheet("background: transparent; border: none;")
+        self.arrow_button.setStyleSheet(Style.BTN_ICON)
+        self.arrow_button.setFixedSize(22, 22)
         right_buttons_layout.addWidget(self.arrow_button)
 
         # Seccion de Column
         column_layout = QHBoxLayout()
         self.column_label = QLabel("Columns")
         self.column_checkbox = QCheckBox()
-        self.column_checkbox.setToolTip(
-            "Toggle visibility of Folder Delete and Sequence columns"
-        )
+        self.column_checkbox.setToolTip(TOOLTIPS["columns"])
         self.column_checkbox.setChecked(False)
         self.column_checkbox.stateChanged.connect(self.toggle_columns)
         column_layout.addWidget(self.column_label)
@@ -242,7 +299,7 @@ class FileScanner(QWidget):
         color_layout = QHBoxLayout()
         self.color_label = QLabel("Color")
         self.color_checkbox = QCheckBox()
-        self.color_checkbox.setToolTip("Toggle color-coded file paths")
+        self.color_checkbox.setToolTip(TOOLTIPS["color"])
         self.color_checkbox.setChecked(True)
         self.color_checkbox.stateChanged.connect(self.change_footage_text_color)
         color_layout.addWidget(self.color_label)
@@ -258,7 +315,7 @@ class FileScanner(QWidget):
         font_size_layout = QHBoxLayout()
         self.font_size_label = QLabel("Font Size")
         self.font_size_spinbox = QSpinBox()
-        self.font_size_spinbox.setToolTip("Adjust the font size of the table")
+        self.font_size_spinbox.setToolTip(TOOLTIPS["font_size"])
         self.font_size_spinbox.setRange(1, 30)
         self.font_size_spinbox.setValue(int(self.font_size))
         self.font_size_spinbox.valueChanged.connect(self.change_font_size)
@@ -276,9 +333,7 @@ class FileScanner(QWidget):
         folder_depth_layout = QHBoxLayout()
         self.level_label = QLabel("Shot Folder Depth")
         self.level_spinbox = QSpinBox()
-        self.level_spinbox.setToolTip(
-            "Sets the number of folder levels to move up from the script's location to find the main shot folder"
-        )
+        self.level_spinbox.setToolTip(TOOLTIPS["folder_depth"])
         self.level_spinbox.setRange(1, 10)
         self.level_spinbox.setValue(self.project_folder_depth)
         folder_depth_layout.addWidget(self.level_label)
@@ -292,9 +347,8 @@ class FileScanner(QWidget):
 
         # Boton Rescan
         self.refresh_button = QPushButton("Rescan")
-        self.refresh_button.setToolTip(
-            "Rescan the project directory, refresh the data, and save the project depth as the new default"
-        )
+        self.refresh_button.setToolTip(TOOLTIPS["rescan"])
+        self.refresh_button.setStyleSheet(Style.BTN_SMALL)
         self.refresh_button.clicked.connect(self.refresh_data)
         right_buttons_layout.addWidget(self.refresh_button)
         self.refresh_button.setVisible(False)
@@ -302,9 +356,8 @@ class FileScanner(QWidget):
 
         # Boton Refresh Window Size
         self.refresh_window_size_button = QPushButton("Resize")
-        self.refresh_window_size_button.setToolTip(
-            "Adjust the window size to fit the contents"
-        )
+        self.refresh_window_size_button.setToolTip(TOOLTIPS["resize"])
+        self.refresh_window_size_button.setStyleSheet(Style.BTN_SMALL)
         self.refresh_window_size_button.clicked.connect(self.adjust_window_size)
         right_buttons_layout.addWidget(self.refresh_window_size_button)
         self.refresh_window_size_button.setVisible(
@@ -340,7 +393,7 @@ class FileScanner(QWidget):
             debug_print(f"settings_on.png encontrado en {settings_on_path}")
 
         self.settings_button = QPushButton()
-        self.settings_button.setToolTip("Open Settings")
+        self.settings_button.setToolTip(TOOLTIPS["settings"])
         self.settings_button.setFixedWidth(24)  # Ajusta el tamano al de la imagen
         self.settings_button.setFixedHeight(24)  # Ajusta el tamano al de la imagen
         self.settings_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -378,7 +431,7 @@ class FileScanner(QWidget):
 
         # Crear y configurar el QLabel para el texto de la version
         version_label = QLabel("v2.24  ")
-        version_label.setToolTip("Lega | 2023")
+        version_label.setToolTip(TOOLTIPS["version"])
         version_label.setAlignment(
             Qt.AlignRight | Qt.AlignVCenter
         )  # Alineacion a la derecha y verticalmente centrado
@@ -409,15 +462,20 @@ class FileScanner(QWidget):
         self.table.setSortingEnabled(True)
         self.layout.addWidget(self.table)
 
-        # Cambiar el color de fondo de la tabla, de la barra de seleccion y el tamano de la fuente
+        # Cambiar el color de fondo de la tabla y el tamano de la fuente.
+        # La seleccion se deja transparente a proposito: si la hoja define un
+        # background para 'item:selected' le gana al setBackground() del item y a
+        # la paleta del delegado, y la columna Status pierde su color justo cuando
+        # esta seleccionada. Del color de la seleccion se encarga
+        # TransparentTextDelegate, que sabe que celdas tienen color propio.
         self.table.setStyleSheet(
             f"""
             QTableWidget {{
-                background-color: #282828;
-                font-size: {self.font_size}pt; 
+                background-color: {Color.SURFACE};
+                font-size: {self.font_size}pt;
             }}
             QTableWidget::item:selected {{
-                background-color: #FF0000;
+                background-color: transparent;
             }}
         """
         )
@@ -1174,11 +1232,6 @@ class FileScanner(QWidget):
                         # Actualizar el estado a "Outside" y cambiar el color correspondiente
                         status_item.setBackground(QColor("#321e1e"))
                         status_item.setText("Outside")
-
-                    # Deseleccionar la fila: la celda seleccionada se pinta con el color
-                    # de seleccion del stylesheet y tapaba el fondo del estado recien
-                    # aplicado, dejando en rojo una fila que ya estaba en OK
-                    self.table.clearSelection()
 
                     break
 

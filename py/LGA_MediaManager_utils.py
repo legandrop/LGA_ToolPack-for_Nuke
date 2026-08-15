@@ -1,8 +1,16 @@
 """
-_______________________________________
+_______________________________________________________________________
 
-  LGA_mediaManager v2.12 | Lega
-_______________________________________
+  LGA_MediaManager_utils v2.13 | Lega
+
+  Worker de escaneo, copia de archivos y widgets compartidos del
+  Media Manager.
+
+  v2.13: TransparentTextDelegate deja que el color propio de una celda
+         -el estado del archivo- sobreviva a la seleccion de la fila,
+         y toma los grises de LGA_UI_Style_ToolPack en vez de tenerlos
+         escritos al pie.
+_______________________________________________________________________
 
 """
 
@@ -57,6 +65,7 @@ import logging
 QThreadPool = QtCore.QThreadPool
 
 from LGA_MediaManager_logging import configure_logger, debug_print, get_log_prefix
+from LGA_UI_Style_ToolPack import Color
 
 
 def resolve_relative_path(file_path, project_folder):
@@ -423,17 +432,25 @@ class TransparentTextDelegate(QItemDelegate):
             # Configurar el color de fondo de la seleccion
             if option.state & QStyle.State_Selected:
                 option.palette.setColor(
-                    QPalette.Highlight, QColor(62, 62, 62)
-                )  # Un gris para la seleccion
+                    QPalette.Highlight, QColor(Color.SURFACE_SELECTED)
+                )
 
         else:  # Para otras columnas, establece el color del texto para el estado seleccionado
             if option.state & QStyle.State_Selected:
+                # Si la celda tiene color propio -la columna Status- ese color ES la
+                # informacion, asi que sobrevive a la seleccion: la fila se sigue
+                # leyendo como seleccionada por las otras columnas. Sin esto, elegir
+                # una fila para relinkearla tapaba el estado con el color de seleccion.
+                background = index.data(Qt.BackgroundRole)
+                highlight = (
+                    background.color()
+                    if background is not None
+                    else QColor(Color.SURFACE_SELECTED)
+                )
+                option.palette.setColor(QPalette.Highlight, highlight)
                 option.palette.setColor(
-                    QPalette.Highlight, QColor(62, 62, 62)
-                )  # Color de fondo de seleccion
-                option.palette.setColor(
-                    QPalette.HighlightedText, QColor(200, 200, 200)
-                )  # Color del texto seleccionado
+                    QPalette.HighlightedText, QColor(Color.TEXT_STRONG)
+                )
 
         super(TransparentTextDelegate, self).paint(painter, option, index)
 
