@@ -5,9 +5,10 @@ _______________________________________________________________________
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
-  v2.14: Los botones y los tooltips salen del modulo de estilo. La hoja
-         de la tabla deja de pintar la seleccion: de eso se encarga el
-         delegado, que respeta el color propio de la columna Status.
+  v2.14: Los botones y los tooltips salen del modulo de estilo y el
+         fondo de la ventana pasa al de la paleta. La hoja de la tabla
+         deja de pintar la seleccion: de eso se encarga el delegado,
+         que respeta el color propio de la columna Status.
 
   v2.13: El relink rellena con ceros el frame al reconstruir el nombre
          de la secuencia, y si ese frame no esta en la carpeta nueva
@@ -168,6 +169,15 @@ class FileScanner(QWidget):
 
     def initUI(self):
         self.layout = QVBoxLayout(self)
+
+        # Fondo de la ventana. Va por paleta y no por hoja de estilo a proposito:
+        # una regla 'QWidget { background-color }' se propaga a todos los hijos y
+        # les come la caja a los spinboxes y a los checkbox nativos. La paleta la
+        # heredan igual, pero cada control la usa para el rol que le corresponde.
+        self.setAutoFillBackground(True)
+        window_palette = self.palette()
+        window_palette.setColor(QPalette.Window, QColor(Color.WINDOW))
+        self.setPalette(window_palette)
 
         # Crea y configura el status_label
         # self.status_label = QLabel("")

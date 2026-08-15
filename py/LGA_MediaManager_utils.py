@@ -7,9 +7,9 @@ _______________________________________________________________________
   Media Manager.
 
   v2.13: TransparentTextDelegate deja que el color propio de una celda
-         -el estado del archivo- sobreviva a la seleccion de la fila,
-         y toma los grises de LGA_UI_Style_ToolPack en vez de tenerlos
-         escritos al pie.
+         -el estado del archivo- sobreviva a la seleccion de la fila:
+         se aclara en vez de taparse. Los grises salen de
+         LGA_UI_Style_ToolPack en vez de estar escritos al pie.
 _______________________________________________________________________
 
 """
@@ -421,6 +421,15 @@ class DeleteThread(QThread):
             print(f"File path not found in the table: {normalized_file_path}")
 
 
+# Cuanto se aclara el color propio de una celda cuando su fila esta
+# seleccionada. Se aclara el color en vez de mezclarlo con el gris de seleccion
+# porque los dos tienen una luminancia parecida: la mezcla daba un color casi
+# identico al de la fila sin seleccionar, o sea no se notaba cual estaba
+# elegida. Aclarandolo se mantiene el tono -verde sigue siendo verde- y el
+# salto se ve.
+SELECTION_LIGHTEN = 165
+
+
 class TransparentTextDelegate(QItemDelegate):
     # Clase para crear la interfaz de usuario
     def paint(self, painter, option, index):
@@ -438,12 +447,12 @@ class TransparentTextDelegate(QItemDelegate):
         else:  # Para otras columnas, establece el color del texto para el estado seleccionado
             if option.state & QStyle.State_Selected:
                 # Si la celda tiene color propio -la columna Status- ese color ES la
-                # informacion, asi que sobrevive a la seleccion: la fila se sigue
-                # leyendo como seleccionada por las otras columnas. Sin esto, elegir
-                # una fila para relinkearla tapaba el estado con el color de seleccion.
+                # informacion y no se puede tapar: se aclara en vez de reemplazarlo,
+                # asi la celda sigue verde o roja pero se ve que la fila esta elegida.
+                # Sin esto, seleccionar una fila para relinkearla escondia su estado.
                 background = index.data(Qt.BackgroundRole)
                 highlight = (
-                    background.color()
+                    background.color().lighter(SELECTION_LIGHTEN)
                     if background is not None
                     else QColor(Color.SURFACE_SELECTED)
                 )
