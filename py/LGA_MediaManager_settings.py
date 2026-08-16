@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.25 | Lega
+  LGA_MediaManager_settings v2.26 | Lega
   Ventana de ajustes del Media Manager
 
   v2.25: Cada destino ocupa una sola fila -nombre y ruta al lado,
