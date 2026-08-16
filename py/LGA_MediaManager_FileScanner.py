@@ -1,9 +1,13 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.14 | Lega
+  LGA_MediaManager_FileScanner v2.15 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
+
+  v2.15: La letra de la tabla pasa a pixeles, la fila de botones lleva
+         separacion propia y se van el boton '>' y los seis controles
+         que desplegaba.
 
   v2.14: Los botones y los tooltips salen del modulo de estilo y el
          fondo de la ventana pasa al de la paleta. La hoja de la tabla
@@ -90,15 +94,19 @@ TOOLTIPS = {
     "delete": "Manda a la papelera los archivos seleccionados",
     "copy_to": "Copia lo seleccionado a una carpeta del shot y reapunta el Read",
     "settings": "Abre los ajustes del Media Manager",
-    "rescan": "Vuelve a escanear el shot y guarda la profundidad actual como la nueva default",
-    "resize": "Ajusta el alto de la ventana al contenido de la tabla",
-    "more": "Muestra u oculta los ajustes de la tabla",
-    "columns": "Muestra las columnas Folder Delete y Sequence",
-    "color": "Colorea cada nivel del path con un color distinto",
-    "font_size": "Tamano de la letra de la tabla",
-    "folder_depth": "Cuantas carpetas hay que subir desde el script para llegar a la carpeta del shot",
     "version": "Lega | 2023",
 }
+
+# Separacion en pixeles entre los botones de la fila de herramientas. Vive aca
+# y no en Metric del modulo de estilo porque es un valor a tunear a ojo: cuando
+# quede firme conviene subirlo al modulo, que es donde van las medidas.
+BUTTON_SPACING = 12
+
+# Tamano de letra de la tabla, en PIXELES. Iba en pt, que Qt convierte con el
+# DPI logico del sistema: 72 en macOS y 96 en Windows, o sea que el mismo
+# numero daba una letra un tercio mas chica en Mac. En px mide igual en las dos.
+# 13 es el equivalente de los 10pt que se veian bien en Windows.
+DEFAULT_FONT_SIZE = 13
 
 
 def normalize_path_for_comparison(file_path):
@@ -145,7 +153,7 @@ class FileScanner(QWidget):
 
         # Inicializar atributos básicos primero
         self.matched_reads = []
-        self.font_size = 10
+        self.font_size = DEFAULT_FONT_SIZE
         self.sequence_extensions = [".exr", ".tif", ".png", ".jpg"]
         self.non_sequence_extensions = [".mov", ".psd", ".avi", ".mp4"]
 
@@ -185,6 +193,7 @@ class FileScanner(QWidget):
 
         # Crear layout para botones a la izquierda
         left_buttons_layout = QHBoxLayout()
+        left_buttons_layout.setSpacing(BUTTON_SPACING)
 
         apply_tooltip_stylesheet(self)
 
@@ -279,109 +288,11 @@ class FileScanner(QWidget):
             0, 9, 0, 9
         )  # Anade un margen superior e inferior de 9 pixeles
 
-        # Layout para Color, Font Size, Folder Depth y el boton Rescan
-        right_buttons_layout = QHBoxLayout()
-
-        # Boton de la flecha
-        self.are_buttons_hidden = True  # Estado inicial de los botones
-        self.arrow_button = QPushButton(">")
-        self.arrow_button.setToolTip(TOOLTIPS["more"])
-        self.arrow_button.clicked.connect(self.toggle_buttons_visibility)
-        self.arrow_button.setStyleSheet(Style.BTN_ICON)
-        self.arrow_button.setFixedSize(22, 22)
-        right_buttons_layout.addWidget(self.arrow_button)
-
-        # Seccion de Column
-        column_layout = QHBoxLayout()
-        self.column_label = QLabel("Columns")
-        self.column_checkbox = QCheckBox()
-        self.column_checkbox.setToolTip(TOOLTIPS["columns"])
-        self.column_checkbox.setChecked(False)
-        self.column_checkbox.stateChanged.connect(self.toggle_columns)
-        column_layout.addWidget(self.column_label)
-        column_layout.addWidget(self.column_checkbox)
-        self.column_frame = QFrame()
-        self.column_frame.setLayout(column_layout)
-        right_buttons_layout.addWidget(self.column_frame)
-        self.column_frame.setVisible(False)
-
-        # Seccion de Color
-        color_layout = QHBoxLayout()
-        self.color_label = QLabel("Color")
-        self.color_checkbox = QCheckBox()
-        self.color_checkbox.setToolTip(TOOLTIPS["color"])
-        self.color_checkbox.setChecked(True)
-        self.color_checkbox.stateChanged.connect(self.change_footage_text_color)
-        color_layout.addWidget(self.color_label)
-        color_layout.addWidget(self.color_checkbox)
-        self.color_frame = QFrame()
-        self.color_frame.setLayout(color_layout)
-        right_buttons_layout.addWidget(self.color_frame)
-        self.color_frame.setVisible(
-            False
-        )  # Solo hacemos invisible el frame, no los widgets internos
-
-        # Seccion de Font Size
-        font_size_layout = QHBoxLayout()
-        self.font_size_label = QLabel("Font Size")
-        self.font_size_spinbox = QSpinBox()
-        self.font_size_spinbox.setToolTip(TOOLTIPS["font_size"])
-        self.font_size_spinbox.setRange(1, 30)
-        self.font_size_spinbox.setValue(int(self.font_size))
-        self.font_size_spinbox.valueChanged.connect(self.change_font_size)
-        font_size_layout.addWidget(self.font_size_label)
-        font_size_layout.addWidget(self.font_size_spinbox)
-        self.font_size_frame = (
-            QFrame()
-        )  # Usar self para hacerlo un atributo de la instancia
-        self.font_size_frame.setLayout(font_size_layout)
-        right_buttons_layout.addWidget(self.font_size_frame)
-        self.font_size_frame.setVisible(False)
-        # right_buttons_layout.addSpacing(50)  # Agrega un espacio
-
-        # Seccion de Folder Depth
-        folder_depth_layout = QHBoxLayout()
-        self.level_label = QLabel("Shot Folder Depth")
-        self.level_spinbox = QSpinBox()
-        self.level_spinbox.setToolTip(TOOLTIPS["folder_depth"])
-        self.level_spinbox.setRange(1, 10)
-        self.level_spinbox.setValue(self.project_folder_depth)
-        folder_depth_layout.addWidget(self.level_label)
-        folder_depth_layout.addWidget(self.level_spinbox)
-        self.folder_depth_frame = (
-            QFrame()
-        )  # Usar self para hacerlo un atributo de la instancia
-        self.folder_depth_frame.setLayout(folder_depth_layout)
-        self.folder_depth_frame.setVisible(False)
-        right_buttons_layout.addWidget(self.folder_depth_frame)
-
-        # Boton Rescan
-        self.refresh_button = QPushButton("Rescan")
-        self.refresh_button.setToolTip(TOOLTIPS["rescan"])
-        self.refresh_button.setStyleSheet(Style.BTN_SMALL)
-        self.refresh_button.clicked.connect(self.refresh_data)
-        right_buttons_layout.addWidget(self.refresh_button)
-        self.refresh_button.setVisible(False)
-        right_buttons_layout.addSpacing(10)
-
-        # Boton Refresh Window Size
-        self.refresh_window_size_button = QPushButton("Resize")
-        self.refresh_window_size_button.setToolTip(TOOLTIPS["resize"])
-        self.refresh_window_size_button.setStyleSheet(Style.BTN_SMALL)
-        self.refresh_window_size_button.clicked.connect(self.adjust_window_size)
-        right_buttons_layout.addWidget(self.refresh_window_size_button)
-        self.refresh_window_size_button.setVisible(
-            False
-        )  # Asegurate de que el boton sea visible
-
         # Crear el layout principal que incluye todos los layouts de botones
         main_buttons_layout = QHBoxLayout()
         main_buttons_layout.addLayout(left_buttons_layout)
-        main_buttons_layout.addSpacing(10)
-        main_buttons_layout.addLayout(right_buttons_layout)
-        main_buttons_layout.addStretch()
 
-        # Agregar un espacio flexible para empujar el texto de la version hacia la derecha
+        # Espacio flexible que empuja el engranaje y la version hacia la derecha
         main_buttons_layout.addStretch(1)
 
         # Obtener la ruta del directorio del script actual
@@ -446,8 +357,8 @@ class FileScanner(QWidget):
             Qt.AlignRight | Qt.AlignVCenter
         )  # Alineacion a la derecha y verticalmente centrado
 
-        # Agregar el QLabel al layout principal de botones
-        main_buttons_layout.insertWidget(5, self.settings_button)
+        # Agregar el engranaje y la version al final de la fila
+        main_buttons_layout.addWidget(self.settings_button)
         main_buttons_layout.addWidget(version_label)
 
         # Agregar layout de botones al layout principal
@@ -464,7 +375,7 @@ class FileScanner(QWidget):
         # self.table.horizontalHeader().setStretchLastSection(True) # Estira la ultima columna hasta la derecha de la ventana
 
         # Aplicar la configuracion inicial de visibilidad de columnas
-        self.toggle_columns(self.column_checkbox.isChecked())
+        self.toggle_columns(False)
 
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -482,7 +393,7 @@ class FileScanner(QWidget):
             f"""
             QTableWidget {{
                 background-color: {Color.SURFACE};
-                font-size: {self.font_size}pt;
+                font-size: {self.font_size}px;
             }}
             QTableWidget::item:selected {{
                 background-color: transparent;
@@ -498,16 +409,6 @@ class FileScanner(QWidget):
         self.setLayout(self.layout)
         self.scan_project()
         self.adjust_window_size()
-
-    def toggle_buttons_visibility(self):
-        self.are_buttons_hidden = not self.are_buttons_hidden
-        # Alternar la visibilidad de los elementos
-        self.column_frame.setVisible(not self.are_buttons_hidden)
-        self.color_frame.setVisible(not self.are_buttons_hidden)
-        self.font_size_frame.setVisible(not self.are_buttons_hidden)
-        self.folder_depth_frame.setVisible(not self.are_buttons_hidden)
-        self.refresh_button.setVisible(not self.are_buttons_hidden)
-        self.refresh_window_size_button.setVisible(not self.are_buttons_hidden)
 
     def load_settings(self):
         config = configparser.ConfigParser()
@@ -756,117 +657,11 @@ class FileScanner(QWidget):
         self.table.setColumnHidden(4, not is_visible)  # Columna Sequence
         self.adjust_window_size()
 
-    def refresh_data(self):
-        # Guardar la configuracion actual en el .ini
-        self.save_settings()
-
-        # Guardar la configuracion actual de ordenacion
-        current_sort_column = self.table.horizontalHeader().sortIndicatorSection()
-        current_sort_order = self.table.horizontalHeader().sortIndicatorOrder()
-
-        # Muestra la ventana de carga
-        self.loading_window = LoadingWindow("Rescanning...", self)
-        self.center_window(self.loading_window)
-        self.loading_window.show()
-
-        QApplication.processEvents()  # Actualiza la UI para mostrar el mensaje
-
-        # Restablecer el orden de la tabla
-        self.table.sortByColumn(
-            -1, Qt.AscendingOrder
-        )  # -1 significa no ordenar por ninguna columna
-
-        # Limpia la tabla
-        self.table.setRowCount(0)
-        self.matched_reads = []
-
-        # Usa el valor actual del level_spinbox para realizar la operacion
-        project_path = nuke.root().name()
-        if not project_path:
-            nuke.message("Por favor guarda el script antes de ejecutar este script.")
-            return
-
-        project_folder = project_path
-        for _ in range(self.level_spinbox.value()):  # Usar el valor del spinbox
-            project_folder = os.path.dirname(project_folder)
-
-        self.project_folder = project_folder  # Guardo la variable para obtenerla desde cualquier lado (add file to table)
-        # self.find_files(project_folder)
-        temp_worker = ScannerWorker(self)
-        files_data = temp_worker.find_files(project_folder)
-        self.search_unmatched_reads()
-        self.adjust_window_size()
-
-        # Aplicar el color del checkbox despues de actualizar la tabla
-        self.change_footage_text_color(self.color_checkbox.isChecked())
-
-        # Iniciar un temporizador para reordenar la tabla despues de que se haya completado la actualizacion
-        QTimer.singleShot(
-            10, lambda: self.table.sortByColumn(current_sort_column, current_sort_order)
-        )
-        # QTimer.singleShot(10, self.reorder_by_status)  # 500 milisegundos despues
-
-        # Ocultar la ventana de carga
-        self.loading_window.stop()
-
-    def save_settings(self):
-        config = configparser.ConfigParser()
-        ini_path = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)), "LGA_mediaManagerSettings.ini"
-        )
-        config["LGA_mediaManagerSettings"] = {
-            "project_folder_depth": self.level_spinbox.value()
-        }
-        with open(ini_path, "w") as configfile:
-            config.write(configfile)
-        debug_print(f"Settings saved to INI: {ini_path}")  # Linea de depuracion
-
     def reorder_by_status(self):
         status_column_index = (
             2  # Asegurate de que este es el indice correcto para la columna de Estado
         )
         self.table.sortByColumn(status_column_index, Qt.AscendingOrder)
-
-    def change_font_size(self, value):
-        self.font_size = value
-        self.update_table_font_size()
-        self.adjust_window_size()
-
-    def update_table_font_size(self):
-        for row in range(self.table.rowCount()):
-            label = self.table.cellWidget(row, 0)
-            if label:
-                label.setStyleSheet(f"QLabel {{ font-size: {self.font_size}pt; }}")
-
-    def on_level_change(self):
-        # Limpia la tabla antes de una nueva busqueda
-        self.table.setRowCount(0)
-        self.matched_reads = []
-
-        # Obtiene el nuevo nivel de directorio
-        level = self.level_spinbox.value()
-
-        # Encuentra los archivos con el nuevo nivel
-        project_path = nuke.root().name()
-        if not project_path:
-            nuke.message("Por favor guarda el script antes de ejecutar este script.")
-            return
-
-        # Calcula el directorio del proyecto basado en el nivel especificado
-        project_folder = project_path
-        for _ in range(level):
-            project_folder = os.path.dirname(project_folder)
-        self.project_folder = project_folder  # Guardo la variable para obtenerla desde cualquier lado (add file to table)
-
-        # Realiza las busquedas con el nivel ajustado
-        # self.find_files(project_folder)
-        temp_worker = ScannerWorker(self)
-        files_data = temp_worker.find_files(project_folder)
-        self.search_unmatched_reads()
-        self.adjust_window_size()
-
-        # Aplicar el color del checkbox despues de actualizar la tabla
-        self.change_footage_text_color(self.color_checkbox.isChecked())
 
     def get_color_for_level(self, level):
         # Define los colores por nivel aqui
@@ -1719,7 +1514,7 @@ class FileScanner(QWidget):
             label = QLabel(display_text)
             label.setTextFormat(Qt.RichText)  # Habilitar texto enriquecido
             label.setStyleSheet(
-                f"color: rgb(200, 200, 200); font-size: {self.font_size}pt;"
+                f"color: rgb(200, 200, 200); font-size: {self.font_size}px;"
             )
             self.table.setCellWidget(row_position, 0, label)
 
@@ -2356,7 +2151,7 @@ class FileScanner(QWidget):
                     )
                 )
 
-            level = self.level_spinbox.value()
+            level = self.project_folder_depth
             project_path = nuke.root().name()
             project_folder = project_path
             for _ in range(level):
