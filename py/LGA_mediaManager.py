@@ -1,11 +1,30 @@
 """
-_______________________________________
+_______________________________________________________________________
 
-  LGA_mediaManager v2.24 | Lega
+  LGA_mediaManager v2.25 | Lega
 
+  Ventana del Media Manager: escaneo del shot, estado de cada media,
+  relink, copia de archivos y borrado.
+
+  Modulos de esta tool (todos van con la misma version):
+    LGA_mediaManager.py              <- este, el principal
+    LGA_MediaManager_FileScanner.py  ventana, tabla y relink
+    LGA_MediaManager_utils.py        workers de escaneo, copia y borrado
+    LGA_MediaManager_settings.py     ventana de ajustes
+    LGA_MediaManager_config.py       donde vive el .ini del usuario
+    LGA_MediaManager_logging.py      logger a logs/LGA_mediaManager.log
+
+  Version visible en la UI: la muestra la ventana de ajustes, abajo a
+  la izquierda. Sale de leer ESTE header con get_tool_version() de
+  LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
+  mano en la interfaz.
+
+  v2.25: Las versiones de los seis modulos quedan sincronizadas. El
+         .ini pasa a la carpeta de datos del usuario y la busqueda del
+         relink sale del hilo principal.
   v2.24: fix altura de la ventana
   v2.23: se agrega el nuevo logging system
-_______________________________________
+_______________________________________________________________________
 
 """
 

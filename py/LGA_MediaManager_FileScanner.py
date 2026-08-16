@@ -1,13 +1,19 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.15 | Lega
+  LGA_MediaManager_FileScanner v2.25 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
-  v2.15: La letra de la tabla pasa a pixeles, la fila de botones lleva
-         separacion propia y se van el boton '>' y los seis controles
-         que desplegaba.
+  v2.25: La busqueda del relink corre en un worker y el menu Copy to
+         se rehace al guardar los ajustes. La config sale del .ini del
+         usuario. La clave del depth es la que la ventana de ajustes
+         lee -antes nunca coincidian- y el relink cubre nombres con
+         varios grupos de '#', con corchetes propios y con frames
+         negativos. La version sale de la barra: la muestra la ventana
+         de ajustes. La letra de la tabla pasa a pixeles, la fila de
+         botones lleva separacion propia y se van el boton '>' y los
+         seis controles que desplegaba.
 
   v2.14: Los botones y los tooltips salen del modulo de estilo y el
          fondo de la ventana pasa al de la paleta. La hoja de la tabla
@@ -38,11 +44,8 @@ QFileDialog = QtWidgets.QFileDialog
 QItemDelegate = QtWidgets.QItemDelegate
 QStyle = QtWidgets.QStyle
 QMessageBox = QtWidgets.QMessageBox
-QCheckBox = QtWidgets.QCheckBox
 QLabel = QtWidgets.QLabel
 QHBoxLayout = QtWidgets.QHBoxLayout
-QSpinBox = QtWidgets.QSpinBox
-QFrame = QtWidgets.QFrame
 QMenu = QtWidgets.QMenu
 try:
     QAction = QtGui.QAction
@@ -76,6 +79,7 @@ QThreadPool = QtCore.QThreadPool
 
 from LGA_MediaManager_logging import configure_logger, debug_print
 from LGA_UI_Style_ToolPack import Color, Metric, Style
+from LGA_MediaManager_config import get_read_path
 
 try:
     from LGA_tooltip_helper import apply_tooltip_stylesheet
@@ -94,7 +98,6 @@ TOOLTIPS = {
     "delete": "Manda a la papelera los archivos seleccionados",
     "copy_to": "Copia lo seleccionado a una carpeta del shot y reapunta el Read",
     "settings": "Abre los ajustes del Media Manager",
-    "version": "Lega | 2023",
 }
 
 # Separacion en pixeles entre los botones de la fila de herramientas. Vive aca
@@ -131,6 +134,7 @@ import send2trash
 
 # Importar clases auxiliares desde utils
 from LGA_MediaManager_utils import (
+    RelinkSearchWorker,
     ScannerWorker,
     TransparentTextDelegate,
     LoadingWindow,
@@ -164,6 +168,10 @@ class FileScanner(QWidget):
         self.settings_data = (
             None  # Crear un atributo para guardar los settings en memoria
         )
+        # Estado de la busqueda del relink: el worker en curso y su ventanita.
+        # Van aparte de self.loading_window, que la comparten copia y borrado.
+        self.relink_worker = None
+        self.relink_loading_window = None
         self.load_settings()  # Cargar settings del archivo .ini
 
         # Crear el scanner_worker después de que los atributos estén inicializados
@@ -238,26 +246,7 @@ class FileScanner(QWidget):
             + "QToolButton::menu-indicator { image: none; }"
         )
 
-        # Crear acciones dinamicamente basadas en las opciones cargadas
-        for button_text, subdirectory in self.copy_options:
-            action = QAction(button_text, self)
-
-            # Buscar la letra despues de '&' para establecer el shortcut
-            if "&" in button_text:
-                ampersand_index = button_text.index("&")
-                if ampersand_index < len(button_text) - 1:
-                    shortcut_letter = button_text[ampersand_index + 1].upper()
-                    shortcut = f"Alt+{shortcut_letter}"
-                    action.setShortcut(shortcut)
-
-            # Conectar la accion
-            action.triggered.connect(
-                lambda checked=False, subdir=subdirectory: self.copy_to(subdir)
-            )
-
-            # Anadir la accion al menu
-            self.copy_menu.addAction(action)
-
+        self.populate_copy_menu()
         self.copy_button.setMenu(self.copy_menu)
 
         # Todos los botones de la fila miden lo mismo, y esa medida sale del texto
@@ -350,16 +339,10 @@ class FileScanner(QWidget):
 
         self.settings_button.clicked.connect(self.show_settings_window)
 
-        # Crear y configurar el QLabel para el texto de la version
-        version_label = QLabel("v2.24  ")
-        version_label.setToolTip(TOOLTIPS["version"])
-        version_label.setAlignment(
-            Qt.AlignRight | Qt.AlignVCenter
-        )  # Alineacion a la derecha y verticalmente centrado
-
-        # Agregar el engranaje y la version al final de la fila
+        # La version ya no vive en la barra: estaba escrita a mano y se
+        # desincronizaba del header. Ahora la muestra la ventana de ajustes,
+        # leyendola del header del script principal.
         main_buttons_layout.addWidget(self.settings_button)
-        main_buttons_layout.addWidget(version_label)
 
         # Agregar layout de botones al layout principal
         self.layout.addLayout(main_buttons_layout)
@@ -410,11 +393,53 @@ class FileScanner(QWidget):
         self.scan_project()
         self.adjust_window_size()
 
+    def populate_copy_menu(self):
+        """
+        Arma las acciones del menu Copy to desde self.copy_options.
+
+        Se rehace entero cada vez y no solo al abrir la ventana: si no, un
+        destino agregado en los ajustes no aparecia hasta reabrir el Media
+        Manager, y uno borrado seguia en el menu copiando a una carpeta que
+        el usuario acababa de sacar.
+        """
+        self.copy_menu.clear()
+        for button_text, subdirectory in self.copy_options:
+            action = QAction(button_text, self)
+
+            # La letra despues del '&' queda como atajo
+            if "&" in button_text:
+                ampersand_index = button_text.index("&")
+                if ampersand_index < len(button_text) - 1:
+                    shortcut_letter = button_text[ampersand_index + 1].upper()
+                    action.setShortcut(f"Alt+{shortcut_letter}")
+
+            action.triggered.connect(
+                lambda checked=False, subdir=subdirectory: self.copy_to(subdir)
+            )
+            self.copy_menu.addAction(action)
+
+    def on_settings_saved(self):
+        """Relee el .ini y refleja lo guardado sin tener que reabrir la tool."""
+        self.load_settings()
+        self.populate_copy_menu()
+
+        # La carpeta del shot depende del depth, asi que si cambio hay que
+        # recalcularla: si no, el coloreo de paths y los estados OK/Outside
+        # se siguen midiendo contra la carpeta vieja hasta el proximo escaneo.
+        project_path = nuke.root().name()
+        if project_path:
+            project_folder = project_path
+            for _ in range(self.project_folder_depth):
+                project_folder = os.path.dirname(project_folder)
+            self.project_folder = project_folder
+
     def load_settings(self):
         config = configparser.ConfigParser()
-        ini_path = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)), "LGA_mediaManagerSettings.ini"
-        )
+        # Manda el .ini de la carpeta de datos del usuario. El que viaja
+        # adentro del pack se usa solo mientras ese no exista, o sea hasta el
+        # primer guardado: el instalador reemplaza la carpeta del pack entera
+        # en cada actualizacion y ahi se perderia lo que el usuario configuro.
+        ini_path = get_read_path()
         debug_print(
             f"INI file path: {ini_path}"
         )  # Linea de depuracion para imprimir la ruta del INI
@@ -456,9 +481,12 @@ class FileScanner(QWidget):
         )  # Linea de depuracion
 
     def show_settings_window(self):
-        # Cargar la configuracion del archivo .ini
+        # Cargar la configuracion del archivo .ini.
+        # La clave tiene que ser la misma que lee SettingsWindow: iba como
+        # "Shot Folder depth" contra un "Folder scan depth", asi que la ventana
+        # nunca veia el valor guardado y al guardar lo pisaba con el default.
         settings_data = {
-            "Shot Folder depth": str(self.project_folder_depth),
+            "Folder scan depth": str(self.project_folder_depth),
         }
         for i, (button_text, subdirectory) in enumerate(self.copy_options, start=1):
             settings_data[f"copy_{i}_button_text"] = button_text
@@ -473,6 +501,10 @@ class FileScanner(QWidget):
                 QApplication.primaryScreen().availableGeometry(),
             )
         )
+        # Al guardar hay que releer el .ini: si no, los destinos nuevos no
+        # aparecen en el menu Copy to hasta reabrir el Media Manager, y la
+        # profundidad de la ventana y la de la tabla quedan distintas.
+        self.settings_window.settings_saved.connect(self.on_settings_saved)
         self.settings_window.show()
 
     def keyPressEvent(self, event):
@@ -868,103 +900,127 @@ class FileScanner(QWidget):
         """
         Arma los dos criterios de busqueda para el relink a partir del texto de la tabla.
 
-        Devuelve (exact_name, sequence_pattern, first_frame):
-          - exact_name: nombre exacto del primer frame, con el padding correcto.
-          - sequence_pattern: regex que acepta cualquier frame de la misma secuencia.
-          - first_frame: primer frame declarado en la tabla (sin padding).
+        Devuelve (exact_name, sequence_pattern):
+          - exact_name: nombre exacto del primer frame, con el padding correcto,
+            o None si el frame no se puede reconstruir.
+          - sequence_pattern: regex que acepta cualquier frame de la misma
+            secuencia, o None si el archivo no es una secuencia.
         """
-        base_name = os.path.basename(file_name).split("[")[0]
-        hashes_match = re.search(r"#+", base_name)
+        # El rango se corta anclado al final y no con split("["): un archivo que
+        # tenga un '[' en el nombre -take[1]_####.exr- se partia por el corchete
+        # equivocado y el nombre quedaba sin sentido.
+        texto = os.path.basename(file_name)
+        base_name = re.sub(r"\[-?\d+--?\d+\]\s*$", "", texto).strip()
 
-        if not hashes_match:
+        grupos = list(re.finditer(r"#+", base_name))
+
+        if not grupos:
             # Archivo unico: el nombre ya viene completo
-            return os.path.basename(file_name).lower(), None, ""
+            return base_name.lower(), None
 
+        # El grupo del frame es el ULTIMO. Con el primero, un nombre como
+        # sh010_comp_v###_####.exr resolvia el frame sobre la version y la
+        # secuencia no se podia relinkear nunca.
+        hashes_match = grupos[-1]
         hashes = hashes_match.group(0)
-        prefix, suffix = base_name.split(hashes, 1)
+        prefix = base_name[: hashes_match.start()]
+        suffix = base_name[hashes_match.end() :]
 
         # Criterio primario: reconstruir el nombre exacto del primer frame.
         # El rango de un Read offline viene sin padding (ej. [0-530]), asi que hay
         # que rellenarlo al ancho de los '#' para que coincida con el archivo real.
+        # Solo se puede armar si el frame es el unico grupo de '#': con mas de uno
+        # no sabemos que numero va en los otros, y ahi trabaja el patron.
         exact_name = None
-        first_frame = ""
-        frame_range = re.search(r"\[(\d+)-\d+\]", file_name)
-        if frame_range:
+        frame_range = re.search(r"\[(-?\d+)--?\d+\]\s*$", texto)
+        if frame_range and len(grupos) == 1 and not frame_range.group(1).startswith("-"):
             first_frame = frame_range.group(1)
             exact_name = (prefix + first_frame.zfill(len(hashes)) + suffix).lower()
 
         # Criterio de respaldo: mismo nombre y mismo padding, cualquier numero de frame.
         # Cubre el caso en que el frame inicial guardado en el nodo no existe en la
         # carpeta nueva (secuencia recopiada con otro rango, primer frame faltante, etc).
+        # Cualquier otro grupo de '#' del nombre tambien es un numero en disco,
+        # asi que en el patron van todos como digitos: escapar el prefijo tal
+        # cual dejaba los '###' de una version como literales, que no matchean
+        # nada. El del frame acepta signo, para las secuencias que arrancan en
+        # negativo.
+        def a_digitos(texto_fijo):
+            partes = re.split(r"(#+)", texto_fijo)
+            return "".join(
+                r"\d{%d}" % len(parte) if parte.startswith("#") else re.escape(parte)
+                for parte in partes
+            )
+
+        # El grupo del frame acepta ademas un numero negativo. El signo ocupa
+        # lugar dentro del padding -"%04d" % -5 da "-005"-, asi que con signo
+        # va un digito menos.
+        ancho = len(hashes)
+        numero = r"(?:-\d{%d}|\d{%d})" % (ancho - 1, ancho) if ancho > 1 else r"-?\d"
+
         sequence_pattern = re.compile(
-            re.escape(prefix) + r"\d{" + str(len(hashes)) + r"}" + re.escape(suffix) + r"$",
+            a_digitos(prefix) + numero + a_digitos(suffix) + r"$",
             re.IGNORECASE,
         )
 
-        return exact_name, sequence_pattern, first_frame
+        return exact_name, sequence_pattern
 
     def search_file_in_directory(self, directory, file_name):
-        self.loading_window = LoadingWindow("Searching...", self)
-        self.loading_window.show()
-        QApplication.processEvents()
-
-        exact_name, sequence_pattern, first_frame = self.build_search_patterns(file_name)
-
-        nuke.executeInMainThread(
-            lambda: self.logger.debug(
-                f"\nBuscando el archivo: {exact_name} en {directory}"
-                f" (patron de respaldo: {sequence_pattern.pattern if sequence_pattern else 'ninguno'})"
-            )
-        )
-
-        fallback_path = None
-
-        for root, dirs, files in os.walk(directory):
-            if "$RECYCLE.BIN" in [
-                os.path.basename(dir)
-                for dir in os.path.normpath(root).split(os.path.sep)
-            ]:
-                nuke.executeInMainThread(lambda: self.logger.debug(f"Skipping {root}"))
-                continue
-
-            for file in files:
-                if exact_name and file.lower() == exact_name:
-                    new_file_path = os.path.join(root, file)
-                    nuke.executeInMainThread(
-                        lambda: self.logger.debug(
-                            f"Archivo encontrado (match exacto): {new_file_path}"
-                        )
-                    )
-                    self.update_read_node(file_name, new_file_path, first_frame)
-                    self.loading_window.close()
-                    return
-
-                # Se guarda el primer candidato del patron, pero se sigue recorriendo
-                # por si mas adelante aparece el match exacto, que tiene prioridad
-                if (
-                    fallback_path is None
-                    and sequence_pattern is not None
-                    and sequence_pattern.match(file)
-                ):
-                    fallback_path = os.path.join(root, file)
-
-        if fallback_path:
-            nuke.executeInMainThread(
-                lambda: self.logger.debug(
-                    f"Archivo encontrado (match por patron de secuencia): {fallback_path}"
-                )
-            )
-            self.update_read_node(file_name, fallback_path, first_frame)
-            self.loading_window.close()
+        # Una busqueda por vez: la UI quedo responsiva al pasar el walk a un
+        # worker, asi que nada impedia apretar Relink de nuevo y quedarse con
+        # dos busquedas pisandose los resultados.
+        if self.relink_worker is not None:
             return
 
-        nuke.executeInMainThread(
-            lambda: self.logger.debug("No se encontro ningun archivo compatible")
-        )
-        self.loading_window.close()
-        QMessageBox.information(self, "Information", "File not found.")
+        # Los patrones se arman ANTES de mostrar la ventanita: es frameless y
+        # siempre encima, asi que si algo falla armandolos queda pegada sin
+        # forma de cerrarla.
+        exact_name, sequence_pattern = self.build_search_patterns(file_name)
 
-    def update_read_node(self, original_file_name, new_file_path, first_frame):
+        # Ventana propia y no self.loading_window, que la comparten la copia y
+        # el borrado: con la busqueda corriendo en paralelo, el que terminaba
+        # primero cerraba la ventanita del otro.
+        self.relink_loading_window = LoadingWindow("Searching...", self)
+        self.relink_loading_window.show()
+        QApplication.processEvents()
+        self.logger.debug(
+            f"\nBuscando el archivo: {exact_name} en {directory}"
+            f" (patron de respaldo: {sequence_pattern.pattern if sequence_pattern else 'ninguno'})"
+        )
+
+        # El recorrido va a un worker: sobre un servidor grande el os.walk
+        # tarda lo suficiente como para congelar Nuke entero, y encima el
+        # patron de respaldo obliga a recorrer todo el arbol cuando no hay
+        # match exacto, que es el caso normal de una secuencia movida.
+        self.relink_worker = RelinkSearchWorker(directory, exact_name, sequence_pattern)
+        self.relink_worker.signals.finished.connect(
+            lambda encontrado: self.on_relink_search_finished(file_name, encontrado)
+        )
+        QThreadPool.globalInstance().start(self.relink_worker)
+
+    def on_relink_search_finished(self, file_name, found_path):
+        """Aplica el resultado de la busqueda. Corre en el hilo principal."""
+        self.relink_worker = None
+
+        # El walk puede tardar minutos: si el usuario cerro la ventana mientras
+        # tanto, los widgets ya no existen del lado de C++ aunque Python siga
+        # teniendo la referencia viva por el lambda de la conexion.
+        try:
+            if self.relink_loading_window is not None:
+                self.relink_loading_window.close()
+                self.relink_loading_window = None
+
+            if found_path:
+                self.update_read_node(file_name, found_path)
+            else:
+                QMessageBox.information(self, "Information", "File not found.")
+        except RuntimeError:
+            # La ventana del Media Manager se cerro durante la busqueda
+            self.logger.debug(
+                "La ventana se cerro antes de que terminara la busqueda del relink"
+            )
+
+    def update_read_node(self, original_file_name, new_file_path):
         # Normalizar las barras en la ruta del archivo
         new_file_path = new_file_path.replace("\\", "/")
 
@@ -1260,7 +1316,6 @@ class FileScanner(QWidget):
             )
 
         return to_add  # En lugar de llamar a add_file_to_table, devuelve los datos
-        self.adjust_window_size()
 
     def get_read_files(self):
         read_files = {}

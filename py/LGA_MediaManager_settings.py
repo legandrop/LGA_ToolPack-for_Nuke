@@ -1,8 +1,16 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.13 | Lega
+  LGA_MediaManager_settings v2.25 | Lega
   Ventana de ajustes del Media Manager
+
+  v2.25: Cada destino ocupa una sola fila -nombre y ruta al lado,
+         encabezado de columna una vez- con los campos alineados. El
+         depth se maneja con un stepper de botones a los costados en
+         vez del spinbox nativo, que iba de 20 px y se enfocaba en
+         amarillo. Muestra la version de la herramienta, leida del
+         header del script principal. Guarda de forma atomica en el
+         .ini de la carpeta de datos del usuario y avisa por senal.
 
   v2.13: El look sale de LGA_UI_Style_ToolPack. Cada widget repetia
          su propio bloque de QToolTip inline —el mismo, seis veces—
@@ -16,7 +24,7 @@ _______________________________________
 """
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
-from LGA_UI_Style_ToolPack import Metric, Style
+from LGA_UI_Style_ToolPack import Color, Metric, Style
 
 QApplication = QtWidgets.QApplication
 QTableWidget = QtWidgets.QTableWidget
@@ -33,7 +41,6 @@ QMessageBox = QtWidgets.QMessageBox
 QCheckBox = QtWidgets.QCheckBox
 QLabel = QtWidgets.QLabel
 QHBoxLayout = QtWidgets.QHBoxLayout
-QSpinBox = QtWidgets.QSpinBox
 QFrame = QtWidgets.QFrame
 QMenu = QtWidgets.QMenu
 try:
@@ -67,6 +74,153 @@ import configparser
 import logging
 
 from LGA_MediaManager_logging import configure_logger, debug_print
+from LGA_MediaManager_config import get_write_path, write_ini
+
+QIntValidator = QtGui.QIntValidator
+
+
+# Anchos de las columnas de la lista de destinos. El nombre va angosto y la
+# ruta expande: un nombre son dos palabras y una ruta puede ser larga. Son
+# distintos a proposito, no por como cayo cada fila.
+INDEX_WIDTH = 16  # el numero de orden del destino
+NAME_WIDTH = 150
+ROW_SPACING = 8
+STEPPER_FIELD_WIDTH = 56
+# El boton chico de quitar/sumar mide lo mismo que la cruz de cerrar del
+# resto del pack, asi que sale del modulo de estilo y no de un 26 local.
+MINUS_BUTTON_SIZE = Metric.CLOSE_BUTTON_SIZE
+
+FOLDER_DEPTH_MIN = 1
+FOLDER_DEPTH_MAX = 10
+
+
+# Los tooltips van en castellano y salen de aca, no hardcodeados en el widget,
+# para que la migracion a bilingue sea un cambio de datos.
+TOOLTIPS = {
+    "depth": (
+        "Cuantas carpetas hay que subir desde el script para llegar\n"
+        "a la carpeta del shot"
+    ),
+    "depth_minus": "Una carpeta menos",
+    "depth_plus": "Una carpeta mas",
+    "name": (
+        "Nombre que aparece en el menu Copy to.\n"
+        "Un & antes de una letra la convierte en atajo:\n"
+        "&Assets se dispara con Alt+A"
+    ),
+    "path": "Ruta de la carpeta, relativa a la carpeta del shot",
+    "remove": "Quita este destino",
+    "add": "Agrega un destino al menu Copy to",
+}
+
+
+def get_tool_version():
+    """
+    Version de la herramienta, leida del header de LGA_mediaManager.py.
+
+    Se lee el archivo en vez de importarlo para no depender del orden de
+    importacion: este modulo lo carga el script principal. Si el header
+    cambia de formato se devuelve vacio y la ventana no muestra version,
+    que es mejor que mostrar una equivocada.
+    """
+    try:
+        main_script = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), "LGA_mediaManager.py"
+        )
+        with open(main_script, "r", encoding="utf-8") as handle:
+            header = handle.read(600)
+        match = re.search(r"LGA_mediaManager\s+v(\d+\.\d+)\s*\|", header)
+        return match.group(1) if match else ""
+    except Exception:
+        return ""
+
+
+class DepthField(QLineEdit):
+    """
+    El campo del stepper de profundidad.
+
+    Es un QLineEdit y no un QSpinBox para que le caiga la misma regla de
+    estilo que al resto de los campos: el QSpinBox se deja nativo en el
+    modulo de estilo, y nativo es justamente lo que se veia mal -20 px de
+    alto y el anillo de foco amarillo de macOS. Conserva del spinbox lo
+    que se usa: rango, flechas del teclado y rueda del mouse.
+    """
+
+    def __init__(self, value, parent=None):
+        super().__init__(str(value), parent)
+        self.setValidator(QIntValidator(FOLDER_DEPTH_MIN, FOLDER_DEPTH_MAX, self))
+        self.setAlignment(Qt.AlignCenter)
+        self.setFixedWidth(STEPPER_FIELD_WIDTH)
+
+    def value(self):
+        # Se acota aca y no solo en step(): QIntValidator da por Intermediate
+        # cualquier numero mas corto que el minimo, asi que deja tipear un 0.
+        # Un 0 guardado hace que la carpeta del shot sea el propio .nk.
+        try:
+            escrito = int(self.text())
+        except ValueError:
+            return FOLDER_DEPTH_MIN
+        return max(FOLDER_DEPTH_MIN, min(FOLDER_DEPTH_MAX, escrito))
+
+    def step(self, delta):
+        nuevo = max(FOLDER_DEPTH_MIN, min(FOLDER_DEPTH_MAX, self.value() + delta))
+        self.setText(str(nuevo))
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Up:
+            self.step(1)
+        elif event.key() == Qt.Key_Down:
+            self.step(-1)
+        else:
+            super().keyPressEvent(event)
+
+    def wheelEvent(self, event):
+        if self.hasFocus():
+            self.step(1 if event.angleDelta().y() > 0 else -1)
+        else:
+            event.ignore()
+
+
+class DestinationRow(QWidget):
+    """Una fila de la lista: numero, nombre, ruta y el boton de quitar."""
+
+    def __init__(self, index, name, path, on_remove, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(ROW_SPACING)
+
+        self.index_label = QLabel(str(index))
+        self.index_label.setFixedWidth(INDEX_WIDTH)
+        self.index_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.name_edit = QLineEdit(name)
+        self.name_edit.setFixedWidth(NAME_WIDTH)
+        self.name_edit.setToolTip(TOOLTIPS["name"])
+
+        self.path_edit = QLineEdit(path)
+        self.path_edit.setToolTip(TOOLTIPS["path"])
+
+        self.minus_button = QPushButton("-")
+        self.minus_button.setFixedSize(MINUS_BUTTON_SIZE, MINUS_BUTTON_SIZE)
+        self.minus_button.setToolTip(TOOLTIPS["remove"])
+        self.minus_button.setStyleSheet(Style.BTN_ICON)
+        self.minus_button.setFocusPolicy(Qt.NoFocus)
+        self.minus_button.clicked.connect(lambda: on_remove(self))
+
+        layout.addWidget(self.index_label)
+        layout.addWidget(self.name_edit)
+        layout.addWidget(self.path_edit)
+        layout.addWidget(self.minus_button)
+
+    def set_index(self, index):
+        self.index_label.setText(str(index))
+
+    def name(self):
+        return self.name_edit.text()
+
+    def path(self):
+        return self.path_edit.text()
 
 
 def normalize_path_for_comparison(file_path):
@@ -91,6 +245,10 @@ import send2trash
 
 
 class SettingsWindow(QWidget):
+    # La emite al guardar para que el Media Manager relea el .ini: sin esto,
+    # un destino agregado aca no aparece en el menu Copy to hasta reabrir.
+    settings_saved = Signal()
+
     def __init__(self, settings_data, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
@@ -105,57 +263,76 @@ class SettingsWindow(QWidget):
 
     def initUI(self):
         # Reseteamos el layout cada vez que se llama a initUI
-        self.layout = QVBoxLayout(self)  # Crear un nuevo layout
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(*([Metric.WINDOW_MARGIN] * 4))
         self.setLayout(self.layout)
         self.setStyleSheet(Style.FORM + Style.TOOLTIP)
-        self.path_layouts = []  # Lista para almacenar los layouts de los paths
+        self.rows = []  # Una entrada por destino, en orden
 
-        # Configuracion de "Folder scan depth" con QSpinBox
+        # --- Folder scan depth -------------------------------------------
+        # Stepper: el campo en el medio y los dos botones a los costados. El
+        # spinbox nativo media 20 px contra los 30 de un campo, asi que sus
+        # flechas quedaban de 7 px, y al enfocarlo se pintaba con el anillo
+        # amarillo del sistema mientras el resto se pone violeta.
         folder_scan_hbox = QHBoxLayout()
-        folder_scan_hbox.setObjectName("Folder scan depth layout")
-        label = QLabel("Folder scan depth:")
-        label.setObjectName("Folder scan depth label")
-        label.setProperty("lgaTitle", True)
+        folder_scan_hbox.setSpacing(ROW_SPACING)
+        depth_label = QLabel("Folder scan depth:")
+        depth_label.setProperty("lgaTitle", True)
 
-        self.folder_depth_spinbox = QSpinBox()
-        self.folder_depth_spinbox.setRange(1, 10)
-        folder_depth_value = int(self.settings_data.get("Folder scan depth", 3))
-        self.folder_depth_spinbox.setValue(folder_depth_value)
-        # 30 px eran los del spinbox sin caja; con el sizeHint real de Qt (77)
-        # el 10 no entraba y quedaba tapado por las flechitas.
-        self.folder_depth_spinbox.setFixedWidth(76)
-        self.folder_depth_spinbox.setObjectName("Folder scan depth spinbox")
-        self.folder_depth_spinbox.setToolTip(
-            "Sets the number of folder levels to move up from the script's location to find the main shot folder"
+        self.depth_field = DepthField(
+            int(self.settings_data.get("Folder scan depth", 3))
         )
+        self.depth_field.setToolTip(TOOLTIPS["depth"])
 
-        folder_scan_hbox.addWidget(label)
-        folder_scan_hbox.addWidget(self.folder_depth_spinbox)
-        folder_scan_hbox.addStretch()  # Anadir un espacio flexible a la derecha
+        depth_minus = QPushButton("-")
+        depth_plus = QPushButton("+")
+        for boton, delta in ((depth_minus, -1), (depth_plus, 1)):
+            boton.setFixedSize(MINUS_BUTTON_SIZE, MINUS_BUTTON_SIZE)
+            boton.setStyleSheet(Style.BTN_ICON)
+            boton.setFocusPolicy(Qt.NoFocus)
+            boton.clicked.connect(lambda _=False, d=delta: self.depth_field.step(d))
+        depth_minus.setToolTip(TOOLTIPS["depth_minus"])
+        depth_plus.setToolTip(TOOLTIPS["depth_plus"])
+
+        folder_scan_hbox.addWidget(depth_label)
+        folder_scan_hbox.addWidget(depth_minus)
+        folder_scan_hbox.addWidget(self.depth_field)
+        folder_scan_hbox.addWidget(depth_plus)
+        folder_scan_hbox.addStretch()
         self.layout.addLayout(folder_scan_hbox)
 
-        # Anadir una linea en blanco antes de la primera linea divisora
+        self.layout.addSpacing(10)
+        self.layout.addWidget(self.build_separator())
         self.layout.addSpacing(10)
 
-        # Linea separadora debajo de "Folder scan depth"
-        separator1 = QFrame()
-        separator1.setObjectName("First separator line")
-        separator1.setFrameShape(QFrame.HLine)
-        separator1.setFrameShadow(QFrame.Sunken)
-        self.layout.addWidget(separator1)
-
-        # Anadir una linea en blanco despues de la primera linea divisora
-        self.layout.addSpacing(10)
-
-        # Texto que dice "Copy to:"
+        # --- Copy to ------------------------------------------------------
         copy_to_label = QLabel("Copy to:")
-        copy_to_label.setObjectName("Copy to label")
         copy_to_label.setProperty("lgaTitle", True)
-
         self.layout.addWidget(copy_to_label)
-        self.layout.addSpacing(10)
+        self.layout.addSpacing(6)
 
-        # Configuraciones de paths con nombre y path
+        # Los encabezados van una sola vez, arriba: repetir "Name" y "Path" en
+        # cada destino era ruido, el numero de fila ya dice cual es cual.
+        heads = QHBoxLayout()
+        heads.setSpacing(ROW_SPACING)
+        spacer_head = QLabel("")
+        spacer_head.setFixedWidth(INDEX_WIDTH)
+        name_head = QLabel("Name")
+        name_head.setFixedWidth(NAME_WIDTH)
+        path_head = QLabel("Path")
+        tail_head = QLabel("")
+        tail_head.setFixedWidth(MINUS_BUTTON_SIZE)
+        for widget in (spacer_head, name_head, path_head, tail_head):
+            heads.addWidget(widget)
+        self.layout.addLayout(heads)
+        self.layout.addSpacing(2)
+
+        # Contenedor propio para las filas: agregar y quitar destinos toca
+        # solo este layout y no hay que contar posiciones del layout principal.
+        self.rows_layout = QVBoxLayout()
+        self.rows_layout.setSpacing(ROW_SPACING)
+        self.layout.addLayout(self.rows_layout)
+
         i = 1
         while True:
             button_text_key = f"copy_{i}_button_text"
@@ -164,334 +341,123 @@ class SettingsWindow(QWidget):
                 button_text_key not in self.settings_data
                 or path_key not in self.settings_data
             ):
-                break  # Si no hay mas configuraciones, salir del bucle
-
-            button_text = self.settings_data.get(button_text_key, f"Button Name {i}")
-            path_value = self.settings_data.get(path_key, "")
-
-            # Crear un layout vertical que contenga todo lo relacionado con este path
-            path_vbox = QVBoxLayout()
-            path_vbox.setObjectName(f"Path {i} layout")
-
-            # Layout para el nombre del boton
-            button_name_hbox = QHBoxLayout()
-            button_name_hbox.setObjectName(f"Button name {i} layout")
-            button_name_label = QLabel(f"Name {i}:")
-            button_name_label.setObjectName(f"Button name {i} label")
-            button_name_line_edit = QLineEdit(button_text)
-            button_name_line_edit.setObjectName(f"Button name {i} line edit")
-            button_name_line_edit.setToolTip(
-                "Name to be displayed in the Copy menu.\nUse & before a letter in the name to use that letter as a shortcut.\ne.g., &Assets will have shortcut Alt+A"
+                break
+            self.add_row(
+                self.settings_data.get(button_text_key, ""),
+                self.settings_data.get(path_key, ""),
             )
-            button_name_line_edit.setFixedWidth(
-                283
-            )  # Ancho fijo para la caja de entrada del nombre
-
-            button_name_hbox.addWidget(button_name_label)
-            button_name_hbox.addWidget(button_name_line_edit)
-            button_name_hbox.addStretch()  # Anadir un espacio para alinear el ancho con el boton de menos
-            path_vbox.addLayout(button_name_hbox)
-
-            # Layout para el path y el boton de eliminar
-            path_hbox = QHBoxLayout()
-            path_hbox.setObjectName(f"Path {i} hbox layout")
-            path_label = QLabel(f"Path {i}:  ")
-            path_label.setObjectName(f"Path {i} label")
-            path_line_edit = QLineEdit(path_value)
-            path_line_edit.setObjectName(f"Path {i} line edit")
-            path_line_edit.setToolTip(
-                "This is the path to the folder relative to the shot's base path"
-            )
-            minus_button = QPushButton("-")
-            minus_button.setObjectName(f"Path {i} minus button")
-            minus_button.setFixedWidth(Metric.CLOSE_BUTTON_SIZE)
-            minus_button.setToolTip("Remove this path")
-            minus_button.setStyleSheet(Style.BTN_ICON)
-
-            minus_button.clicked.connect(self.create_remove_path_callback(i - 1))
-
-            path_hbox.addWidget(path_label)
-            path_hbox.addWidget(path_line_edit)
-            path_hbox.addWidget(minus_button)
-            path_vbox.addLayout(path_hbox)
-
-            # Anadir un espaciado entre los paths
-            path_vbox.addSpacing(10)
-
-            # Guardar el layout principal para este path
-            self.layout.addLayout(path_vbox)
-            self.path_layouts.append(path_vbox)  # Solo guardar el layout principal
             i += 1
 
-        # Boton "Add Path" debajo de los paths
-        self.add_path_button = QPushButton("+")
-        self.add_path_button.setObjectName("Add path button")
-        self.add_path_button.setToolTip("Add a new path")
-        self.add_path_button.setStyleSheet(Style.BTN_ICON)
-        self.add_path_button.setFixedWidth(Metric.CLOSE_BUTTON_SIZE)
-        self.add_path_button.clicked.connect(self.add_path)
-        add_path_hbox = QHBoxLayout()
-        add_path_hbox.setObjectName("Add path hbox layout")
-        add_path_hbox.addStretch()  # Agregar espacio flexible a la izq del boton
-        add_path_hbox.addWidget(self.add_path_button)
-        self.layout.addLayout(add_path_hbox)
+        self.layout.addSpacing(4)
 
-        # Anadir una linea en blanco antes de la segunda linea divisora
+        # El boton de agregar arranca en la columna del nombre, no pegado al
+        # borde: ahi quedaba colgado debajo de los numeros de fila.
+        add_hbox = QHBoxLayout()
+        add_hbox.setSpacing(ROW_SPACING)
+        add_spacer = QLabel("")
+        add_spacer.setFixedWidth(INDEX_WIDTH)
+        self.add_path_button = QPushButton("+ Add destination")
+        self.add_path_button.setToolTip(TOOLTIPS["add"])
+        self.add_path_button.setStyleSheet(Style.BTN_SMALL)
+        self.add_path_button.clicked.connect(lambda: self.add_row("", ""))
+        add_hbox.addWidget(add_spacer)
+        add_hbox.addWidget(self.add_path_button)
+        add_hbox.addStretch()
+        self.layout.addLayout(add_hbox)
+
+        self.layout.addSpacing(10)
+        self.layout.addWidget(self.build_separator())
         self.layout.addSpacing(10)
 
-        # Linea separadora debajo del boton "Add Path"
-        separator2 = QFrame()
-        separator2.setObjectName("Second separator line")
-        separator2.setFrameShape(QFrame.HLine)
-        separator2.setFrameShadow(QFrame.Sunken)
-        self.layout.addWidget(separator2)
-
-        # Espaciado antes de los botones "Cancel" y "Save Settings"
-        self.layout.addSpacing(10)
-
-        # Crear los botones "Cancel" y "Save"
+        # --- Pie ----------------------------------------------------------
         buttons_layout = QHBoxLayout()
-        buttons_layout.setObjectName("Buttons layout")
+        version = get_tool_version()
+        version_label = QLabel(
+            "Media Manager v%s  ·  Developed by Lega" % version
+            if version
+            else "Media Manager  ·  Developed by Lega"
+        )
+        version_label.setStyleSheet("color: %s;" % Color.TEXT_DIM)
+
         self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.setObjectName("Cancel button")
         self.cancel_button.setStyleSheet(Style.BTN_SECONDARY)
+        self.cancel_button.setFixedHeight(Metric.BUTTON_HEIGHT)
         self.cancel_button.clicked.connect(self.close)
         self.save_button = QPushButton("Save Settings")
-        self.save_button.setObjectName("Save button")
         self.save_button.setStyleSheet(Style.BTN_PRIMARY)
+        self.save_button.setFixedHeight(Metric.BUTTON_HEIGHT)
         self.save_button.clicked.connect(self.save_settings)
 
-        buttons_layout.addStretch()  # Agregar espacio flexible a la izquierda de los botones
+        buttons_layout.addWidget(version_label)
+        buttons_layout.addStretch()
         buttons_layout.addWidget(self.cancel_button)
         buttons_layout.addWidget(self.save_button)
         self.layout.addLayout(buttons_layout)
 
-        self.setLayout(self.layout)
+    def build_separator(self):
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        return separator
+
+    def add_row(self, name, path):
+        row = DestinationRow(len(self.rows) + 1, name, path, self.remove_row)
+        self.rows_layout.addWidget(row)
+        self.rows.append(row)
+        return row
+
+    def remove_row(self, row):
+        # La fila llega por referencia y no por indice: con indices habia que
+        # reconectar el boton de cada fila despues de cada borrado, y bastaba
+        # con que uno quedara viejo para borrar el destino equivocado.
+        if row not in self.rows:
+            return
+        self.rows.remove(row)
+        self.rows_layout.removeWidget(row)
+        row.setParent(None)
+        row.deleteLater()
+
+        for posicion, restante in enumerate(self.rows, start=1):
+            restante.set_index(posicion)
+
+        self.adjustSize()
+
+    def collect_settings(self):
+        """Lo que hay en pantalla, en el formato del .ini."""
+        data = {"Folder scan depth": self.depth_field.value()}
+        for posicion, row in enumerate(self.rows, start=1):
+            data[f"copy_{posicion}_button_text"] = row.name()
+            data[f"copy_{posicion}_subdirectory"] = row.path()
+        return data
 
     def save_settings(self):
-        # Actualizar self.settings_data con la informacion visible en pantalla
-        new_settings_data = {
-            "Folder scan depth": self.settings_data["Folder scan depth"]
-        }
-        for i, path_layout in enumerate(self.path_layouts):
-            # Obtener el texto del boton y el path desde la interfaz
-            button_name_line_edit = path_layout.itemAt(0).layout().itemAt(1).widget()
-            path_line_edit = path_layout.itemAt(1).layout().itemAt(1).widget()
+        self.settings_data = self.collect_settings()
 
-            # Actualizar el diccionario con los valores actuales
-            new_settings_data[f"copy_{i + 1}_button_text"] = (
-                button_name_line_edit.text()
-            )
-            new_settings_data[f"copy_{i + 1}_subdirectory"] = path_line_edit.text()
-
-        # Asignar el nuevo diccionario actualizado
-        self.settings_data = new_settings_data
-
-        # Imprimir el estado que se guardara en el archivo .ini
-        print(f"\n\nGuardando la siguiente informacion en el .ini:")
-        print(self.format_ini_output())
-
-        # Guardar la informacion en un archivo .ini
-        ini_path = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)), "LGA_mediaManagerSettings.ini"
-        )
-
-        # Abrir el archivo para escribir
-        with open(ini_path, "w") as ini_file:
-            ini_file.write(self.format_ini_output())
-
-        print(f"Configuracion guardada en {ini_path}")
-
-    def add_path(self):
-        index = len(self.path_layouts) + 1
-
-        # Crear un layout vertical que contenga todo lo relacionado con este path
-        path_vbox = QVBoxLayout()
-
-        # Layout para el nombre del boton
-        button_name_hbox = QHBoxLayout()
-        button_name_label = QLabel(f"Name {index}:")
-        button_name_line_edit = QLineEdit("")
-        button_name_line_edit.setToolTip(
-            "Name to be displayed in the Copy menu. Use & before a letter in the name to use that letter as a shortcut (e.g., &Assets will have shortcut Alt+A)"
-        )
-        button_name_line_edit.setFixedWidth(
-            283
-        )  # Ancho fijo para la caja de entrada del nombre
-        button_name_hbox.addWidget(button_name_label)
-        button_name_hbox.addWidget(button_name_line_edit)
-        button_name_hbox.addStretch()  # Anadir un espacio para alinear el ancho con el boton de menos
-        path_vbox.addLayout(button_name_hbox)
-
-        # Layout para el path y el boton de eliminar
-        path_hbox = QHBoxLayout()
-        path_label = QLabel(f"Path {index}:  ")
-        path_line_edit = QLineEdit("")
-        path_line_edit.setToolTip(
-            "This is the path to the folder relative to the shot's base path"
-        )
-        minus_button = QPushButton("-")
-        minus_button.setFixedWidth(Metric.CLOSE_BUTTON_SIZE)
-        minus_button.setToolTip("Remove this path")
-        minus_button.setStyleSheet(Style.BTN_ICON)
-
-        minus_button.clicked.connect(self.create_remove_path_callback(index - 1))
-
-        path_hbox.addWidget(path_label)
-        path_hbox.addWidget(path_line_edit)
-        path_hbox.addWidget(minus_button)
-        path_vbox.addLayout(path_hbox)
-
-        # Anadir un espaciado entre los paths
-        path_vbox.addSpacing(10)
-
-        # Guardar el layout principal para este path
-        self.layout.insertLayout(self.layout.count() - 5, path_vbox)
-        self.path_layouts.append(path_vbox)  # Solo guardar el layout principal
-
-        # Agregar el nuevo path a self.settings_data
-        self.settings_data[f"copy_{index}_button_text"] = button_name_line_edit.text()
-        self.settings_data[f"copy_{index}_subdirectory"] = path_line_edit.text()
-
-    def remove_path(self, index):
-        # Print de depuracion antes de modificar el ini
-        debug_print(f"INI Antes de remover el path {index + 1}:")
+        debug_print("\n\nGuardando la siguiente informacion en el .ini:")
         debug_print(self.format_ini_output())
 
-        # Imprimir la cantidad y tipos de layouts/widgets antes de eliminar
-        self.print_layout_widget_info()
-
-        # Eliminar el path del ini en memoria
-        del self.settings_data[f"copy_{index + 1}_button_text"]
-        del self.settings_data[f"copy_{index + 1}_subdirectory"]
-
-        # Remover el layout correspondiente de la UI
-        layout_to_remove = self.path_layouts[index]
-        self.clear_layout(layout_to_remove)
-
-        # Remover el layout del layout principal
-        for i in range(self.layout.count()):
-            item = self.layout.itemAt(i)
-            if item.layout() == layout_to_remove:
-                self.layout.takeAt(i)
-                break
-
-        layout_to_remove.deleteLater()  # Asegurar que se elimina correctamente
-
-        # Eliminar el layout del path de la lista path_layouts
-        del self.path_layouts[index]
-
-        # Renumerar los paths restantes en la interfaz
-        for i, path_layout in enumerate(self.path_layouts):
-            # Actualizar el numero en la etiqueta y en el objectName
-            button_name_label = path_layout.itemAt(0).layout().itemAt(0).widget()
-            button_name_label.setText(f"Name {i + 1}:")
-            button_name_label.setObjectName(f"Button name {i + 1} label")
-
-            # Actualizar el QLineEdit objectName
-            button_name_line_edit = path_layout.itemAt(0).layout().itemAt(1).widget()
-            button_name_line_edit.setObjectName(f"Button name {i + 1} line edit")
-
-            # Actualizar el QLabel del path
-            path_label = path_layout.itemAt(1).layout().itemAt(0).widget()
-            path_label.setText(f"Path {i + 1}:")
-            path_label.setObjectName(f"Path {i + 1} label")
-
-            # Actualizar el QPushButton del remove
-            minus_button = path_layout.itemAt(1).layout().itemAt(2).widget()
-            minus_button.setObjectName(f"Path {i + 1} minus button")
-            minus_button.clicked.disconnect()
-            minus_button.clicked.connect(self.create_remove_path_callback(i))
-
-            # Actualizar el objectName del layout
-            path_layout.setObjectName(f"Path {i + 1} layout")
-
-        # Renumerar los paths en settings_data
-        new_settings_data = {
-            "Folder scan depth": self.settings_data["Folder scan depth"]
-        }
-        for i, path_layout in enumerate(self.path_layouts):
-            # Usar i + 1 porque estamos reindexando los paths
-            new_settings_data[f"copy_{i + 1}_button_text"] = self.settings_data.get(
-                f"copy_{i + 2}_button_text", ""
+        # Se escribe en la carpeta de datos del usuario, no adentro del pack:
+        # el instalador reemplaza la carpeta del pack en cada actualizacion.
+        ini_path = get_write_path()
+        if not ini_path:
+            QMessageBox.warning(
+                self,
+                "Settings",
+                "The settings could not be saved: no writable config folder was found.",
             )
-            new_settings_data[f"copy_{i + 1}_subdirectory"] = self.settings_data.get(
-                f"copy_{i + 2}_subdirectory", ""
+            return
+
+        if not write_ini(ini_path, self.format_ini_output()):
+            QMessageBox.warning(
+                self,
+                "Settings",
+                "The settings could not be saved to:\n%s" % ini_path,
             )
+            return
 
-        self.settings_data = new_settings_data
-
-        # Imprimir la cantidad y tipos de layouts/widgets despues de eliminar
-        debug_print("\nLAYOUT Despues de eliminar el path:")
-        self.print_layout_widget_info()
-
-        # Ajustar solo la altura de la ventana, manteniendo el ancho predeterminado
-        self.adjustSize()
-        self.setFixedWidth(400)  # Ancho predeterminado
-
-        # Print de depuracion despues de modificar el ini
-        debug_print(f"\n\nINI Despues de remover el path {index + 1}:")
-        debug_print(self.format_ini_output())
-
-        # Actualizar self.settings_data con la informacion visible en pantalla
-        new_settings_data = {
-            "Folder scan depth": self.settings_data["Folder scan depth"]
-        }
-        for i, path_layout in enumerate(self.path_layouts):
-            # Obtener el texto del boton y el path desde la interfaz
-            button_name_line_edit = path_layout.itemAt(0).layout().itemAt(1).widget()
-            path_line_edit = path_layout.itemAt(1).layout().itemAt(1).widget()
-
-            # Actualizar el diccionario con los valores actuales
-            new_settings_data[f"copy_{i + 1}_button_text"] = (
-                button_name_line_edit.text()
-            )
-            new_settings_data[f"copy_{i + 1}_subdirectory"] = path_line_edit.text()
-
-        # Asignar el nuevo diccionario actualizado
-        self.settings_data = new_settings_data
-
-        # Imprimir el estado actualizado despues de modificar el ini
-        debug_print(
-            f"\n\nINI Despues de actualizar self.settings_data con la informacion de la pantalla:"
-        )
-        debug_print(self.format_ini_output())
-
-    def clear_layout(self, layout):
-        debug_print("")
-        while layout.count():
-            child = layout.takeAt(0)
-            if child.widget():
-                debug_print(f"  Eliminando widget: {child.widget().objectName()}")
-                child.widget().deleteLater()
-            elif child.layout():
-                debug_print(f"  Eliminando layout: {child.layout().objectName()}")
-                self.clear_layout(child.layout())
-                child.layout().deleteLater()
-
-    def create_remove_path_callback(self, index):
-        def callback():
-            self.remove_path(index)
-
-        return callback
-
-    def print_layout_widget_info(self):
-        # Funcion para imprimir informacion sobre los layouts y widgets
-        debug_print("\nInformacion de Layouts y Widgets:")
-        count = self.layout.count()
-        debug_print(f"  Total elementos en layout principal: {count}")
-        for i in range(count):
-            item = self.layout.itemAt(i)
-            if item.widget():
-                debug_print(
-                    f"    Widget: {item.widget().__class__.__name__} - ObjectName: {item.widget().objectName()}"
-                )
-            elif item.layout():
-                debug_print(
-                    f"    Layout: {item.layout().__class__.__name__} - ObjectName: {item.layout().objectName()}"
-                )
-            else:
-                debug_print("    Elemento desconocido")
+        debug_print(f"Configuracion guardada en {ini_path}")
+        self.settings_saved.emit()
+        self.close()
 
     def format_ini_output(self):
         ini_representation = "[LGA_mediaManagerSettings]\n"
@@ -532,7 +498,9 @@ class SettingsWindow(QWidget):
             current_index += 1  # Incrementar solo si se utilizo un valor valido
             i += 1
 
-        return ini_representation.strip()  # Eliminar cualquier espacio extra al final
+        # Con newline final: el .ini esta trackeado y sin el, cada guardado
+        # deja un '\ No newline at end of file' en el diff.
+        return ini_representation.strip() + "\n"
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:

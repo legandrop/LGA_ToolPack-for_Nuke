@@ -1,10 +1,13 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.13 | Lega
+  LGA_MediaManager_utils v2.25 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
+
+  v2.25: RelinkSearchWorker, para que el os.walk del relink no
+         corra en el hilo principal.
 
   v2.13: TransparentTextDelegate deja que el color propio de una celda
          -el estado del archivo- sobreviva a la seleccion de la fila:
@@ -546,6 +549,68 @@ class ScannerSignals(QObject):
     progress = Signal(int)  # Para actualizar la barra de progreso
     finished = Signal()  # Para indicar que terminó el escaneo
     files_found = Signal(list)  # Para enviar los archivos encontrados
+
+
+class RelinkSearchSignals(QObject):
+    # Ruta encontrada, o cadena vacia si no aparecio nada
+    finished = Signal(str)
+
+
+class RelinkSearchWorker(QRunnable):
+    """
+    Busca el archivo de un Read offline recorriendo una carpeta.
+
+    Va en un worker porque el os.walk puede tardar muchisimo sobre un
+    servidor: hecho en el hilo principal congela Nuke entero y ni siquiera
+    se repinta la ventanita de "Searching...". Aca no se toca la UI ni la
+    API de Nuke: el resultado viaja por senal y lo aplica el hilo principal.
+    """
+
+    def __init__(self, directory, exact_name, sequence_pattern):
+        super(RelinkSearchWorker, self).__init__()
+        self.directory = directory
+        self.exact_name = exact_name
+        self.sequence_pattern = sequence_pattern
+        self.signals = RelinkSearchSignals()
+        self.logger = configure_logger()
+
+    def run(self):
+        # El primer candidato del patron se guarda pero la busqueda sigue: el
+        # match exacto tiene prioridad y puede aparecer mas adelante.
+        fallback_path = ""
+        try:
+            for root, dirs, files in os.walk(self.directory):
+                if "$RECYCLE.BIN" in [
+                    os.path.basename(parte)
+                    for parte in os.path.normpath(root).split(os.path.sep)
+                ]:
+                    continue
+
+                for nombre in files:
+                    if self.exact_name and nombre.lower() == self.exact_name:
+                        encontrado = os.path.join(root, nombre)
+                        self.logger.debug(
+                            f"Archivo encontrado (match exacto): {encontrado}"
+                        )
+                        self.signals.finished.emit(encontrado)
+                        return
+
+                    if (
+                        not fallback_path
+                        and self.sequence_pattern is not None
+                        and self.sequence_pattern.match(nombre)
+                    ):
+                        fallback_path = os.path.join(root, nombre)
+        except Exception as error:
+            self.logger.debug(f"Error recorriendo {self.directory}: {error}")
+
+        if fallback_path:
+            self.logger.debug(
+                f"Archivo encontrado (match por patron de secuencia): {fallback_path}"
+            )
+        else:
+            self.logger.debug("No se encontro ningun archivo compatible")
+        self.signals.finished.emit(fallback_path)
 
 
 class ScannerWorker(QRunnable):
