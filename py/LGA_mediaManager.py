@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.37 | Lega
+  LGA_mediaManager v2.38 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -20,6 +20,16 @@ _______________________________________________________________________
   LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
   mano en la interfaz.
 
+  v2.38: La ventana del escaneo -la primera que ve el usuario- pasa
+         al tema: esquinas redondeadas, la fuente del pack, sin
+         negrita y la barra de progreso en el violeta de acento. Y
+         suma una X arriba a la derecha que ABORTA el escaneo: sin
+         marco no hay boton de cerrar del sistema, asi que contra un
+         servidor lento lo unico que quedaba era esperar. El icono de
+         Rescan gira mientras dura el escaneo, como en el prototipo.
+         En los ajustes, Add location lleva la fila nueva a la vista:
+         con la tabla en su alto maximo nacia abajo del area visible,
+         con el foco puesto y sin que se viera.
   v2.37: Seis desalineaciones mas de la tabla de ajustes, medidas
          con Qt real en vez de estimadas. La mas grande: el titulo
          "Name" caia 35 px antes que los nombres, porque el
@@ -250,11 +260,26 @@ def main():
             )
             window.show()
 
+        # La X de la ventana de escaneo aborta de verdad. Sin esto, un escaneo
+        # largo contra un servidor no se podia parar: la unica salida era
+        # esperarlo entero.
+        abortado = {"si": False}
+
+        def on_cancel():
+            abortado["si"] = True
+            debug_print("Escaneo cancelado por el usuario")
+            window.scanner_worker.cancel()
+            # La ventana principal no se abre: el usuario dijo que no.
+            window.close()
+
         def on_scan_complete():
             startup_window.stop()
+            if abortado["si"]:
+                return
             # Usar QTimer para retrasar la visualización
             QTimer.singleShot(100, delayed_show)  # 100ms de retraso
 
+        startup_window.cancelled.connect(on_cancel)
         # Usar el scanner_worker de window.scan_project()
         window.scanner_worker.signals.progress.connect(startup_window.updateProgress)
         window.scanner_worker.signals.finished.connect(on_scan_complete)

@@ -1,10 +1,17 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.37 | Lega
+  LGA_MediaManager_FileScanner v2.38 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.38: El icono de Rescan gira mientras dura el escaneo. Es lo
+         unico que dice que la herramienta esta haciendo algo, y no
+         hacia nada. Se redibuja rotado en cada cuadro con el painter
+         girando alrededor del centro, no con transformed(): esa
+         agranda la caja para que entre el rectangulo rotado, asi que
+         el icono cambiaria de tamano en cada tick y el boton se
+         movería con el.
   v2.36: Status suma 5 px. Read y Status ganan una perilla de ajuste
          fino -COL_READ_EXTRA y COL_STATUS_EXTRA- que se suma a lo
          medido: es el unico lugar donde retocar cuanto respiran, sin
@@ -188,6 +195,7 @@ QColor = QtGui.QColor
 QFont = QtGui.QFont
 QFontMetrics = QtGui.QFontMetrics
 QPainter = QtGui.QPainter
+QPixmap = QtGui.QPixmap
 QPalette = QtGui.QPalette
 QMovie = QtGui.QMovie
 QScreen = QtGui.QScreen
@@ -417,6 +425,10 @@ RESCAN_HEIGHT = 34
 RESCAN_PADDING = 15
 RESCAN_ICON_SIZE = 15
 RESCAN_FONT_SIZE = 13
+# El giro del icono mientras dura el escaneo. 24 ms por cuadro y 11 grados dan
+# una vuelta cada ~0,8 s, que es la del prototipo.
+RESCAN_SPIN_MS = 24
+RESCAN_SPIN_STEP = 11.0
 
 # Tamano de letra de la tabla, en PIXELES. Iba en pt, que Qt convierte con el
 # DPI logico del sistema: 72 en macOS y 96 en Windows, o sea que el mismo
@@ -2004,12 +2016,16 @@ class FileScanner(QWidget):
             self.rescan_icon.setStyleSheet(
                 "QLabel { background: transparent; border: none; }"
             )
-            self.rescan_icon.setPixmap(
-                tinted_icon("refresh-cw", color_icono, RESCAN_ICON_SIZE).pixmap(
-                    RESCAN_ICON_SIZE, RESCAN_ICON_SIZE
-                )
-            )
+            # El pixmap base se guarda: es el que rota el giro del escaneo.
+            self._rescan_pixmap = tinted_icon(
+                "refresh-cw", color_icono, RESCAN_ICON_SIZE
+            ).pixmap(RESCAN_ICON_SIZE, RESCAN_ICON_SIZE)
+            self.rescan_icon.setPixmap(self._rescan_pixmap)
             self.rescan_button.setFixedWidth(self.rescan_button.sizeHint().width())
+            # Repintar con el tema nuevo resetea el dibujo a la posicion cero;
+            # si el escaneo sigue corriendo, el giro se retoma solo.
+            if getattr(self, "_rescan_timer", None) is not None:
+                self._pintar_rescan()
 
         # El pie puede ser mas ancho que la barra, asi que el minimo de la
         # ventana se recalcula aca tambien: cuando la barra lo fijo, el pie
@@ -2031,6 +2047,70 @@ class FileScanner(QWidget):
                 if self.shot_folder_enabled()
                 else LEGEND_OUTSIDE_INFO
             )
+
+    # ----------------------------------------------------------------------
+    #                       El giro del icono de Rescan
+    # ----------------------------------------------------------------------
+    # Gira mientras dura el escaneo, no un tiempo fijo: es lo unico que dice
+    # que la herramienta esta haciendo algo. El prototipo lo anima por CSS;
+    # aca el icono es un pixmap adentro de un QLabel, asi que se redibuja
+    # rotado en cada tick.
+
+    def _spin_rescan(self, girando):
+        """Prende y apaga el giro del icono."""
+        if getattr(self, "rescan_icon", None) is None:
+            return
+        timer = getattr(self, "_rescan_timer", None)
+        if girando:
+            if timer is not None:
+                return
+            self._rescan_angle = 0.0
+            self._rescan_timer = QTimer(self)
+            self._rescan_timer.timeout.connect(self._girar_rescan)
+            self._rescan_timer.start(RESCAN_SPIN_MS)
+            return
+        if timer is not None:
+            timer.stop()
+            timer.deleteLater()
+            self._rescan_timer = None
+        self._rescan_angle = 0.0
+        self._pintar_rescan()
+
+    def _girar_rescan(self):
+        self._rescan_angle = (
+            getattr(self, "_rescan_angle", 0.0) + RESCAN_SPIN_STEP
+        ) % 360.0
+        self._pintar_rescan()
+
+    def _pintar_rescan(self):
+        """
+        Dibuja el icono rotado sobre un pixmap del MISMO tamano.
+
+        No se usa QPixmap.transformed(): esa agranda la caja para que entre el
+        rectangulo rotado, asi que el icono cambiaria de tamano en cada tick y
+        el boton se movería con el. Rotando el painter alrededor del centro, la
+        caja no se toca.
+        """
+        base = getattr(self, "_rescan_pixmap", None)
+        if base is None or base.isNull():
+            return
+        angulo = getattr(self, "_rescan_angle", 0.0)
+        if not angulo:
+            self.rescan_icon.setPixmap(base)
+            return
+        escala = base.devicePixelRatio() or 1.0
+        lado = base.width() / escala
+        salida = QPixmap(base.size())
+        salida.setDevicePixelRatio(escala)
+        salida.fill(Qt.transparent)
+        painter = QPainter(salida)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        painter.translate(lado / 2.0, lado / 2.0)
+        painter.rotate(angulo)
+        painter.translate(-lado / 2.0, -lado / 2.0)
+        painter.drawPixmap(0, 0, base)
+        painter.end()
+        self.rescan_icon.setPixmap(salida)
 
     def rescan(self):
         """
@@ -3570,6 +3650,7 @@ class FileScanner(QWidget):
         # Un escaneo por vez: dos workers escribiendo sobre la misma tabla se
         # pisan las filas.
         self._scan_running = True
+        self._spin_rescan(True)
         if getattr(self, "rescan_button", None) is not None:
             self.rescan_button.setEnabled(False)
             self.apply_footer_stylesheet()
@@ -3598,6 +3679,7 @@ class FileScanner(QWidget):
         los demas sin dejar rastro.
         """
         self._scan_running = False
+        self._spin_rescan(False)
 
         # Los ids se asignan con el orden TODAVIA apagado, o sea con la tabla
         # en el orden en que se cargo: son un id estable y no la posicion.

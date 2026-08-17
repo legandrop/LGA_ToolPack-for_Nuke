@@ -1,9 +1,13 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.37 | Lega
+  LGA_MediaManager_settings v2.38 | Lega
   Ventana de ajustes del Media Manager
 
+  v2.38: Add location lleva la fila nueva a la vista. Con la tabla ya
+         en su alto maximo, la fila nacia abajo del area visible: la
+         creaba, le ponia el foco y no se veia, asi que escribir el
+         nombre parecia no hacer nada.
   v2.37: Seis desalineaciones entre el encabezado y las filas,
          medidas con Qt real. Los titulos de las tres columnas de
          texto se sangran lo mismo que su contenido -"Name" caia 35
@@ -247,6 +251,9 @@ TABLE_MAX_HEIGHT = 420
 # tampoco. Con la fila del shot y una location alcanza para saber donde se
 # esta parado; el resto se scrollea.
 TABLE_MIN_ROWS = 2
+# El aire que se deja abajo al llevar una fila a la vista, para que no quede
+# lamiendo el borde del area.
+ROW_REVEAL_MARGIN = 8
 
 # Los altos se DERIVAN del tamano de letra en vez de ser constantes: sin eso,
 # subir la letra la corta contra el borde de la fila.
@@ -1549,6 +1556,18 @@ class SettingsWindow(QWidget):
         self.apply_appearance()
         fila.name_edit.setFocus()
         self.refresh()
+        # Y se la lleva a la vista. Si la tabla ya llegaba a su alto maximo, la
+        # fila nueva nace ABAJO del area visible: quedaba creada, con el foco
+        # puesto y sin que se viera, o sea que escribir el nombre parecia no
+        # hacer nada. Va diferido porque recien despues de que el layout corra
+        # la fila tiene geometria y el scroll sabe adonde ir.
+        QTimer.singleShot(0, lambda: self._mostrar_fila(fila))
+
+    def _mostrar_fila(self, fila):
+        """Scrollea el area de filas hasta que esa fila se vea entera."""
+        if fila is None or fila not in self.rows:
+            return
+        self.scroll.ensureWidgetVisible(fila, 0, ROW_REVEAL_MARGIN)
 
     def _remove_row(self, fila):
         if fila not in self.rows:

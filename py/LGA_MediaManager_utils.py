@@ -1,11 +1,24 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.37 | Lega
+  LGA_MediaManager_utils v2.38 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.38: StartupWindow pasa al tema y suma la X que aborta. Es la
+         primera ventana que se ve, y si no se parece a las dos que
+         vienen despues la herramienta arranca pareciendo otra cosa:
+         iba con tres hexes sueltos, en negrita y con la barra de
+         progreso gris. Ahora todo el color sale del tema que el
+         usuario tiene guardado -se lo lee del .ini, porque la
+         ventana se abre antes que la principal y no hay a quien
+         preguntarle-, va con la fuente del pack y con las esquinas
+         redondeadas.
+         ScannerWorker sabe cancelarse: es una bandera que se mira en
+         los bucles largos, no un kill. Matar el hilo dejaria la
+         tabla a medio llenar, y lo que se junto hasta ahi no se
+         emite: una tabla incompleta se lee igual que una completa.
   v2.34: PathDelegate dibuja con un desplazamiento propio
          (set_offset): es el scroll horizontal de esa columna sola.
          El recorte pasa a hacerse ANTES de mover el origen y en
@@ -106,6 +119,7 @@ QThreadPool = QtCore.QThreadPool
 
 from LGA_MediaManager_logging import configure_logger, debug_print, get_log_prefix
 from LGA_UI_Style_ToolPack import Color, PATH_PALETTE
+import LGA_UI_Style_ToolPack as UIStyle
 
 
 def resolve_relative_path(file_path, project_folder):
@@ -181,6 +195,35 @@ READ_CELL_PADDING = 10
 # menos y el path terminaria cortado igual.
 PATH_CELL_LEFT = 6
 PATH_CELL_RIGHT = 10
+
+# --------------------------------------------------------------------------
+#  La ventana del escaneo inicial
+# --------------------------------------------------------------------------
+STARTUP_WIDTH = 320
+STARTUP_PADDING = 18
+STARTUP_SPACING = 14
+STARTUP_FONT_SIZE = 13
+STARTUP_BAR_HEIGHT = 6
+STARTUP_CLOSE_SIZE = 22
+
+
+def _tema():
+    """El tema que el usuario tiene elegido, leido del .ini.
+
+    La ventana del escaneo se abre ANTES que la principal, asi que no hay a
+    quien preguntarle: se lee la configuracion. Si algo falla queda el tema
+    base, que es mejor que no pintar nada.
+    """
+    try:
+        import LGA_MediaManager_config as mm_config
+
+        apariencia = (
+            mm_config.load_settings(theme_ids=UIStyle.theme_ids()).get("appearance")
+            or {}
+        )
+        return UIStyle.theme(apariencia.get("theme"))
+    except Exception:
+        return UIStyle.theme(None)
 
 
 def paint_row_separator(painter, rect, color):
@@ -927,46 +970,116 @@ class LoadingWindow(QWidget):
 
 
 class StartupWindow(QWidget):
-    def __init__(self, message, parent=None):
+    """
+    La ventana del escaneo inicial. Es la PRIMERA que ve el usuario.
+
+    Va con el tema del pack, no con colores sueltos: es lo primero que aparece
+    y si no se parece a las dos que vienen despues, la herramienta arranca
+    pareciendo otra cosa.
+
+    Frameless con esquinas redondeadas: sin marco no hay boton de cerrar del
+    sistema, asi que la X va adentro, arriba a la derecha, y ABORTA el escaneo
+    -que puede tardar minutos contra un servidor- en vez de solo esconder la
+    ventana. Sin ella, lo unico que quedaba era esperar.
+    """
+
+    # Lo emite la X. Lo escucha quien lanzo el worker, que es el unico que
+    # sabe a cual hay que cancelarle.
+    cancelled = Signal()
+
+    def __init__(self, message, parent=None, ui=None):
         super(StartupWindow, self).__init__(parent)
-        self.setFixedSize(300, 100)
+        self.UI = ui or _tema()
         self.setWindowTitle("Starting...")
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        # Las esquinas redondeadas necesitan que el fondo de la VENTANA sea
+        # transparente: si no, Qt pinta el rectangulo entero por debajo y las
+        # cuatro esquinas quedan cuadradas igual. Lo que se ve es el marco de
+        # adentro, que es quien lleva el color y el radio.
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
 
-        # Configura la hoja de estilos para la ventana y el texto
-        self.setStyleSheet(
-            "background-color: #282828; color: white; font-weight: bold;"
+        afuera = QVBoxLayout(self)
+        afuera.setContentsMargins(0, 0, 0, 0)
+
+        self.marco = QFrame(self)
+        self.marco.setObjectName("lgaStartupCard")
+        self.marco.setAttribute(Qt.WA_StyledBackground, True)
+        self.marco.setFrameShape(QFrame.NoFrame)
+        afuera.addWidget(self.marco)
+
+        adentro = QVBoxLayout(self.marco)
+        adentro.setContentsMargins(
+            STARTUP_PADDING, STARTUP_PADDING - 6, STARTUP_PADDING, STARTUP_PADDING
         )
+        adentro.setSpacing(STARTUP_SPACING)
 
-        layout = QVBoxLayout()
+        # --- la X, arriba a la derecha ---------------------------------------
+        fila = QHBoxLayout()
+        fila.setContentsMargins(0, 0, 0, 0)
         self.label = QLabel(message)
-        self.label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.label)
-
-        self.progressBar = QProgressBar(self)
-        self.progressBar.setRange(0, 100)
-        self.progressBar.setStyleSheet(
-            """
-            QProgressBar {
-                border: 1px solid #444;
-                border-radius: 2px;
-                text-align: center;
-                background-color: #222;
-            }
-            QProgressBar::chunk {
-                background-color: #666;
-                width: 1px;
-            }
-        """
+        fila.addWidget(self.label, 1)
+        self.close_button = QPushButton("✕")
+        self.close_button.setFixedSize(
+            STARTUP_CLOSE_SIZE, STARTUP_CLOSE_SIZE
         )
-        layout.addWidget(self.progressBar)
+        self.close_button.setToolTip("Cancela el escaneo y cierra")
+        self.close_button.setFocusPolicy(Qt.NoFocus)
+        self.close_button.setCursor(Qt.PointingHandCursor)
+        self.close_button.clicked.connect(self._cancelar)
+        fila.addWidget(self.close_button, 0, Qt.AlignTop)
+        adentro.addLayout(fila)
 
-        self.setLayout(layout)
+        self.progressBar = QProgressBar(self.marco)
+        self.progressBar.setRange(0, 100)
+        self.progressBar.setTextVisible(False)
+        self.progressBar.setFixedHeight(STARTUP_BAR_HEIGHT)
+        adentro.addWidget(self.progressBar)
 
-        # Configurar un temporizador para actualizar la barra de progreso
+        self.apply_theme(self.UI)
+        self.setFixedSize(STARTUP_WIDTH, self.sizeHint().height())
+
+        # El progreso se mueve solo hasta que llegue el real del worker: sin
+        # esto la barra se queda en cero durante toda la primera etapa y la
+        # ventana parece colgada.
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.updateProgressBar)
-        self.timer.start(100)  # Actualizar cada 100 milisegundos
+        self.timer.start(100)
+
+    # ------------------------------------------------------------- estilo ---
+    def apply_theme(self, ui):
+        """Todo el color sale del tema: ni un hex suelto."""
+        self.UI = ui or _tema()
+        C = self.UI.Color
+        UIStyle.apply_ui_font(self)
+        self.marco.setStyleSheet(
+            "#lgaStartupCard { background-color: %s; border: 1px solid %s;"
+            " border-radius: %dpx; }"
+            % (C.WINDOW, C.BORDER, UIStyle.Metric.RADIUS_CARD)
+        )
+        # Sin negrita: es un cartel de espera, no un titulo.
+        self.label.setStyleSheet(
+            "QLabel { background: transparent; border: none; color: %s;"
+            " font-size: %dpx; }" % (C.TEXT_STRONG, STARTUP_FONT_SIZE)
+        )
+        self.close_button.setStyleSheet(self.UI.Style.BTN_CLOSE)
+        self.progressBar.setStyleSheet(
+            "QProgressBar { background-color: %s; border: none;"
+            " border-radius: %dpx; }"
+            "QProgressBar::chunk { background-color: %s;"
+            " border-radius: %dpx; }"
+            % (
+                C.SURFACE_SUNKEN,
+                STARTUP_BAR_HEIGHT // 2,
+                C.ACCENT_HOVER,
+                STARTUP_BAR_HEIGHT // 2,
+            )
+        )
+
+    # -------------------------------------------------------------- estado ---
+    def _cancelar(self):
+        """La X: avisa que hay que abortar y se cierra."""
+        self.cancelled.emit()
+        self.stop()
 
     def updateProgressBar(self):
         current_value = self.progressBar.value()
@@ -1067,6 +1180,12 @@ class ScannerWorker(QRunnable):
         self.signals = ScannerSignals()
         self.signals.moveToThread(QApplication.instance().thread())
         self.start_time = time.time()
+        # Abortar el escaneo. Es una bandera y no un kill: el worker corre en
+        # un hilo del pool y matarlo dejaria la tabla a medio llenar. Se la
+        # mira en los dos bucles largos -el recorrido de carpetas y el de
+        # archivos- y ahi devuelve, que es lo mas cerca de "ya" que se puede
+        # estar sin romper nada.
+        self._cancelado = False
 
         # Definir los rangos de progreso para cada etapa
         self.Etapa1_inicio = 0
@@ -1124,6 +1243,13 @@ class ScannerWorker(QRunnable):
                 pass
 
         return None, None, None
+
+    def cancel(self):
+        """Pide cortar el escaneo. La atiende el propio worker, cuando puede."""
+        self._cancelado = True
+
+    def cancelado(self):
+        return self._cancelado
 
     def get_timestamp(self):
         # Usar el nuevo formato centralizado
@@ -1308,6 +1434,14 @@ class ScannerWorker(QRunnable):
                 f"{self.get_timestamp()} Tiempo total de ejecución: {time.time() - self.start_time:.3f}s"
             )
 
+            # Cancelado: se avisa que termino pero SIN resultados. Cargar lo
+            # que se alcanzo a juntar seria peor que no cargar nada -una tabla
+            # incompleta se lee igual que una completa- y la ventana ya se esta
+            # cerrando.
+            if self._cancelado:
+                self.signals.finished.emit()
+                return
+
             # Emitir resultados
             self.signals.files_found.emit((files_data, unmatched_reads_data))
             self.signals.finished.emit()
@@ -1376,6 +1510,11 @@ class ScannerWorker(QRunnable):
         )
 
         for root, dirs, files in os.walk(folder):
+            if self._cancelado:
+                # Se corta acá y no en el medio de armar una secuencia: lo que
+                # se devuelve es lo que ya estaba completo.
+                self.logger.debug(f"{self.get_timestamp()} Escaneo cancelado")
+                break
             # logging.info(f"Analyzing folder: {root}")
 
             # Filtrar archivos segun las extensiones definidas

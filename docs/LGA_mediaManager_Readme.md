@@ -171,6 +171,27 @@ recién `apply_appearance()`. Medir con una fuente y dibujar con otra es como no
 medir — falló así. Por lo mismo, `apply_ui_font()` se llama **antes** de
 `_build()`: todo lo que se mida al armar tiene que medirse con la definitiva.
 
+## La ventana del escaneo
+
+`StartupWindow` (en `LGA_MediaManager_utils.py`) es la **primera** que ve el
+usuario, y se abre **antes** que la principal: no hay ventana a quién
+preguntarle el tema, así que lo lee del `.ini` con `_tema()`.
+
+Es frameless con esquinas redondeadas — para eso necesita
+`WA_TranslucentBackground` en la ventana y un `QFrame` interno que lleve el
+color y el radio; sin la transparencia, Qt pinta el rectángulo por debajo y
+las esquinas quedan cuadradas igual.
+
+Al no tener marco tampoco tiene botón de cerrar del sistema, así que la **X va
+adentro** y emite `cancelled`. `main()` la conecta a `ScannerWorker.cancel()`,
+que es una **bandera** mirada en los dos bucles largos del escaneo, no un kill:
+matar el hilo dejaría la tabla a medio llenar. Cancelado, el worker no emite
+resultados — una tabla incompleta se lee igual que una completa.
+
+Las otras dos ventanas de progreso (`LoadingWindow` para Copying, y la de
+Deleting) siguen con estilo propio de antes de la migración; el prototipo no
+las dibuja.
+
 ## Aspecto de las ventanas
 
 Todo lo visual sale de `py/LGA_UI_Style_ToolPack.py`; acá no se escribe ningún
