@@ -47,7 +47,7 @@ Al ejecutarlo escanea las carpetas configuradas como scan locations y todas las 
 - <strong>Explorer:</strong> (Alt+E) Abre la media en Windows Explorer.
 - <strong>Relink:</strong> (Alt+L) Abre una ventana para elegir una ubicación para buscar un archivo que está marcado como offline. Busca en las carpeta y subcarpetas hasta encontrar un match, y cambia la ruta del Read por la ruta encontrada.
 - <strong>Delete:</strong> Borra los archivos seleccionados. Funciona con selección múltiple de filas.
-- <strong>Copy to:</strong> Copia la media seleccionada a el destino elegido y cambia la ruta del Read por la ruta donde fue copiado. Esta función sólo se habilita para archivos marcados como Outside.
+- <strong>Copy to:</strong> Copia la media seleccionada al destino elegido y cambia la ruta del Read por la ruta donde fue copiado. Sólo se habilita para archivos marcados como Outside. Los destinos del menú son las locations que tengan tildado <em>Copy to</em> en los Settings, en ese orden, y cada una se dispara con Alt + la letra de su atajo. Si la ruta de un destino tiene comodín y resuelve a ninguna carpeta o a varias, avisa y no copia: elegir una sería adivinar.
 <br><br>
 
 **Opciones disponibles en los Settings**

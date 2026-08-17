@@ -713,7 +713,8 @@ class SettingsWindow(QWidget):
         self.setWindowFlags(
             Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowStaysOnTopHint
         )
-        self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+        self.setMinimumWidth(WINDOW_MIN_WIDTH)
+        self.setMinimumHeight(WINDOW_MIN_HEIGHT)
 
         self.nk_dir = nk_dir or ""
         self.settings = settings or {}
@@ -737,6 +738,11 @@ class SettingsWindow(QWidget):
         self._load_rows()
         self.apply_appearance()
         self.refresh()
+
+        # El alto sale de medir el contenido: con un tamano fijo, la tabla
+        # abria cortada o sobraba media ventana vacia segun cuantas
+        # locations tuviera el usuario.
+        self.adjustSize()
 
         if self.load_error:
             # El .ini existe y no se pudo leer, asi que lo que se esta
@@ -963,6 +969,7 @@ class SettingsWindow(QWidget):
         )
         fila.apply_theme(self.UI, self.font_size())
         fila.name_edit.setFocus()
+        self._fit_table()
         self.refresh()
 
     def _remove_row(self, fila):
@@ -980,6 +987,7 @@ class SettingsWindow(QWidget):
         self.rows_layout.removeWidget(fila)
         fila.setParent(None)
         fila.deleteLater()
+        self._fit_table()
         self.refresh()
 
     # -------------------------------------------------------------- arrastre --
@@ -1085,6 +1093,21 @@ class SettingsWindow(QWidget):
         self.shot_row.apply_theme(UI, fs)
         for fila in self.rows:
             fila.apply_theme(UI, fs)
+        self._fit_table()
+
+    def _fit_table(self):
+        """
+        Le da al area de filas el alto que necesita, hasta el tope.
+
+        Sin esto el area se queda con el minimo que le toque al repartir el
+        alto de la ventana y la tabla abre cortada a la mitad, con scroll,
+        aunque haya lugar de sobra abajo.
+        """
+        alto_fila = self.font_size() + ROW_EXTRA
+        filas = len(self.rows) + 1  # +1 por la del shot
+        alto = min(TABLE_MAX_HEIGHT, filas * alto_fila + 4)
+        self.scroll.setMinimumHeight(alto)
+        self.scroll.setMaximumHeight(TABLE_MAX_HEIGHT)
 
     # ------------------------------------------------------------- resolucion --
     def _path_edited(self, _fila):
