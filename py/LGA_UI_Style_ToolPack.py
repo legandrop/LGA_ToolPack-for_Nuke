@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.16 | Lega
+  LGA_UI_Style_ToolPack v1.18 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,34 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.18: semibold_family() y semibold_css(). Poner Inter no
+         alcanzaba: sus tres caras NO forman una sola familia para
+         Qt. La Regular y la Bold caen las dos en "Inter", pero la
+         SemiBold cae en una familia PROPIA, "Inter SemiBold" -es el
+         naming RIBBI: una familia solo admite Regular, Bold, Italic
+         y Bold-Italic, asi que todo peso intermedio se publica
+         aparte-. Con eso, `font-weight: 600` sobre "Inter" no
+         devuelve la SemiBold, que no esta en esa familia, sino la
+         cara mas cercana que si esta: la Bold de 700. Por eso todo
+         lo enfatizado seguia saliendo en negrita despues de v1.17.
+         Ahora el peso 600 se pide nombrando la familia, y semibold()
+         hace lo mismo sobre un QFont. Los temas cacheados se rearman
+         si las fuentes cargan despues de haberlos armado: las hojas
+         llevan la familia escrita adentro.
+  v1.17: apply_ui_font() y semibold(). Las fuentes del pack se
+         registraban desde v1.11 y NADIE se las ponia a una ventana:
+         lo unico que llamaba a font_family() era el campo de ruta
+         mono de un formulario. Sin la familia puesta, el
+         `font-weight` de las hojas no encuentra una cara real para
+         el peso pedido y en macOS Qt sintetiza la negrita
+         engrosando el trazo: todo lo que el disenio pide en 600
+         salia con el peso -y el ancho- de una 700 falsa.
+         semibold() resuelve el peso 600 sobre un QFont sin depender
+         de que el binding exponga `QFont.DemiBold` pelado; el
+         fallback que habia pedia bold, o sea 700.
+         El `pack` corrige WARNING_BG y ERROR_BG, que habian
+         quedado bastante mas brillantes que los del prototipo
+         (#6B4A0F y #5A1A1A contra #4C3A11 y #4C1919).
   v1.16: BTN_PRIMARY y BTN_SECONDARY pasan de `bold` a 600 y su
          texto a TEXT_STRONG. Con Inter cargado en 400/600/700,
          `bold` pedia el 700 -el peso de un titulo- y los botones
@@ -241,6 +269,10 @@ class Color(object):
     # el color del trazo, que en 17 px no se registra.
     DANGER_ICON_HOVER = "#E08585"
     DANGER_BG_HOVER = "#332727"
+    # El mismo icono con el boton APAGADO. Sigue siendo rojo y no gris: es lo
+    # que hace que la accion destructiva se distinga del resto de la fila
+    # aunque no se pueda ejecutar. Lo escribe _derivados().
+    DANGER_ICON_DIM = "#7A5252"
 
     DOT_OK = "#5CB85C"
     DOT_WARNING = "#D6AE4A"
@@ -283,6 +315,10 @@ class Color(object):
     # claro que el fondo del estado, porque es texto sobre el fondo oscuro de
     # la ventana y no una superficie.
     DOT_OUTSIDE = "#A04A4A"
+
+    # El texto secundario de un control APAGADO, un escalon por debajo de
+    # TEXT_DIM. Lo escribe _derivados(), como los de arriba.
+    TEXT_DISABLED = "#4E4E4E"
 
     # Nombre propio de una entidad del pipeline destacado en un mensaje: una
     # task, un preset, un nodo. Hoy vale lo mismo que PATH_COMMON y se ve
@@ -422,8 +458,8 @@ THEMES = (
             "CHECKBOX_ON_DISABLED_BORDER": "#4A4278",
             "CHECKBOX_ON_DISABLED_TICK": "#C6BFEA",
             "OK_BG": "#244C19",
-            "WARNING_BG": "#6B4A0F",
-            "ERROR_BG": "#5A1A1A",
+            "WARNING_BG": "#4C3A11",
+            "ERROR_BG": "#4C1919",
             "SURFACE_SUNKEN": "#1A1A1A",
             "ACCENT_DISABLED": "#2A2540",
             "ACCENT_TRACK": "#393959",
@@ -823,7 +859,7 @@ QPushButton {
     color: %(on_accent)s;
     padding: 7px 18px;
     border-radius: %(radius)dpx;
-    font-weight: 600;
+    %(semibold)s
 }
 QPushButton:hover { background-color: %(accent_hover)s; color: %(on_accent)s; }
 QPushButton:disabled { background-color: %(accent_dis)s; color: %(text_dim)s; }
@@ -834,6 +870,7 @@ QPushButton:disabled { background-color: %(accent_dis)s; color: %(text_dim)s; }
         "on_accent": Color.TEXT_ON_ACCENT,
         "text_dim": Color.TEXT_DIM,
         "radius": Metric.RADIUS,
+        "semibold": semibold_css(),
     }
 
     # El boton que NO ejecuta la accion (Cancel, Close). Misma caja que el
@@ -845,7 +882,7 @@ QPushButton {
     color: %(text_strong)s;
     padding: 7px 18px;
     border-radius: %(radius)dpx;
-    font-weight: 600;
+    %(semibold)s
 }
 QPushButton:hover { background-color: %(hover)s; border-color: %(border_hover)s;
                     color: %(text_strong)s; }
@@ -859,6 +896,7 @@ QPushButton:disabled { background-color: %(surface)s; color: %(text_dim)s; }
         "text_strong": Color.TEXT_STRONG,
         "text_dim": Color.TEXT_DIM,
         "radius": Metric.RADIUS,
+        "semibold": semibold_css(),
     }
 
     # Boton auxiliar de una fila de herramientas (All / None / Swap / Reset).
@@ -1240,6 +1278,10 @@ QTextEdit {
 # Cada tema se arma una vez y queda cacheado. No hay "tema activo": el tema es
 # de la tool que lo pide, no del modulo.
 _themes = {}
+# Con que familia de semibold se armaron los temas cacheados. Las hojas la
+# llevan escrita adentro, asi que si las fuentes cargan despues hay que
+# rearmarlos. Ver theme().
+_themes_fuente = None
 
 
 def _mix(color_a, color_b, factor=0.5):
@@ -1281,6 +1323,19 @@ def _derivados(colores):
         "OUTSIDE_BG_SELECTED": _mix(outside, sel),
         "OUTSIDE_BG_INFO_SELECTED": _mix(outside_info, sel),
         "DOT_OUTSIDE": _mix(colores["DOT_ERROR"], fondo, 0.30),
+        # El texto secundario de un control APAGADO. El rediseno atenua el
+        # control entero, y el gris de cuerpo ya apagado tiene que bajar otro
+        # escalon: dejandolo en TEXT_DIM, el atajo de un boton deshabilitado
+        # se leia igual de fuerte que el de uno activo.
+        "TEXT_DISABLED": _mix(colores["TEXT_DIM"], colores["SURFACE_RAISED"], 0.55),
+        # El icono destructivo con el boton apagado: el mismo rojo mezclado
+        # contra la superficie del boton, o sea atenuado sin dejar de ser rojo.
+        # DANGER_ICON no esta en THEME_TOKENS, asi que sale del modulo.
+        "DANGER_ICON_DIM": _mix(
+            colores.get("DANGER_ICON", Color.DANGER_ICON),
+            colores["SURFACE_RAISED"],
+            0.58,
+        ),
     }
 
 
@@ -1335,6 +1390,17 @@ def theme(theme_id=None):
     por una version mas nueva del pack, o a mano, tiene que dejar la ventana
     usable igual.
     """
+    global _themes_fuente
+    # Las hojas llevan la familia del semibold escrita adentro, y las fuentes
+    # solo se pueden registrar cuando existe QApplication. Si un tema se armo
+    # antes de eso -por ejemplo al importar el modulo desde menu.py- quedo con
+    # el peso pedido por numero, que devuelve la Bold. Al cambiar el estado de
+    # las fuentes se tira el cache y se rearma: sin esto, la primera ventana de
+    # la sesion se quedaba en negrita para siempre.
+    estado_fuente = semibold_family()
+    if estado_fuente != _themes_fuente:
+        _themes.clear()
+        _themes_fuente = estado_fuente
     if theme_id not in _themes:
         spec = get_theme(theme_id)
         _themes[spec["id"]] = Theme(spec)
@@ -1353,41 +1419,67 @@ def theme(theme_id=None):
 #
 # Son TTF y no woff2 a proposito: QFontDatabase.addApplicationFont carga TTF y
 # OTF, y no soporta woff2.
+#
+# OJO CON LA FAMILIA DEL SEMIBOLD. Las tres caras de Inter NO forman una sola
+# familia para Qt:
+#
+#     Inter-400.ttf -> familia "Inter",          subfamilia Regular
+#     Inter-700.ttf -> familia "Inter",          subfamilia Bold
+#     Inter-600.ttf -> familia "Inter SemiBold", subfamilia Regular   <-- APARTE
+#
+# Es el naming RIBBI clasico: una familia solo puede tener Regular, Bold,
+# Italic y Bold-Italic, asi que cualquier peso intermedio se publica como una
+# familia propia. Consecuencia: pedir `font-weight: 600` sobre "Inter" no
+# devuelve la SemiBold —no esta en esa familia— sino la cara mas cercana que
+# SI esta, o sea la Bold de 700. Por eso hay que nombrar la familia del
+# semibold explicitamente, y para eso estan semibold_family() y semibold_css().
+# Lo mismo pasa con la Medium de JetBrains Mono, que hoy no se usa.
 _FONT_DIR = os.path.join(_ICON_DIR, "fonts")
-_UI_FONT_FILES = ("Inter-400.ttf", "Inter-600.ttf", "Inter-700.ttf")
+_UI_FONT_REGULAR = "Inter-400.ttf"
+_UI_FONT_SEMIBOLD = "Inter-600.ttf"
+_UI_FONT_BOLD = "Inter-700.ttf"
 # Mono SOLO para el campo de ruta EDITABLE de un formulario: ahi las rutas son
 # relativas y con Inter los "../" no se distinguen, el punto y la barra se
 # pegan. En una tabla de rutas absolutas Inter se lee mejor.
-_MONO_FONT_FILES = ("JetBrainsMono-400.ttf", "JetBrainsMono-500.ttf")
+_MONO_FONT_REGULAR = "JetBrainsMono-400.ttf"
+_MONO_FONT_MEDIUM = "JetBrainsMono-500.ttf"
 
 _families = None
+# La familia del peso 600, que es OTRA que la de la regular. Vive aparte de
+# _families para no cambiarle la forma al valor que devuelve load_fonts().
+_semibold_family = ""
 
 
-def _register(archivos):
-    """Registra una familia y devuelve su nombre real, o "" si no cargo."""
+def _register(archivo):
+    """
+    Registra UN archivo y devuelve la familia que Qt le asigno, o "".
+
+    De a un archivo y no de a un grupo: cada cara puede caer en una familia
+    distinta -la SemiBold de Inter cae en "Inter SemiBold"- y registrandolas
+    juntas se perdia cual era cual.
+
+    Se devuelve el nombre que INFORMA Qt y no la string "Inter": si el archivo
+    no cargo hay que caer a la fuente del host, no pedir una familia que no
+    existe, que deja la ventana con la fuente por default de Qt.
+    """
     try:
         from LGA_QtAdapter_ToolPack import QtGui
     except Exception:
         return ""
 
-    nombres = []
-    for archivo in archivos:
-        ruta = os.path.join(_FONT_DIR, archivo)
-        if not os.path.exists(ruta):
-            continue
-        try:
-            ident = QtGui.QFontDatabase.addApplicationFont(ruta)
-        except Exception:
-            continue
-        if ident == -1:
-            continue
-        try:
-            nombres += list(QtGui.QFontDatabase.applicationFontFamilies(ident))
-        except Exception:
-            pass
-    # Se devuelve el nombre que informa Qt y no la string "Inter": si el
-    # archivo no cargo hay que caer a la fuente del host, no pedir una familia
-    # que no existe -eso deja la ventana con la fuente por default de Qt.
+    ruta = os.path.join(_FONT_DIR, archivo)
+    if not os.path.exists(ruta):
+        return ""
+    try:
+        ident = QtGui.QFontDatabase.addApplicationFont(ruta)
+    except Exception:
+        return ""
+    if ident == -1:
+        return ""
+    try:
+        nombres = list(QtGui.QFontDatabase.applicationFontFamilies(ident))
+    except Exception:
+        return ""
     return nombres[0] if nombres else ""
 
 
@@ -1397,17 +1489,28 @@ def load_fonts():
 
     Devuelve (familia_ui, familia_mono). Cualquiera de las dos puede venir
     vacia: sin fuente propia se usa la del host, que es feo pero funciona.
+    La familia del semibold se guarda aparte y se pide con semibold_family().
     """
-    global _families
+    global _families, _semibold_family
     if _families is not None:
         return _families
-    familias = (_register(_UI_FONT_FILES), _register(_MONO_FONT_FILES))
+    ui = _register(_UI_FONT_REGULAR)
+    # La SemiBold cae en su propia familia y hay que quedarse con SU nombre.
+    semibold = _register(_UI_FONT_SEMIBOLD)
+    # La Bold entra en la misma familia que la regular, asi que su nombre no
+    # se usa; se registra igual para que `font-weight: bold` tenga cara real.
+    _register(_UI_FONT_BOLD)
+    mono = _register(_MONO_FONT_REGULAR)
+    _register(_MONO_FONT_MEDIUM)
+
+    familias = (ui, mono)
     # Se cachea SOLO si cargo algo. addApplicationFont devuelve -1 mientras no
     # exista QApplication, asi que cachear el fracaso dejaba al pack sin sus
     # fuentes para el resto de la sesion de Nuke aunque la GUI ya estuviera
     # levantada.
-    if familias[0] or familias[1]:
+    if ui or mono:
         _families = familias
+        _semibold_family = semibold
     return familias
 
 
@@ -1419,6 +1522,106 @@ def font_family():
 def mono_family():
     """La familia mono, o "" si no se pudo cargar."""
     return load_fonts()[1]
+
+
+def semibold_family():
+    """
+    La familia del peso 600, que NO es la misma que la de la regular.
+
+    Devuelve "" si no cargo, y ahi quien llama tiene que caer a pedir el peso
+    por numero, que da la Bold pero es lo unico que queda.
+    """
+    load_fonts()
+    return _semibold_family
+
+
+def semibold_css():
+    """
+    Como se pide el peso 600 en una hoja de estilo.
+
+    NO alcanza con `font-weight: 600`: la SemiBold de Inter vive en su propia
+    familia, asi que ese pedido sobre "Inter" devuelve la Bold de 700. Hay que
+    nombrar la familia. Se usa en TODO lo que el disenio pone en semibold:
+
+        boton.setStyleSheet("QPushButton { %s }" % UIStyle.semibold_css())
+    """
+    familia = semibold_family()
+    if not familia:
+        return "font-weight: 600;"
+    # El peso va en normal a proposito: la familia tiene UNA sola cara, la de
+    # 600, y pedirle 600 ademas la haria candidata a que Qt le sintetice
+    # negrita encima.
+    return "font-family: '%s'; font-weight: normal;" % familia
+
+
+def apply_ui_font(widget, size=None):
+    """
+    Le pone al widget -y a todo lo que cuelgue de el- la familia del pack.
+
+    ESTO HAY QUE LLAMARLO. Registrar las fuentes no alcanza: mientras nadie se
+    las ponga a una ventana, la ventana se dibuja con la del host, y ahi el
+    `font-weight` de las hojas no encuentra una cara real para el peso pedido.
+    En macOS Qt entonces SINTETIZA la negrita engrosando el trazo, asi que todo
+    lo que el disenio pide en 600 sale con el peso -y el ancho, un 8 a 20% mas-
+    de una 700 falsa, y la ventana entera se lee mas pesada que el prototipo.
+    Con Inter puesta, 600 es Inter SemiBold y 700 es Inter Bold, que son caras
+    reales del archivo.
+
+    Va por QFont y no por `font-family` en la hoja: Qt lo propaga a los hijos,
+    asi que las hojas de cada control siguen pudiendo pedir tamano y peso sin
+    repetir la familia en cada una. Se llama DESPUES de armar la ventana, para
+    que alcance tambien a los hijos que ya existen.
+
+    Devuelve False si las fuentes no cargaron: sin fuente propia se usa la del
+    host, que es feo pero funciona.
+    """
+    familia = font_family()
+    if not familia:
+        return False
+    fuente = widget.font()
+    fuente.setFamily(familia)
+    if size:
+        fuente.setPixelSize(size)
+    widget.setFont(fuente)
+    return True
+
+
+def semibold(fuente):
+    """
+    Deja un QFont en el peso 600. Para lo que se dibuja a mano.
+
+    Lo primero es la FAMILIA: la SemiBold de Inter vive en "Inter SemiBold",
+    asi que subirle el peso a un QFont de la familia "Inter" no la encuentra
+    -no esta ahi- y Qt devuelve la Bold de 700. Nombrando la familia, el peso
+    sale solo, porque esa familia tiene una sola cara y es la de 600.
+
+    Sin las fuentes del pack queda el camino viejo: pedir el peso por enum.
+    `QFont.DemiBold` no esta garantizado -en PySide6 con enums estrictos hay
+    que ir por `QFont.Weight.DemiBold`- y el fallback natural, `setBold(True)`,
+    pide 700, que es un escalon de mas.
+    """
+    familia = semibold_family()
+    if familia:
+        fuente.setFamily(familia)
+        fuente.setBold(False)
+        return fuente
+
+    try:
+        from LGA_QtAdapter_ToolPack import QtGui
+    except Exception:
+        return fuente
+    QFont = QtGui.QFont
+    peso = getattr(getattr(QFont, "Weight", None), "DemiBold", None)
+    if peso is None:
+        peso = getattr(QFont, "DemiBold", None)
+    if peso is not None:
+        try:
+            fuente.setWeight(peso)
+            return fuente
+        except (TypeError, OverflowError):
+            pass
+    fuente.setBold(True)
+    return fuente
 
 
 # ---------------------------------------------------------------------------

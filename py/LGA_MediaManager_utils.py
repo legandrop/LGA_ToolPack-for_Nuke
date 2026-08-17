@@ -1,11 +1,32 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.28 | Lega
+  LGA_MediaManager_utils v2.31 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.31: paint_row_separator, la linea entre filas que ahora
+         dibuja cada delegado. Y ReadCellDelegate pinta el fondo de
+         la seleccion el mismo: la hoja de la tabla declara
+         `item:selected` transparente a proposito -si no le ganaria
+         al color propio de Status- asi que delegarlo dejaba esa
+         celda con el gris normal y la fila elegida aparecia
+         iluminada salvo un bloque oscuro justo en Read.
+  v2.29: tinted_icon() arma el pixmap a la escala de la PANTALLA. Lo
+         escalaba a pixeles de dispositivo 1x y Qt lo agrandaba al
+         doble en un monitor Retina: por eso el engranaje, la lupa,
+         el refresh y las flechitas de ordenar salian borrosos.
+         Suma ReadCellDelegate: la columna Read va alineada a la
+         izquierda, en el gris de cuerpo y con una raya en las filas
+         sin Read. La sustitucion de la raya se hace al DIBUJAR para
+         no tocar el centinela "-" del modelo, que es lo que ocho
+         comparaciones de la tool usan para saber si hay Read.
+         El numero de la fila seleccionada deja de encenderse en
+         blanco: la columna '#' es un id, no contenido, y el
+         delegado ahora respeta el color que le puso el item.
+         Los indices de columna se mudan aca, que es donde los
+         necesitan los delegados; estaban escritos en los dos lados.
   v2.27: tinted_icon() para los SVG de trazo, que QIcon dibujaria
          negros, y PathResolveWorker, que resuelve las rutas de la
          ventana de ajustes fuera del hilo principal. El escaneo
@@ -58,6 +79,7 @@ QFont = QtGui.QFont
 QTextDocument = QtGui.QTextDocument
 QTextOption = QtGui.QTextOption
 QStyledItemDelegate = QtWidgets.QStyledItemDelegate
+QStyleOptionViewItem = QtWidgets.QStyleOptionViewItem
 QByteArray = QtCore.QByteArray
 Qt = QtCore.Qt
 QTimer = QtCore.QTimer
@@ -126,6 +148,51 @@ def normalize_path_for_comparison(file_path):
 
 
 # ---------------------------------------------------------------------------
+#                        Columnas de la tabla principal
+# ---------------------------------------------------------------------------
+# Viven ACA y no en el FileScanner porque los delegados de este modulo tambien
+# las necesitan, y el FileScanner ya importa de aca: al reves seria circular.
+# Estaban escritas en los dos lados —el FileScanner por nombre y los delegados
+# por numero pelado— que es la forma segura de que se separen sin que nada
+# avise.
+#
+# El '#' es la columna 5 y no la 0: se agrega al final y despues se mueve al
+# primer lugar VISUAL con moveSection(). En Qt el orden visual es independiente
+# del logico, asi que se ve primera sin correr un solo indice.
+COL_PATH = 0
+COL_READ = 1
+COL_STATUS = 2
+COL_FOLDER_DELETE = 3
+COL_SEQUENCE = 4
+COL_NUM = 5
+
+# El aire a los costados del texto de la celda Read, el mismo `padding: 0 10`
+# que el prototipo le da a esa columna.
+READ_CELL_PADDING = 10
+
+
+def paint_row_separator(painter, rect, color):
+    """
+    La linea de 1 px que separa una fila de la siguiente.
+
+    La dibuja CADA delegado en vez de salir de la hoja de estilo. La regla
+    `QTableWidget::item { border-bottom }` no se ve: todas las columnas de esta
+    tabla tienen delegado propio y pintan la celda entera ellos, asi que el
+    borde que dibujaria el estilo queda tapado. Y la grilla de Qt tampoco
+    sirve, porque dibuja tambien las verticales, que el disenio no tiene.
+
+    Va en ROW_LINE y no en BORDER: en el prototipo la tabla principal separa
+    sus filas con un gris MAS CLARO que la fila -un divisor que suma- mientras
+    que la tabla de los ajustes usa el borde, que es otro token y va un punto
+    mas arriba. Son dos valores distintos a proposito.
+    """
+    painter.save()
+    painter.setPen(QColor(color))
+    painter.drawLine(rect.left(), rect.bottom(), rect.right(), rect.bottom())
+    painter.restore()
+
+
+# ---------------------------------------------------------------------------
 #                        Iconos de trazo, teñidos
 # ---------------------------------------------------------------------------
 # Los SVG de Lucide vienen con stroke="currentColor", que en Qt no hereda nada:
@@ -134,6 +201,23 @@ def normalize_path_for_comparison(file_path):
 # de tener que guardar una copia por color.
 _ICONS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "icons")
 _icon_cache = {}
+
+
+def _device_pixel_ratio():
+    """
+    Cuantos pixeles fisicos hay por pixel logico. 1.0 si no se puede saber.
+
+    Se pregunta a la aplicacion y no a una pantalla concreta: el icono se
+    cachea por (nombre, color, tamano) y se puede terminar dibujando en
+    cualquier monitor, asi que no hay una respuesta por widget.
+    """
+    try:
+        app = QApplication.instance()
+        if app is not None:
+            return float(app.devicePixelRatio())
+    except Exception:
+        pass
+    return 1.0
 
 
 def tinted_icon(name, color, size=24):
@@ -156,10 +240,21 @@ def tinted_icon(name, color, size=24):
         pixmap = QPixmap()
         # El QByteArray evita tener que escribir un archivo por color.
         if pixmap.loadFromData(QByteArray(svg.encode("utf-8")), "SVG"):
-            if size and pixmap.width() != size:
-                pixmap = pixmap.scaled(
-                    size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
-                )
+            # El pixmap se arma a la escala de la PANTALLA y no a la logica.
+            # Antes se escalaba a `size` en pixeles de dispositivo 1x y Qt lo
+            # agrandaba al doble al dibujarlo en un monitor Retina: por eso el
+            # engranaje, la lupa, el refresh y las flechitas de ordenar salian
+            # borrosos contra los trazos limpios del prototipo. Marcarle el
+            # devicePixelRatio es lo que hace que Qt lo dibuje del tamano
+            # logico correcto en vez de volver a estirarlo.
+            escala = _device_pixel_ratio()
+            if size:
+                fisico = max(1, int(round(size * escala)))
+                if pixmap.width() != fisico:
+                    pixmap = pixmap.scaled(
+                        fisico, fisico, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                    )
+                pixmap.setDevicePixelRatio(escala)
             icono = QIcon(pixmap)
         else:
             # Sin el plugin de SVG el tenido no se puede hacer, pero el icono
@@ -170,6 +265,70 @@ def tinted_icon(name, color, size=24):
 
     _icon_cache[clave] = icono
     return icono
+
+
+# El texto que lleva la celda Read cuando la fila no tiene ningun Read. Es un
+# CENTINELA del modelo y no lo que se muestra: medio FileScanner pregunta
+# `!= "-"` para decidir si hay Read, asi que el guion corto se queda en el
+# item y la raya del disenio la dibuja ReadCellDelegate al pintar.
+READ_NONE = "-"
+
+
+class ReadCellDelegate(QStyledItemDelegate):
+    """
+    La celda de la columna Read.
+
+    Existe por tres cosas que el item pelado hacia distinto del prototipo:
+    iba CENTRADA cuando el disenio la alinea a la izquierda, iba en el gris
+    fuerte cuando el disenio la pone en el gris de cuerpo, y mostraba el
+    centinela "-" tal cual en vez de la raya.
+
+    La sustitucion se hace al DIBUJAR y no en el modelo justamente para no
+    tocar el centinela: cambiarlo por una raya en el item obligaba a revisar
+    las ocho comparaciones `!= "-"` que deciden si una fila tiene Read, y una
+    que se escapara habria roto el borrado o el relink en silencio.
+    """
+
+    # Raya (en dash) y no guion: es lo que dibuja el prototipo, y a la altura
+    # de la x de la fuente el guion corto casi no se ve.
+    DASH = "–"
+
+    def __init__(self, table, ui, font_size=13, parent=None):
+        super().__init__(parent or table)
+        self.table = table
+        self.UI = ui
+        self.font_size = font_size
+
+    def set_theme(self, ui, font_size):
+        self.UI = ui
+        self.font_size = font_size
+
+    def paint(self, painter, option, index):
+        C = self.UI.Color if self.UI else Color
+        texto = index.data(Qt.DisplayRole) or ""
+        vacia = not texto.strip() or texto.strip() == READ_NONE
+
+        painter.save()
+        # El fondo de la seleccion se pinta ACA y no se le deja al estilo. La
+        # hoja de la tabla declara `item:selected` transparente a proposito
+        # -si no, le ganaria al color propio de la columna Status- asi que
+        # delegarlo dejaba esta celda con el gris de fondo normal: la fila
+        # elegida se veia iluminada salvo un bloque oscuro justo en Read.
+        if option.state & QStyle.State_Selected:
+            painter.fillRect(option.rect, QColor(C.SURFACE_SELECTED))
+
+        fuente = QFont(option.font)
+        fuente.setPixelSize(max(1, self.font_size - 1))
+        painter.setFont(fuente)
+        painter.setPen(QColor(C.TEXT_DIM if vacia else C.TEXT))
+        caja = option.rect.adjusted(READ_CELL_PADDING, 0, -READ_CELL_PADDING, 0)
+        painter.drawText(
+            caja,
+            Qt.AlignLeft | Qt.AlignVCenter,
+            self.DASH if vacia else texto,
+        )
+        painter.restore()
+        paint_row_separator(painter, option.rect, C.ROW_LINE)
 
 
 class PathDelegate(QStyledItemDelegate):
@@ -259,6 +418,7 @@ class PathDelegate(QStyledItemDelegate):
         )
         self._doc.drawContents(painter)
         painter.restore()
+        paint_row_separator(painter, option.rect, self.UI.Color.ROW_LINE)
 
 
 class PathResolveSignals(QObject):
@@ -681,7 +841,7 @@ class TransparentTextDelegate(QItemDelegate):
 
     def paint(self, painter, option, index):
         C = self.UI.Color if self.UI else Color
-        if index.column() == 0:
+        if index.column() == COL_PATH:
             # El path lo dibuja PathDelegate, asi que el texto del item va
             # transparente para que no se pise con el.
             option.palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0, 0))
@@ -694,9 +854,24 @@ class TransparentTextDelegate(QItemDelegate):
                     QPalette.Highlight,
                     self._selected_color(index.data(Qt.BackgroundRole)),
                 )
-                option.palette.setColor(QPalette.HighlightedText, QColor(C.TEXT_STRONG))
+                # La columna '#' NO se enciende al seleccionar la fila. Es un
+                # id, no contenido: en el disenio queda apagado igual que en
+                # las demas filas, y pasarlo a TEXT_STRONG lo convertia en lo
+                # mas brillante de la fila elegida, compitiendo con el path.
+                # El color se lo pone el propio item, asi que alcanza con
+                # respetarlo en vez de escribirle uno de seleccion.
+                propio = index.data(Qt.ForegroundRole)
+                if index.column() == COL_NUM and propio is not None:
+                    option.palette.setColor(
+                        QPalette.HighlightedText, QColor(propio.color())
+                    )
+                else:
+                    option.palette.setColor(
+                        QPalette.HighlightedText, QColor(C.TEXT_STRONG)
+                    )
 
         super(TransparentTextDelegate, self).paint(painter, option, index)
+        paint_row_separator(painter, option.rect, C.ROW_LINE)
 
 
 class LoadingWindow(QWidget):

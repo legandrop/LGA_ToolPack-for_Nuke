@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.28 | Lega
+  LGA_mediaManager v2.31 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -20,6 +20,39 @@ _______________________________________________________________________
   LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
   mano en la interfaz.
 
+  v2.31: Cinco ajustes sobre la ventana ya portada. Vuelven las
+         lineas horizontales entre filas, que se habian perdido al
+         apagar la grilla de Qt: las dibuja cada delegado, porque la
+         regla de hoja no se ve cuando las cuatro columnas pintan la
+         celda entera. La celda de Read se pinta con la seleccion
+         -quedaba un bloque oscuro en el medio de la fila elegida,
+         que es lo que cortaba el gris antes de llegar a Status-. El
+         '#' pasa a contar lo que se VE: arranca siempre en 1 y no
+         salta, ordene por la columna que ordene; el orden de carga
+         sigue en la clave por la que ordena esa misma columna. Y en
+         los ajustes "Table font size" se pega a su stepper.
+  v2.30: Poner Inter no alcanzaba: sus tres caras NO forman una
+         sola familia para Qt. La Regular y la Bold caen las dos en
+         "Inter", pero la SemiBold cae en una familia PROPIA, "Inter
+         SemiBold". Con eso, `font-weight: 600` sobre "Inter" no
+         devuelve la SemiBold sino la cara mas cercana que si esta
+         en esa familia: la Bold de 700. Por eso la etiqueta de los
+         botones, la cabecera de la tabla, los contadores de las
+         pastillas, la leyenda y Rescan seguian saliendo en negrita.
+         Ahora el peso 600 se pide nombrando la familia.
+  v2.29: La ventana se dibuja por fin con la fuente del pack. Inter se
+         registraba desde v2.13 y nadie se la ponia a la ventana, asi
+         que el `font-weight: 600` de las hojas no encontraba una cara
+         real y macOS sintetizaba la negrita: TODO el texto salia con
+         el peso -y el ancho- de una 700 falsa. De ahi tambien salia
+         que la barra, la cabecera, la leyenda y el pie midieran entre
+         un 8 y un 20% mas que en el prototipo.
+         Con eso resuelto se corrige el resto de lo que separaba la
+         ventana del disenio: la grilla vertical de Qt y el separador
+         de fila oscuro, las esquinas y el borde de la caja de la
+         tabla, la barra de scroll nativa, el subrayado de mnemonicos,
+         los iconos borrosos en pantalla Retina, los margenes de la
+         ventana, la columna Read y el numero de la fila elegida.
   v2.28: El tema de fabrica pasa a ser el del pack, que es el que ya
          usan las demas ventanas migradas. Se elige y se guarda solo:
          se aplica en vivo sobre las dos ventanas, asi que pedir Save

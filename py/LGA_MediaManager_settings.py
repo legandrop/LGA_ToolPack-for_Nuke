@@ -1,9 +1,29 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.28 | Lega
+  LGA_MediaManager_settings v2.31 | Lega
   Ventana de ajustes del Media Manager
 
+  v2.31: El aire de la fila de apariencia va ENTRE los dos grupos
+         y no despues: "Table font size" queda pegado a su stepper y
+         separado de la tira de temas. `addStretch()` sin argumento
+         agrega un espaciador de factor CERO, que no se lleva el
+         sobrante, asi que se lo repartia lo unico elastico que
+         quedaba -el propio QLabel- y el hueco caia justo al medio
+         del grupo de la fuente.
+  v2.30: Poner Inter no alcanzaba: sus tres caras NO forman una
+         sola familia para Qt. La Regular y la Bold caen las dos en
+         "Inter", pero la SemiBold cae en una familia PROPIA, "Inter
+         SemiBold". Con eso, `font-weight: 600` sobre "Inter" no
+         devuelve la SemiBold sino la cara mas cercana que si esta
+         en esa familia: la Bold de 700. Por eso la etiqueta de los
+         botones, la cabecera de la tabla, los contadores de las
+         pastillas, la leyenda y Rescan seguian saliendo en negrita.
+         Ahora el peso 600 se pide nombrando la familia.
+  v2.29: La ventana toma la fuente del pack. Sin ella el
+         `font-weight` de las hojas no encontraba una cara real y
+         macOS sintetizaba la negrita, con lo que todo lo que el
+         disenio pide en 600 salia con el peso de una 700 falsa.
   v2.28: El tema se guarda solo al elegirlo, y escribe sobre lo
          GUARDADO: las locations, el shot y el tamano de letra a medio
          editar no se cuelan por ese atajo. Cancel y Save arrancan
@@ -801,8 +821,8 @@ class LocationRow(QFrame):
             # El mismo padding que el campo de nombre de las filas de abajo,
             # para que "Shot folder" arranque en la misma vertical.
             self.name_label.setStyleSheet(
-                "color: %s; font-weight: 600; padding-left: 8px; %s"
-                % (UI.Color.TEXT_STRONG, chico)
+                "color: %s; %s padding-left: 8px; %s"
+                % (UI.Color.TEXT_STRONG, UIStyle.semibold_css(), chico)
             )
         if self.grip is not None:
             # El grip va en el gris de borde y no en el del texto: es un
@@ -833,9 +853,10 @@ class LocationRow(QFrame):
         if self.alt_label is not None:
             self.alt_label.setStyleSheet(
                 "background-color: %s; border: 1px solid %s; border-radius: %dpx;"
-                " padding: 0 9px; color: %s; font-weight: 600; font-size: %dpx;"
+                " padding: 0 9px; color: %s; %s font-size: %dpx;"
                 % (UI.Color.SURFACE_RAISED, UI.Color.BORDER_STRONG,
-                   UIStyle.Metric.RADIUS_FIELD, UI.Color.TEXT_STRONG, KEY_FONT)
+                   UIStyle.Metric.RADIUS_FIELD, UI.Color.TEXT_STRONG,
+                   UIStyle.semibold_css(), KEY_FONT)
             )
             self.plus_label.setStyleSheet(
                 "color: %s; font-size: %dpx;" % (UI.Color.TEXT_DIM, KEY_FONT)
@@ -850,11 +871,12 @@ class LocationRow(QFrame):
             self.key_edit.setStyleSheet(
                 "QLineEdit { border: 1px solid %s; border-radius: %dpx;"
                 " background-color: %s; color: %s; padding: 0px;"
-                " font-size: %dpx; font-weight: 600; }"
+                " font-size: %dpx; %s }"
                 "QLineEdit:hover { border-color: %s; }"
                 "QLineEdit:focus { background-color: %s; }"
                 % (UI.Color.ACCENT_HOVER, UIStyle.Metric.RADIUS_FIELD,
                    UI.Color.SURFACE_RAISED, UI.Color.TEXT_STRONG, KEY_FONT,
+                   UIStyle.semibold_css(),
                    UI.Color.ACCENT_HOVER, UI.Color.ACCENT)
             )
 
@@ -976,6 +998,11 @@ class SettingsWindow(QWidget):
         self._resolve_timer.timeout.connect(self._resolve_now)
 
         self._build()
+        # La fuente del pack, igual que en la ventana principal: sin ella el
+        # `font-weight` de las hojas no encuentra una cara real y macOS
+        # sintetiza la negrita, con lo que todo lo que el disenio pide en 600
+        # sale con el peso de una 700 falsa.
+        UIStyle.apply_ui_font(self)
         self._load_rows()
         # El punto de comparacion de Cancel y Save. Se toma de las filas recien
         # cargadas y no del .ini: asi los dos lados de la comparacion salen del
@@ -1161,8 +1188,14 @@ class SettingsWindow(QWidget):
         fuente_caja.addWidget(self.font_minus)
         fuente_caja.addWidget(self.font_field)
         fuente_caja.addWidget(self.font_plus)
+        # El aire va ENTRE los dos grupos y no despues, asi "Table font size"
+        # queda pegado a su stepper -son una sola cosa- y separado de la tira
+        # de temas. Antes el hueco caia justo al medio del grupo de la fuente:
+        # `addStretch()` sin argumento agrega un espaciador de factor CERO, que
+        # no se lleva el sobrante, asi que se lo repartia lo unico elastico que
+        # quedaba, que era el propio QLabel de la etiqueta.
+        apariencia.addStretch(1)
         apariencia.addLayout(fuente_caja)
-        apariencia.addStretch()
         raiz.addLayout(apariencia)
 
         # --- pie ------------------------------------------------------------------
@@ -1429,7 +1462,7 @@ class SettingsWindow(QWidget):
                 " border-top-left-radius: %(radio_int)dpx;"
                 " border-top-right-radius: %(radio_int)dpx; }"
                 "#lgaTableHead QLabel { background: transparent; color: %(text)s;"
-                " font-size: %(head_fs)dpx; font-weight: 600; }"
+                " font-size: %(head_fs)dpx; %(semibold)s }"
                 "QScrollArea { background: transparent; border: none; }"
                 "QWidget { background-color: transparent; }"
                 % {
@@ -1440,6 +1473,7 @@ class SettingsWindow(QWidget):
                     "radio": UIStyle.Metric.RADIUS_CARD,
                     "radio_int": radio_interno,
                     "head_fs": max(9, fs + HEAD_FONT_OFFSET),
+                    "semibold": UIStyle.semibold_css(),
                 }
             )
             # Va al final para que le gane al QWidget transparente de arriba,
@@ -1506,9 +1540,10 @@ class SettingsWindow(QWidget):
         self.font_plus.setStyleSheet(stepper)
         self.font_field.setStyleSheet(
             "QLineEdit { background-color: %s; border: 1px solid %s;"
-            " border-radius: %dpx; color: %s; font-weight: 600; }"
+            " border-radius: %dpx; color: %s; %s }"
             % (UI.Color.SURFACE, UI.Color.BORDER_STRONG,
-               UIStyle.Metric.RADIUS_FIELD, UI.Color.TEXT_STRONG)
+               UIStyle.Metric.RADIUS_FIELD, UI.Color.TEXT_STRONG,
+               UIStyle.semibold_css())
         )
         self.version_label.setStyleSheet(
             "color: %s; font-size: 12px;" % UI.Color.TEXT_DIM

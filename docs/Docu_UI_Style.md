@@ -121,6 +121,50 @@ familia. Si no cargan se usa la del host. La mono es sólo para un campo de ruta
 editable: ahí las rutas son relativas y con una proporcional los `../` no se
 distinguen, el punto y la barra se pegan.
 
+**Registrar las fuentes NO alcanza: hay que ponérselas a la ventana.**
+
+```python
+UIStyle.apply_ui_font(ventana)   # después de armarla, así alcanza a los hijos
+```
+
+Sin eso la ventana se dibuja con la del host, y ahí el `font-weight` de las
+hojas no encuentra una cara real para el peso pedido: **en macOS Qt sintetiza
+la negrita engrosando el trazo**, así que todo lo que el diseño pide en 600
+sale con el peso —y el ancho, un 8 a 20% más— de una 700 falsa. Es un modo de
+fallar difícil de ver leyendo el código, porque las hojas dicen `600` y lo que
+está mal es la familia. El Media Manager estuvo así toda la migración.
+
+**Y el peso 600 no se pide con `font-weight: 600`.** Las tres caras de Inter
+**no forman una sola familia** para Qt:
+
+| archivo | familia que ve Qt | subfamilia |
+|---|---|---|
+| `Inter-400.ttf` | `Inter` | Regular |
+| `Inter-700.ttf` | `Inter` | Bold |
+| `Inter-600.ttf` | **`Inter SemiBold`** | Regular |
+
+Es el naming RIBBI: una familia sólo admite Regular, Bold, Italic y
+Bold-Italic, así que todo peso intermedio se publica como familia propia. Por
+eso `font-weight: 600` sobre `Inter` **no** devuelve la SemiBold —no está en
+esa familia— sino la cara más cercana que sí está: la **Bold de 700**. Lo
+mismo pasa con la Medium de JetBrains Mono, que hoy no se usa.
+
+Hay que nombrar la familia, y para eso está el helper:
+
+```python
+boton.setStyleSheet("QPushButton { color: %s; %s }"
+                    % (UI.Color.TEXT_STRONG, UIStyle.semibold_css()))
+```
+
+Para poner el peso sobre un `QFont` (un delegado, una cabecera dibujada a
+mano) va `UIStyle.semibold(fuente)`, que hace lo mismo: le cambia la familia.
+No sirve `setWeight(QFont.DemiBold)` —además de que ese nombre pelado no está
+garantizado, subirle el peso a un `QFont` de la familia `Inter` tampoco
+encuentra la SemiBold— y el fallback natural, `setBold(True)`, pide 700.
+
+`font-weight: bold` y `700` **sí** funcionan derecho: esa cara está en la
+familia `Inter`.
+
 ## Qué usar en cada caso
 
 | Situación | Qué usar |

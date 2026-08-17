@@ -1,10 +1,52 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.28 | Lega
+  LGA_MediaManager_FileScanner v2.31 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.31: Las lineas horizontales entre filas las dibuja cada
+         delegado con paint_row_separator: se habian perdido al
+         apagar la grilla de Qt, y la regla `QTableWidget::item`
+         no alcanza porque las cuatro columnas tienen delegado
+         propio y le pintan encima. Van en ROW_LINE, que es mas
+         claro que la fila; la tabla de los ajustes usa BORDER, que
+         es otro token, y en el prototipo tambien son distintos.
+         El '#' deja de ser un id fijo de carga y pasa a contar lo
+         que se ve: 1, 2, 3... de arriba hacia abajo, sin importar
+         por que columna se ordene ni cuantas filas escondio el
+         filtro. El orden de carga no se pierde, sigue en la clave
+         de Qt.UserRole, que es por donde ordena la columna '#'.
+  v2.30: Poner Inter no alcanzaba: sus tres caras NO forman una
+         sola familia para Qt. La Regular y la Bold caen las dos en
+         "Inter", pero la SemiBold cae en una familia PROPIA, "Inter
+         SemiBold". Con eso, `font-weight: 600` sobre "Inter" no
+         devuelve la SemiBold sino la cara mas cercana que si esta
+         en esa familia: la Bold de 700. Por eso la etiqueta de los
+         botones, la cabecera de la tabla, los contadores de las
+         pastillas, la leyenda y Rescan seguian saliendo en negrita.
+         Ahora el peso 600 se pide nombrando la familia.
+  v2.29: Se le pone a la ventana la fuente del pack, que era la
+         causa de que todo se viera mas pesado que el prototipo. Y se
+         cierran las diferencias que quedaban contra el disenio:
+         la grilla de Qt se apaga entera -dibujaba verticales que el
+         disenio no tiene y pintaba las horizontales MAS OSCURAS que
+         la fila, cuando van mas claras-, la tabla recupera su borde
+         y sus esquinas redondeadas, y toma la barra de scroll del
+         pack en vez de la nativa de macOS, que iba del doble de
+         ancho y con flechas.
+         El atajo deja de declararse con un '&' en el texto: Qt
+         subrayaba la letra ADEMAS de dibujar el cartel "Alt + G" al
+         costado, o sea la misma informacion dos veces. Ahora lo
+         dispara un QShortcut. El cartel va sin peso propio y se
+         apaga junto con el boton; el tacho de Delete sigue rojo
+         cuando el boton esta deshabilitado, en vez de pasar al gris.
+         La columna Read se alinea a la izquierda y en el gris de
+         cuerpo, con una raya en las filas sin Read, y el numero de
+         la fila SELECCIONADA deja de encenderse en blanco: es un id,
+         no contenido. Los margenes de la ventana pasan a los 18 px
+         del disenio -el default del host da 9- y el alto cierra en
+         una fila entera en vez de dejar media contra el pie.
   v2.27: La ventana principal pasa al disenio nuevo. Aparece la columna
          '#', un id estable que no cambia al ordenar ni al filtrar: va
          ultima en indice logico y primera en pantalla, asi ninguna
@@ -106,6 +148,13 @@ QScreen = QtGui.QScreen
 QIcon = QtGui.QIcon
 QHeaderView = QtWidgets.QHeaderView
 QStyledItemDelegate = QtWidgets.QStyledItemDelegate
+QKeySequence = QtGui.QKeySequence
+# QShortcut se mudo de QtWidgets a QtGui en Qt6. Se busca en los dos lados
+# porque el pack corre en Nuke 15 (PySide2) y en Nuke 16/17 (PySide6).
+try:
+    QShortcut = QtGui.QShortcut
+except AttributeError:  # pragma: no cover - depende del binding
+    QShortcut = QtWidgets.QShortcut
 Qt = QtCore.Qt
 QRect = QtCore.QRect
 QPoint = QtCore.QPoint
@@ -211,12 +260,10 @@ LEGEND_OUTSIDE_INFO = "File is outside every scan location"
 # primera sin correr un solo indice. Insertarla como columna 0 habria corrido
 # los cinco indices en este archivo y ademas en LGA_MediaManager_utils, que
 # lee las suyas por numero.
-COL_PATH = 0
-COL_READ = 1
-COL_STATUS = 2
-COL_FOLDER_DELETE = 3
-COL_SEQUENCE = 4
-COL_NUM = 5
+# Los indices viven ahora en LGA_MediaManager_utils y se importan de ahi (ver
+# el bloque de importaciones mas abajo): los delegados de ese modulo tambien
+# los necesitan, y tenerlos escritos en los dos lados —aca por nombre y alla
+# por numero pelado— es la forma segura de que se separen sin que nada avise.
 
 # Anchos del disenio: `52 | 1fr (min 300) | 96 | 118`. El del path no se fija:
 # es la que se estira.
@@ -250,6 +297,10 @@ STATUS_ORDER = ("Offline", "Unused", "Outside", "Online")
 # y no en Metric del modulo de estilo porque es un valor a tunear a ojo: cuando
 # quede firme conviene subirlo al modulo, que es donde van las medidas.
 BUTTON_SPACING = 10
+
+# El aire entre el contenido y el borde de la ventana. Va explicito porque el
+# default de un QVBoxLayout lo pone el estilo del host y en macOS son 9 px.
+WINDOW_MARGIN = 18
 
 # Medidas de la barra de herramientas. Las tres estan fuera de Metric a
 # proposito: el modulo tiene BUTTON_HEIGHT = 30 y RADIUS = 5, y subirlas ahi le
@@ -327,12 +378,21 @@ import send2trash
 from LGA_MediaManager_utils import (
     tinted_icon,
     PathDelegate,
+    ReadCellDelegate,
+    paint_row_separator,
     RelinkSearchWorker,
     ScannerWorker,
     TransparentTextDelegate,
     LoadingWindow,
     CopyThread,
     DeleteThread,
+    COL_PATH,
+    COL_READ,
+    COL_STATUS,
+    COL_FOLDER_DELETE,
+    COL_SEQUENCE,
+    COL_NUM,
+    READ_NONE,
 )
 
 # Importar SettingsWindow desde settings
@@ -348,7 +408,7 @@ def read_sort_key(texto):
     mezclaban en el medio con las que si tienen.
     """
     nombres = [n.strip() for n in (texto or "").split(",") if n.strip()]
-    nombres = [n for n in nombres if n != "-"]
+    nombres = [n for n in nombres if n != READ_NONE]
     if not nombres:
         # El 1 de adelante los manda al final sin importar el resto.
         return (1, 0, "")
@@ -410,6 +470,7 @@ class StatusCellDelegate(QStyledItemDelegate):
                 option.rect,
                 QColor(Paleta.SURFACE_SELECTED if seleccionada else Paleta.SURFACE),
             )
+            paint_row_separator(painter, option.rect, Paleta.ROW_LINE)
             return
         fondo = (
             ventana.status_bg_selected(estado)
@@ -438,6 +499,10 @@ class StatusCellDelegate(QStyledItemDelegate):
             estado,
         )
         painter.restore()
+        # El separador cruza tambien la celda de estado: en el prototipo la
+        # linea es del RENGLON, no de cada celda, asi que se ve por encima del
+        # bloque de color igual que sobre el fondo gris.
+        paint_row_separator(painter, option.rect, Paleta.ROW_LINE)
 
     def sizeHint(self, option, index):
         base = super(StatusCellDelegate, self).sizeHint(option, index)
@@ -484,13 +549,11 @@ class SortHeaderView(QHeaderView):
         fuente = QFont(self.font())
         # El disenio pide 12.5 px; Qt no dibuja medios pixeles.
         fuente.setPixelSize(max(1, self.font_size - 1))
-        try:
-            # En Qt6 el enum quedo scopeado y el nombre pelado puede no existir
-            # segun la version de PySide con la que arranque Nuke.
-            fuente.setWeight(QFont.DemiBold)
-        except (AttributeError, TypeError):  # pragma: no cover - depende del binding
-            fuente.setBold(True)
-        return fuente
+        # El peso lo resuelve el modulo de estilo. El try/except que habia aca
+        # caia en setBold(True) apenas el binding no expusiera `QFont.DemiBold`
+        # pelado, y bold es 700: la cabecera salia un escalon mas pesada que
+        # los 600 del disenio.
+        return UIStyle.semibold(fuente)
 
     def paintSection(self, painter, rect, logicalIndex):
         Paleta = (getattr(self.ventana, "UI", None) or UIStyle.theme(None)).Color
@@ -658,6 +721,13 @@ class FileScanner(QWidget):
 
     def initUI(self):
         self.layout = QVBoxLayout(self)
+        # El aire alrededor del contenido. Sin fijarlo, el margen lo pone el
+        # estilo del host: en macOS son 9 px y la barra, la tabla y la leyenda
+        # quedaban casi tocando el borde de la ventana, con la mitad del aire
+        # que pide el disenio.
+        self.layout.setContentsMargins(
+            WINDOW_MARGIN, WINDOW_MARGIN, WINDOW_MARGIN, WINDOW_MARGIN
+        )
 
         self.apply_window_background()
 
@@ -686,22 +756,28 @@ class FileScanner(QWidget):
         # herramientas, cualquiera es valido segun lo que este seleccionado-
         # asi que van todos secundarios y no hay violeta: marcar uno seria
         # decir que Enter lo ejecuta.
+        # El atajo NO se declara con un '&' en el texto. Qt lo dibuja
+        # subrayando la letra adentro de la etiqueta, y el disenio ya escribe
+        # el atajo entero al costado: quedaban las dos cosas a la vez, o sea
+        # la misma informacion dos veces y un subrayado que el prototipo no
+        # tiene. La letra la dispara un QShortcut de ventana, que hace
+        # exactamente lo mismo sin tocar el texto.
         self.go_to_read_button = self._make_toolbar_button(
-            "&Go to Read", "scan", "Alt + G", TOOLTIPS["go_to_read"]
+            "Go to Read", "scan", "Alt + G", TOOLTIPS["go_to_read"]
         )
         # Antes se llamaba Explorer, con atajo Alt+E. El nombre nuevo dice lo
         # que hace y la letra acompania: Alt+R.
         self.reveal_button = self._make_toolbar_button(
-            "&Reveal", "folder-open", "Alt + R", TOOLTIPS["reveal"]
+            "Reveal", "folder-open", "Alt + R", TOOLTIPS["reveal"]
         )
         self.relink_button = self._make_toolbar_button(
-            "Re&link", "link-2", "Alt + L", TOOLTIPS["relink"]
+            "Relink", "link-2", "Alt + L", TOOLTIPS["relink"]
         )
         self.copy_button = self._make_toolbar_button(
-            "&Copy to…", "folder-input", "Alt + C", TOOLTIPS["copy_to"]
+            "Copy to…", "folder-input", "Alt + C", TOOLTIPS["copy_to"]
         )
         self.delete_button = self._make_toolbar_button(
-            "&Delete", "trash-2", "Alt + D", TOOLTIPS["delete"], peligro=True
+            "Delete", "trash-2", "Alt + D", TOOLTIPS["delete"], peligro=True
         )
         self.settings_button = self._make_toolbar_button(
             "Settings", "settings", "", TOOLTIPS["settings"]
@@ -732,6 +808,24 @@ class FileScanner(QWidget):
         self.relink_button.clicked.connect(self.relink)
         self.delete_button.clicked.connect(self.delete_selected)
         self.settings_button.clicked.connect(self.show_settings_window)
+
+        # Los atajos, ahora que el texto no lleva mnemonico. Van con
+        # `animateClick` y no llamando al handler directo para que el boton se
+        # ilumine igual que si lo hubieran clickeado, y un QShortcut sobre un
+        # boton deshabilitado no dispara nada, que es la misma regla que tenia
+        # el mnemonico.
+        for boton, letra in (
+            (self.go_to_read_button, "G"),
+            (self.reveal_button, "R"),
+            (self.relink_button, "L"),
+            (self.copy_button, "C"),
+            (self.delete_button, "D"),
+        ):
+            atajo = QShortcut(QKeySequence("Alt+%s" % letra), self)
+            atajo.setContext(Qt.WidgetWithChildrenShortcut)
+            atajo.activated.connect(
+                lambda b=boton: b.animateClick() if b.isEnabled() else None
+            )
 
         main_buttons_layout.addWidget(self.go_to_read_button)
         main_buttons_layout.addWidget(self.reveal_button)
@@ -794,6 +888,11 @@ class FileScanner(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.ExtendedSelection)
         self.table.setSortingEnabled(True)
+        # Al reordenar hay que rehacer el '#': cuenta lo que se ve, de arriba
+        # hacia abajo. Va por layoutChanged y no por sortIndicatorChanged
+        # porque ese se emite ANTES de que Qt mueva las filas, y renumerar
+        # sobre el orden viejo no sirve de nada.
+        self.table.model().layoutChanged.connect(self.renumber_visible_rows)
         # El encabezado vertical se oculta: dibujaba la POSICION visual de la
         # fila al lado de la columna `#`, que es un id ESTABLE, o sea dos
         # numeros distintos pegados diciendo cosas distintas. El diseno tiene
@@ -835,6 +934,13 @@ class FileScanner(QWidget):
         self.status_cell_delegate = StatusCellDelegate(self.table, self)
         self.table.setItemDelegateForColumn(COL_STATUS, self.status_cell_delegate)
 
+        # La columna Read tambien tiene delegado propio: va alineada a la
+        # IZQUIERDA y en el gris de cuerpo -el item pelado la centraba y la
+        # dibujaba en el gris fuerte-, y las filas sin Read muestran una raya
+        # y no el guion corto que el modelo usa de centinela.
+        self.read_delegate = ReadCellDelegate(self.table, self.UI, self.font_size)
+        self.table.setItemDelegateForColumn(COL_READ, self.read_delegate)
+
         # El cartel de "no hay coincidencias" vive adentro del viewport de la
         # tabla, que es el espacio que tiene que ocupar cuando el filtro no
         # deja nada. Arranca escondido.
@@ -852,6 +958,12 @@ class FileScanner(QWidget):
         self.apply_footer_stylesheet()
 
         self.setLayout(self.layout)
+        # La fuente del pack, DESPUES de armar: asi alcanza tambien a los hijos
+        # que ya existen. Sin esto la ventana se dibuja con la del host y el
+        # `font-weight: 600` de las hojas no encuentra una cara real, con lo
+        # que macOS sintetiza la negrita y TODO el texto de la ventana sale
+        # con el peso -y el ancho- de una 700 falsa.
+        UIStyle.apply_ui_font(self)
         # El alto de fila y la letra de la tabla se DERIVAN del ajuste, asi
         # que hay que aplicarlos al armar y no solo cuando el usuario toca el
         # tema: sin esto la tabla abria con el alto de fila default de Qt y
@@ -867,10 +979,13 @@ class FileScanner(QWidget):
         """
         Un boton de la barra: icono + texto + el atajo escrito al costado.
 
-        El cartel del atajo NO sale del mnemonico. En Qt el '&' subraya la
-        letra dentro del texto pero no imprime "Alt + G" al costado, asi que el
-        atajo va en un QLabel gris adentro del layout del boton; el '&' se
-        sigue declarando en el texto para que Alt+letra dispare.
+        El cartel del atajo va en un QLabel gris adentro del layout del boton.
+        NO sale de un mnemonico: en Qt el '&' subraya la letra dentro de la
+        etiqueta pero no imprime "Alt + G" al costado, asi que declararlo
+        dejaba las dos cosas a la vez -el subrayado y el cartel- o sea la
+        misma informacion dos veces, y un subrayado que el disenio no tiene.
+        La letra la dispara un QShortcut de ventana, que hace lo mismo sin
+        tocar el texto.
 
         El icono tambien va en un QLabel y no con setIcon(): asi la separacion
         entre el icono y el texto es la del disenio y no la que Qt elige, que
@@ -913,6 +1028,30 @@ class FileScanner(QWidget):
         )
         return boton
 
+    @staticmethod
+    def _estilo_atajo(atajo_label, habilitado, Paleta):
+        """
+        La hoja del cartel "Alt + X" de un boton de la barra.
+
+        Sale a un metodo porque la escriben dos: apply_toolbar_stylesheet -que
+        la necesita ANTES de medir el ancho del boton- y refresh_toolbar_icons,
+        que corre cada vez que cambia la seleccion. Escrita en una sola de las
+        dos, el color quedaba viejo apenas el boton se prendia o se apagaba.
+
+        Va sin peso propio: en 600 competia con la etiqueta del boton, que es
+        lo que hay que leer primero. Y se apaga JUNTO con el boton: el disenio
+        atenua el boton entero cuando esta deshabilitado, asi que ahi el atajo
+        queda mas oscuro todavia que en reposo, no clavado en el mismo gris.
+        """
+        atajo_label.setStyleSheet(
+            "QLabel { color: %s; font-size: %dpx; font-weight: normal;"
+            " background: transparent; border: none; }"
+            % (
+                Paleta.TEXT_DIM if habilitado else Paleta.TEXT_DISABLED,
+                TOOLBAR_SHORTCUT_FONT_SIZE,
+            )
+        )
+
     def apply_toolbar_stylesheet(self):
         """
         La hoja de los botones de la barra, con los colores del tema activo.
@@ -929,11 +1068,7 @@ class FileScanner(QWidget):
             atajo_label = datos["atajo_label"]
 
             if atajo_label is not None:
-                atajo_label.setStyleSheet(
-                    "QLabel { color: %s; font-size: %dpx; font-weight: 600;"
-                    " background: transparent; border: none; }"
-                    % (Paleta.TEXT_DIM, TOOLBAR_SHORTCUT_FONT_SIZE)
-                )
+                self._estilo_atajo(atajo_label, boton.isEnabled(), Paleta)
             datos["icono_label"].setStyleSheet(
                 "QLabel { background: transparent; border: none; }"
             )
@@ -953,7 +1088,7 @@ class FileScanner(QWidget):
                 " border-radius: %(radio)dpx;"
                 " color: %(texto)s;"
                 " font-size: %(letra)dpx;"
-                " font-weight: 600;"
+                " %(semibold)s"
                 " text-align: left;"
                 " padding-left: %(izq)dpx;"
                 " padding-right: %(der)dpx;"
@@ -980,6 +1115,7 @@ class FileScanner(QWidget):
                     "borde_hover": Paleta.BORDER_HOVER,
                     "acento": Paleta.ACCENT_HOVER,
                     "apagado": Paleta.TEXT_DIM,
+                    "semibold": UIStyle.semibold_css(),
                 }
             )
             # El ancho sale del texto y de los dos paddings, que ya reservan el
@@ -1007,12 +1143,17 @@ class FileScanner(QWidget):
         UI = getattr(self, "UI", None) or UIStyle.theme(None)
         Paleta = UI.Color
         for datos in self.toolbar_buttons:
-            if not datos["boton"].isEnabled():
-                color = Paleta.TEXT_DIM
-            elif datos["peligro"]:
+            habilitado = datos["boton"].isEnabled()
+            if datos["peligro"]:
                 # El unico icono con color propio: Delete es el que no se
-                # puede deshacer.
-                color = Paleta.ERROR
+                # puede deshacer. Apagado NO pasa al gris: el prototipo atenua
+                # el boton entero y el tacho sigue leyendose rojo, que es lo
+                # que hace que Delete se distinga del resto de la fila incluso
+                # cuando no hay nada seleccionado. Pintandolo de TEXT_DIM se
+                # volvia un boton mas.
+                color = Paleta.DANGER_ICON if habilitado else Paleta.DANGER_ICON_DIM
+            elif not habilitado:
+                color = Paleta.TEXT_DISABLED
             else:
                 color = Paleta.TEXT
             datos["icono_label"].setPixmap(
@@ -1020,8 +1161,10 @@ class FileScanner(QWidget):
                     TOOLBAR_ICON_SIZE, TOOLBAR_ICON_SIZE
                 )
             )
-            # El cartel del atajo se queda en TEXT_DIM en los dos estados: ya
-            # es el texto mas apagado del boton y bajarlo mas lo borra.
+            # El cartel del atajo baja de intensidad con el boton, y este
+            # metodo es el que corre en cada cambio de seleccion.
+            if datos["atajo_label"] is not None:
+                self._estilo_atajo(datos["atajo_label"], habilitado, Paleta)
 
     def update_minimum_width(self):
         """
@@ -1110,6 +1253,11 @@ class FileScanner(QWidget):
         self.search_field.setToolTip(TOOLTIPS["search"])
         self.search_field.setFixedSize(SEARCH_WIDTH, SEARCH_HEIGHT)
         self.search_field.setClearButtonEnabled(False)
+        # Solo toma el foco si lo clickean. Es el primer widget enfocable de
+        # la ventana, asi que Qt se lo daba al abrir y el campo aparecia con
+        # su anillo violeta puesto sin que nadie lo hubiera tocado: la ventana
+        # abria pareciendo que el usuario ya estaba escribiendo un filtro.
+        self.search_field.setFocusPolicy(Qt.ClickFocus)
         UI = getattr(self, "UI", None) or UIStyle.theme(None)
         self.search_field.addAction(
             tinted_icon("search", UI.Color.TEXT_DIM, SEARCH_ICON_SIZE),
@@ -1208,9 +1356,9 @@ class FileScanner(QWidget):
                 )
 
             datos["contador"].setStyleSheet(
-                "QLabel { color: %s; font-size: %dpx; font-weight: 600;"
+                "QLabel { color: %s; font-size: %dpx; %s"
                 " background: transparent; border: none; }"
-                % (Paleta.TEXT_STRONG, PILL_FONT_SIZE)
+                % (Paleta.TEXT_STRONG, PILL_FONT_SIZE, UIStyle.semibold_css())
             )
 
             # Igual que en la barra: el punto y el contador flotan adentro del
@@ -1374,30 +1522,61 @@ class FileScanner(QWidget):
 
     def assign_row_ids(self):
         """
-        Numera la columna '#'.
+        Crea las celdas de la columna '#' y les deja su orden de CARGA.
 
-        El numero es un ID ESTABLE y no la posicion visual: se asigna con la
-        tabla en el orden en que se cargo -o sea con el orden apagado, antes
-        del primer sortByColumn- y despues no se vuelve a tocar, asi que
-        ordenar o filtrar no lo cambia. Por eso ordenar por '#' devuelve la
-        tabla al orden de carga.
+        Ese orden va en Qt.UserRole y es lo que se ordena al clickear la
+        columna: asi '#' devuelve la tabla al orden en que se cargo. Lo que se
+        MUESTRA no es ese numero sino la posicion visual, que la escribe
+        renumber_visible_rows() cada vez que la tabla se reordena o se filtra.
+        Se corre con el orden apagado, antes del primer sortByColumn.
         """
         if getattr(self, "table", None) is None:
             return
         Paleta = (getattr(self, "UI", None) or UIStyle.theme(None)).Color
         for row in range(self.table.rowCount()):
-            numero = row + 1
             item = self.table.item(row, COL_NUM)
             if item is None:
-                # SortKeyItem para que ordene por el numero y no por el texto:
+                # SortKeyItem para que ordene por la clave y no por el texto:
                 # por texto, "10" caia antes que "9".
                 item = SortKeyItem("")
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 self.table.setItem(row, COL_NUM, item)
-            item.setText(str(numero))
-            item.setData(Qt.UserRole, numero)
+            item.setData(Qt.UserRole, row + 1)
             item.setTextAlignment(Qt.AlignCenter)
             item.setForeground(QBrush(QColor(Paleta.TEXT_DIM)))
+        self.renumber_visible_rows()
+
+    def renumber_visible_rows(self):
+        """
+        Deja la columna '#' leyendose 1, 2, 3... de arriba hacia abajo.
+
+        La numeracion es de lo que se VE: arranca siempre en 1 y no salta, sin
+        importar por que columna se este ordenando ni cuantas filas escondio el
+        filtro. Antes el numero era un id fijo de carga, y ordenando por
+        cualquier otra columna la primera fila podia decir 31 y la siguiente
+        42, que se lee como si faltaran filas.
+
+        El orden de carga NO se pierde: sigue en Qt.UserRole, que es por donde
+        ordena la propia columna '#'.
+        """
+        if getattr(self, "table", None) is None:
+            return
+        # Escribir en las celdas con el orden prendido dispara otra pasada de
+        # ordenamiento, que vuelve a llamar aca: sin el guard es un bucle.
+        if getattr(self, "_renumerando", False):
+            return
+        self._renumerando = True
+        try:
+            visible = 0
+            for row in range(self.table.rowCount()):
+                if self.table.isRowHidden(row):
+                    continue
+                visible += 1
+                item = self.table.item(row, COL_NUM)
+                if item is not None:
+                    item.setText(str(visible))
+        finally:
+            self._renumerando = False
 
     def repaint_row_numbers(self):
         """
@@ -1494,6 +1673,8 @@ class FileScanner(QWidget):
         # devuelve: sin limpiar la seleccion, Delete borraria archivos que el
         # usuario no tiene a la vista.
         self.table.clearSelection()
+        # El '#' cuenta lo que se VE: al esconder filas los numeros se corren.
+        self.renumber_visible_rows()
         self.update_button_states()
         self.update_empty_label(visibles)
 
@@ -1632,9 +1813,9 @@ class FileScanner(QWidget):
                 % (self.status_dot(entrada["estado"]), PILL_DOT_SIZE // 2)
             )
             entrada["nombre"].setStyleSheet(
-                "QLabel { color: %s; font-size: %dpx; font-weight: 600;"
+                "QLabel { color: %s; font-size: %dpx; %s"
                 " background: transparent; }"
-                % (Paleta.TEXT_STRONG, PILL_FONT_SIZE)
+                % (Paleta.TEXT_STRONG, PILL_FONT_SIZE, UIStyle.semibold_css())
             )
             entrada["texto"].setStyleSheet(
                 "QLabel { color: %s; font-size: %dpx; background: transparent; }"
@@ -1651,7 +1832,7 @@ class FileScanner(QWidget):
                 " border-radius: %(radio)dpx;"
                 " color: %(texto)s;"
                 " font-size: %(letra)dpx;"
-                " font-weight: 600;"
+                " %(semibold)s"
                 " text-align: left;"
                 " padding-left: %(izq)dpx;"
                 " padding-right: %(der)dpx;"
@@ -1670,6 +1851,7 @@ class FileScanner(QWidget):
                     "hover": Paleta.SURFACE_HOVER,
                     "borde_hover": Paleta.BORDER_HOVER,
                     "apagado": Paleta.TEXT_DIM,
+                    "semibold": UIStyle.semibold_css(),
                 }
             )
             color_icono = (
@@ -1757,9 +1939,9 @@ class FileScanner(QWidget):
         return item.text() if item is not None else ""
 
     def row_read(self, row):
-        """El o los nodos Read de una fila. '-' cuando no hay ninguno."""
+        """El o los nodos Read de una fila. READ_NONE cuando no hay ninguno."""
         item = self.table.item(row, COL_READ)
-        return item.text() if item is not None else "-"
+        return item.text() if item is not None else READ_NONE
 
     def row_status(self, row):
         """El estado de una fila: Offline, Outside, Unused u Online."""
@@ -1767,9 +1949,9 @@ class FileScanner(QWidget):
         return item.text() if item is not None else ""
 
     def row_read_names(self, row):
-        """Los nombres de nodo de una fila, ya separados y sin el '-'."""
+        """Los nombres de nodo de una fila, ya separados y sin el centinela."""
         texto = self.row_read(row)
-        if not texto or texto == "-":
+        if not texto or texto == READ_NONE:
             return []
         return [nombre.strip() for nombre in texto.split(",") if nombre.strip()]
 
@@ -1819,15 +2001,50 @@ class FileScanner(QWidget):
         unica forma de aplicar un tamano nuevo seria reabrir la herramienta.
         """
         UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        # La grilla de Qt se apaga entera. Dibujaba lineas VERTICALES entre
+        # columnas, que el disenio no tiene -las columnas se separan por el
+        # espacio y por el bloque de color de Status-, y ademas pintaba las
+        # horizontales con su gris propio, MAS OSCURO que la fila: el disenio
+        # las quiere mas CLARAS, un divisor que suma en vez de una reja negra.
+        #
+        # La linea horizontal que SI va la dibuja cada delegado, con
+        # paint_row_separator. Por hoja de estilo no se puede: la regla
+        # `QTableWidget::item { border-bottom }` se aplica pero no se ve,
+        # porque las cuatro columnas tienen delegado propio y pintan la celda
+        # entera ellos, tapandola.
+        self.table.setShowGrid(False)
         self.table.setStyleSheet(
-            "QTableWidget { background-color: %s; font-size: %dpx; }"
-            # La seleccion se deja transparente a proposito: si la hoja define
-            # un background para 'item:selected' le gana al setBackground() del
-            # item y a la paleta del delegado, y la columna Status pierde su
-            # color justo cuando esta seleccionada. De eso se encarga
-            # TransparentTextDelegate, que sabe que celdas tienen color propio.
-            "QTableWidget::item:selected { background-color: transparent; }"
-            % (UI.Color.SURFACE, self.font_size)
+            (
+                # La tabla es una caja con borde y esquinas redondeadas, igual
+                # que la de la ventana de ajustes. Sin esto quedaba un
+                # rectangulo al ras, sin borde y con las esquinas rectas.
+                "QTableWidget { background-color: %(surface)s;"
+                " font-size: %(letra)dpx;"
+                " border: 1px solid %(borde)s;"
+                " border-radius: %(radio)dpx; }"
+                # La seleccion se deja transparente a proposito: si la hoja
+                # define un background para 'item:selected' le gana al
+                # setBackground() del item y a la paleta del delegado, y la
+                # columna Status pierde su color justo cuando esta
+                # seleccionada. De eso se encarga TransparentTextDelegate, que
+                # sabe que celdas tienen color propio.
+                "QTableWidget::item:selected { background-color: transparent; }"
+                % {
+                    "surface": UI.Color.SURFACE,
+                    "letra": self.font_size,
+                    "borde": UI.Color.BORDER,
+                    "radio": UIStyle.Metric.RADIUS_CARD,
+                }
+            )
+            # La barra de scroll del pack: fina, redondeada y sin flechas. Sin
+            # esto la tabla se quedaba con la nativa de macOS, del doble de
+            # ancho, con botones de flecha arriba y abajo y con el patron de
+            # puntitos en el pulgar.
+            + UI.Style.SCROLLBAR
+            # El riel va transparente: la hoja comun lo pinta del gris de
+            # VENTANA, que adentro de la caja de la tabla dibuja una franja
+            # oscura al costado de todas las filas.
+            + "QScrollBar:vertical { background: transparent; }"
         )
 
     def update_table_font_size(self, tamano):
@@ -1846,6 +2063,10 @@ class FileScanner(QWidget):
         # El path lo dibuja el delegado con su propia fuente -un punto mas
         # grande que el resto de la tabla-, asi que la hoja no lo alcanza.
         self.refresh_path_delegate()
+        # La columna Read tambien se dibuja a mano, con la letra un punto mas
+        # chica: sin avisarle, se quedaba con el tamano y el tema anteriores.
+        if getattr(self, "read_delegate", None) is not None:
+            self.read_delegate.set_theme(self.UI, tamano)
 
     def populate_copy_menu(self):
         """
@@ -1951,6 +2172,12 @@ class FileScanner(QWidget):
         # El '#' se repinta SIN renumerar: para cuando se cambia el tema la
         # tabla ya no esta en el orden en que se cargo.
         self.repaint_row_numbers()
+        # Los dos delegados que dibujan texto a mano no los alcanza la hoja:
+        # sin avisarles, se quedan con los colores del tema anterior.
+        if getattr(self, "read_delegate", None) is not None:
+            self.read_delegate.set_theme(self.UI, self.font_size)
+        if getattr(self, "status_delegate", None) is not None:
+            self.status_delegate.set_theme(self.UI)
         tamano = self.appearance.get(
             "table_font_size", UIStyle.Metric.TABLE_FONT_SIZE
         )
@@ -2173,6 +2400,26 @@ class FileScanner(QWidget):
 
         # Usar el menor entre la altura calculada y el maximo permitido
         final_height = min(height, max_height)
+        # Cuando el tope recorta, el alto que queda no cae en un limite de
+        # fila y la ultima entra a medias: una franja de media fila contra el
+        # pie. Se le saca el sobrante para que el area de filas cierre en un
+        # multiplo exacto del alto de fila, que es lo que hace el disenio.
+        # Solo cuando el tope recorto: si la ventana entra entera, el alto ya
+        # es la suma exacta de las filas.
+        if height > max_height:
+            alto_fila = self.table.verticalHeader().defaultSectionSize()
+            # Todo lo que en `height` no son filas: cabecera, pastillas,
+            # barra, pie, margenes y espaciados.
+            alto_sin_filas = height - sum(
+                self.table.rowHeight(i) for i in range(self.table.rowCount())
+            )
+            if alto_fila > 0:
+                sobra = int(final_height - alto_sin_filas) % alto_fila
+                if 0 < sobra < final_height:
+                    final_height -= sobra
+                    self.logger.debug(
+                        f"[Altura] Recorte para cerrar en fila entera: {sobra}"
+                    )
         self.logger.debug(f"[Altura] Alto final aplicado: {final_height}")
         self.logger.debug(f"[Altura] El limite maximo recorto el alto: {height > max_height}")
 
@@ -3210,7 +3457,7 @@ class FileScanner(QWidget):
 
             if not is_unmatched_read:
                 # Manejo de los archivos del find_files
-                status = "-"
+                status = READ_NONE
                 state = "Unused"
                 # Usar la funcion de normalizacion centralizada
                 normalized_read_files = {
@@ -3286,7 +3533,6 @@ class FileScanner(QWidget):
 
                 # Ajustar y establecer el valor para la columna "Read"
                 read_item = QTableWidgetItem(status)
-                read_item.setTextAlignment(Qt.AlignCenter)  # Centra el texto
                 self.table.setItem(row_position, COL_READ, read_item)
 
                 # El estado NO se escribe aca: lo pone set_row_status al final
@@ -3341,7 +3587,6 @@ class FileScanner(QWidget):
                                 ]
                             )
                         )
-                        read_item.setTextAlignment(Qt.AlignCenter)
                         self.table.setItem(row_position, COL_READ, read_item)
                         state = "Offline"
                     else:
@@ -3382,7 +3627,6 @@ class FileScanner(QWidget):
                                     ]
                                 )
                             )
-                            read_item.setTextAlignment(Qt.AlignCenter)
                             self.table.setItem(row_position, COL_READ, read_item)
                             state = "Online"
                             self.matched_reads.extend(nodes)
@@ -3397,7 +3641,6 @@ class FileScanner(QWidget):
                                     ]
                                 )
                             )
-                            read_item.setTextAlignment(Qt.AlignCenter)
                             self.table.setItem(row_position, COL_READ, read_item)
                             state = "Outside"
 
@@ -3425,9 +3668,10 @@ class FileScanner(QWidget):
             # numerico -Read2 antes que Read12- y las filas sin Read caigan al
             # final. Por texto, Read12 iba antes que Read2.
             read_existente = self.table.item(row_position, COL_READ)
-            texto_read = read_existente.text() if read_existente is not None else "-"
+            texto_read = (
+                read_existente.text() if read_existente is not None else READ_NONE
+            )
             read_item = SortKeyItem(texto_read)
-            read_item.setTextAlignment(Qt.AlignCenter)
             read_item.setData(Qt.UserRole, read_sort_key(texto_read))
             read_item.setFlags(read_item.flags() & ~Qt.ItemIsEditable)
             self.table.setItem(row_position, COL_READ, read_item)
@@ -3548,7 +3792,7 @@ class FileScanner(QWidget):
                 return  # Si algun archivo esta "Offline", cancelar la operacion completa
 
             # Mostrar un mensaje de advertencia si el archivo esta siendo usado por un nodo Read
-            if read_node_name != "-" and len(rows_to_delete) == 0:
+            if read_node_name != READ_NONE and len(rows_to_delete) == 0:
                 read_warning_msg = QMessageBox(self)
                 read_warning_msg.setIcon(QMessageBox.Warning)
                 read_warning_msg.setWindowTitle("File in Use")
@@ -3868,7 +4112,7 @@ class FileScanner(QWidget):
         source_file_path, read_node_name = self.copy_queue.pop(0)
 
         # Verificar si el footage pertenece a algun Read
-        if read_node_name and read_node_name != "-":
+        if read_node_name and read_node_name != READ_NONE:
             # Con varios Reads sobre la misma media se reapunta el primero:
             # los demas siguen apuntando al original hasta que el usuario los
             # relinkee. Es lo que hacia antes y no cambia aca.
