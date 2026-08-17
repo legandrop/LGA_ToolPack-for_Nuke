@@ -917,6 +917,11 @@ class SettingsWindow(QWidget):
     def __init__(self, settings, nk_dir="", parent=None):
         super().__init__(parent)
         self.setWindowTitle("Media Manager Settings")
+        # Sin esto Qt resuelve la hoja de la ventana y no pinta su fondo: la
+        # ventana arranca con el color que le toque del host y, peor, cambiar
+        # de tema no repinta nada. Es la misma trampa que dejaba la tabla sin
+        # caja.
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setWindowFlags(
             Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowStaysOnTopHint
         )
@@ -1294,6 +1299,10 @@ class SettingsWindow(QWidget):
     def _pick_font_size(self, valor):
         self.appearance["table_font_size"] = valor
         self.apply_appearance()
+        # La fila crece con la letra, asi que la caja y la ventana tienen que
+        # volver a medirse: sin esto la ultima fila queda cortada.
+        self._fit_table()
+        self.adjustSize()
         self.appearance_previewed.emit(dict(self.appearance))
 
     def apply_appearance(self):
@@ -1306,8 +1315,9 @@ class SettingsWindow(QWidget):
         # Queda logueado para poder medirlo en vez de estimarlo contra una
         # captura.
         debug_print(
-            "Apariencia: letra %d, fila %d, cabecera %d"
-            % (fs, fs + ROW_EXTRA, fs + HEAD_EXTRA)
+            "Apariencia: tema %s, fondo %s, letra %d, fila %d, cabecera %d"
+            % (self.appearance.get("theme"), UI.Color.WINDOW, fs,
+               fs + ROW_EXTRA, fs + HEAD_EXTRA)
         )
 
         self.setStyleSheet(

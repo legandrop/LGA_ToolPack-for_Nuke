@@ -659,14 +659,7 @@ class FileScanner(QWidget):
     def initUI(self):
         self.layout = QVBoxLayout(self)
 
-        # Fondo de la ventana. Va por paleta y no por hoja de estilo a proposito:
-        # una regla 'QWidget { background-color }' se propaga a todos los hijos y
-        # les come la caja a los spinboxes y a los checkbox nativos. La paleta la
-        # heredan igual, pero cada control la usa para el rol que le corresponde.
-        self.setAutoFillBackground(True)
-        window_palette = self.palette()
-        window_palette.setColor(QPalette.Window, QColor(Color.WINDOW))
-        self.setPalette(window_palette)
+        self.apply_window_background()
 
         # Crea y configura el status_label
         # self.status_label = QLabel("")
@@ -797,6 +790,11 @@ class FileScanner(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.ExtendedSelection)
         self.table.setSortingEnabled(True)
+        # El encabezado vertical se oculta: dibujaba la POSICION visual de la
+        # fila al lado de la columna `#`, que es un id ESTABLE, o sea dos
+        # numeros distintos pegados diciendo cosas distintas. El diseno tiene
+        # uno solo, y es el estable.
+        self.table.verticalHeader().setVisible(False)
         # La barra depende de lo que este seleccionado, no de que haya filas:
         # cada boton pide una condicion distinta sobre el estado y el Read de
         # las filas elegidas.
@@ -850,6 +848,11 @@ class FileScanner(QWidget):
         self.apply_footer_stylesheet()
 
         self.setLayout(self.layout)
+        # El alto de fila y la letra de la tabla se DERIVAN del ajuste, asi
+        # que hay que aplicarlos al armar y no solo cuando el usuario toca el
+        # tema: sin esto la tabla abria con el alto de fila default de Qt y
+        # recien tomaba los 35 px del disenio despues de entrar a los ajustes.
+        self.update_table_font_size(self.font_size)
         self.scan_project()
         self.adjust_window_size()
 
@@ -1897,6 +1900,27 @@ class FileScanner(QWidget):
         # El shot y las carpetas a escanear se recalculan adentro del worker
         # del escaneo, para no bloquear la ventana mientras se guarda.
 
+    def apply_window_background(self):
+        """
+        El fondo de la ventana, del tema ELEGIDO.
+
+        Va por paleta y no por hoja de estilo a proposito: una regla
+        'QWidget { background-color }' se propaga a todos los hijos y les come
+        la caja a los spinboxes y a los checkbox nativos. La paleta la heredan
+        igual, pero cada control la usa para el rol que le corresponde.
+
+        Sale a un metodo porque el color depende del tema y el tema se cambia
+        con la ventana abierta: escrito una sola vez en el armado, y encima
+        leyendo el Color del modulo -que es el del tema BASE y no el elegido-,
+        la ventana quedaba con el gris del tema equivocado y no se repintaba
+        nunca.
+        """
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        self.setAutoFillBackground(True)
+        paleta = self.palette()
+        paleta.setColor(QPalette.Window, QColor(UI.Color.WINDOW))
+        self.setPalette(paleta)
+
     def apply_appearance(self, appearance):
         """
         Aplica el tema y el tamano de letra sin reabrir la ventana.
@@ -1907,6 +1931,7 @@ class FileScanner(QWidget):
         """
         self.appearance = dict(appearance or {})
         self.UI = UIStyle.theme(self.appearance.get("theme"))
+        self.apply_window_background()
         # La barra tambien sale del tema: sin esto los botones se quedaban con
         # los colores del tema anterior hasta reabrir la ventana.
         if getattr(self, "toolbar_buttons", None):
