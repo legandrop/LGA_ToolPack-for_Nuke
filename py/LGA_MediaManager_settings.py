@@ -1,9 +1,49 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.32 | Lega
+  LGA_MediaManager_settings v2.36 | Lega
   Ventana de ajustes del Media Manager
 
+  v2.36: Los titulos de las tres columnas de la derecha SI estaban
+         centrados; lo que estaba corrido era la columna. El
+         encabezado llevaba un widget de ancho cero al final para
+         reservar el ancho de la barra de scroll, y un QHBoxLayout
+         pone su espaciado ENTRE items sin mirar cuanto mide cada
+         uno: ese item de 0 px igual sumaba los 9 px de espaciado que
+         van antes. El encabezado tenia entonces 9 px menos que las
+         filas para repartir entre sus columnas elasticas y, como
+         esas van primero, todo lo que venia despues quedaba corrido
+         9 px a la izquierda. Ahora la barra se reserva con el margen
+         derecho del layout, que no agrega ningun item.
+         El ancho de las tarjetas se lo decide Qt: se le pregunta al
+         propio label con heightForWidth() hasta que entre en los
+         renglones que el texto declara. Calcularlo con QFontMetrics
+         fallo dos veces -una por medir con otra fuente, otra por
+         redondeo- y el sintoma siempre fue el mismo, un renglon de
+         mas. El que envuelve es Qt, asi que decide Qt. La letra de
+         la tarjeta va en su QFont y ya no en la hoja, para que medir
+         y dibujar no puedan volver a usar dos fuentes distintas.
+  v2.35: El ancho de las tarjetas se medía con la fuente equivocada,
+         asi que seguia partiendo el renglon. El label no tiene la
+         familia del pack cuando se lo crea -la ventana la aplicaba
+         despues de armar- y su tamano se lo pone recien la hoja de
+         estilo. Ahora la fuente del pack se aplica ANTES de armar y
+         la medicion usa la familia y el tamano exactos con los que
+         se dibuja. Las tres columnas de la derecha ceden otro tanto.
+  v2.34: Las tres columnas de la derecha miden lo que mide su
+         encabezado -el contenido son un checkbox y un par de
+         teclas- y van centradas, titulo y contenido: "Copy
+         Shortcut" quedaba pegado a la izquierda mientras las teclas
+         caian al medio, y el sobrante del atajo se juntaba con el de
+         la papelera dejandolas muy separadas.
+         El ancho de las tarjetas de ayuda lo decide el renglon mas
+         largo, MEDIDO. A ojo se quedaba corto por 10 px y el texto
+         de dos renglones aparecia en tres, que es exactamente lo que
+         vuelve a pasar cada vez que cambia el texto o la fuente.
+  v2.33: "Resolves to" pasa de 120 a 185 de minimo. Muestra el
+         nombre de una carpeta REAL y esos nombres son largos; con la
+         ventana ya angosta se comia justo el dato que hay que
+         verificar, que es para lo que existe la columna.
   v2.32: La ventana se puede achicar. El minimo de ancho sale del
          contenido y no del 1180 escrito a mano, que era mas ancho
          que lo que la tabla necesita; el area de filas se puede
@@ -89,7 +129,7 @@ _______________________________________
 import os
 import re
 
-from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
+from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore, horizontal_advance
 import LGA_UI_Style_ToolPack as UIStyle
 import LGA_MediaManager_paths as paths
 from LGA_MediaManager_config import (
@@ -132,18 +172,24 @@ COL_NAME = (None, 9, 130)
 # tabla se leia desbalanceada. Sigue siendo la mas ancha, que es lo correcto
 # -es el contenido mas largo- pero ya no absorbe sola el crecimiento.
 COL_PATH = (None, 9, 190)
-COL_REAL = (None, 8, 120)
-# Las dos casillas iban en columnas mucho mas anchas que su contenido -un
-# checkbox de 19 px centrado en 76 y en 90- y entre una y otra quedaba una
-# franja vacia que no separaba nada. Se ajustan a lo que mide su encabezado,
-# que es lo mas ancho que tienen adentro.
-COL_SCAN = (58, 0, 58)
-COL_COPY = (74, 0, 74)
+# "Resolves to" muestra el nombre de una carpeta real -no un patron- y esos
+# nombres son largos: ERSO_000_10133B_Test entra justo en 180. Con 120 la
+# columna se comia el nombre justo en la fila donde hay algo que verificar,
+# que es para lo que existe. Estira un poco mas que el nombre porque su
+# contenido no se puede acortar: o entra o dice "2 folders".
+COL_REAL = (None, 9, 185)
+# Las tres columnas de la derecha miden lo que mide su ENCABEZADO, que es lo
+# mas ancho que tienen adentro: el contenido son un checkbox de 19 px y un par
+# de teclas. Cualquier holgura sobre eso se lee como un hueco entre columnas,
+# no como aire. El titulo y el contenido van los dos centrados, asi que la
+# columna se lee como una sola cosa.
+COL_SCAN = (42, 0, 42)
+COL_COPY = (56, 0, 56)
 # 170 era el valor literal de la grilla del prototipo, con una franja libre a
 # la derecha del campo. En la ventana real esa franja se sumaba a la de la
 # papelera y quedaban casi 100 px muertos entre el atajo y el tacho.
-COL_KEY = (118, 0, 118)
-COL_TRASH = (44, 0, 44)
+COL_KEY = (96, 0, 96)
+COL_TRASH = (34, 0, 34)
 COLUMNS = (COL_GRIP, COL_NAME, COL_PATH, COL_REAL, COL_SCAN, COL_COPY,
            COL_KEY, COL_TRASH)
 
@@ -153,13 +199,22 @@ COLUMNS = (COL_GRIP, COL_NAME, COL_PATH, COL_REAL, COL_SCAN, COL_COPY,
 # donde el contenido lo permitia: sobraban casi 200 px que no se podian sacar.
 WINDOW_MIN_HEIGHT = 420
 
-# El ancho de las tarjetas de ayuda. El texto de cada una ya trae sus saltos
-# de linea escritos, asi que la tarjeta tiene que entrarle el renglon mas
-# largo: mas angosta lo parte y aparece un renglon de mas.
-CARD_WIDTH = 360
-# La del "included by another scan path" tiene el renglon mas largo de las dos
-# y con 360 se partia en tres. Al lado de "Add location" sobra lugar.
-CARD_WIDTH_WIDE = 470
+# Las tarjetas de ayuda. El ancho NO es una constante: lo mide _card_width()
+# sobre el renglon mas largo del texto, porque el texto ya trae sus saltos de
+# linea escritos y una tarjeta mas angosta lo parte y suma un renglon que
+# nadie escribio. De aca solo salen el piso y las medidas de su caja.
+CARD_MIN_WIDTH = 360
+CARD_PADDING = 15
+CARD_ICON_SIZE = 20
+CARD_ICON_GAP = 12
+# El tamano con el que se DIBUJA el texto de la tarjeta. Sale de aca y lo usan
+# los dos lados -la medicion del ancho y la hoja de estilo-: medir con un
+# tamano y dibujar con otro es como no medir.
+CARD_FONT_SIZE = 12
+# Hasta donde puede crecer una tarjeta buscando que su renglon mas largo entre,
+# y de a cuanto se prueba.
+CARD_MAX_WIDTH = 720
+CARD_WIDTH_STEP = 8
 TABLE_MAX_HEIGHT = 420
 # Cuantas filas tiene que seguir mostrando la tabla cuando la ventana se
 # achica. Es el piso: de ahi para abajo no se comprime mas y la ventana
@@ -259,6 +314,16 @@ def get_tool_version():
         return match.group(1) if match else ""
     except Exception:
         return ""
+
+
+def _card_font(base):
+    """La fuente con la que se dibuja -y se mide- el texto de una tarjeta."""
+    fuente = QtGui.QFont(base)
+    familia = UIStyle.font_family()
+    if familia:
+        fuente.setFamily(familia)
+    fuente.setPixelSize(CARD_FONT_SIZE)
+    return fuente
 
 
 def _apply_column(widget, columna):
@@ -614,6 +679,11 @@ class LocationRow(QFrame):
             self.key_edit.setToolTip(TOOLTIPS["shortcut"])
             self.key_edit.textChanged.connect(lambda _t: self.changed.emit())
             self.dash_label = QLabel("—")
+            # Centrado, con aire de los dos lados. Con un solo stretch al final
+            # el par de teclas se pegaba a la izquierda de su columna y todo el
+            # sobrante caia junto del lado de la papelera, que era lo que las
+            # dejaba tan separadas.
+            key_layout.addStretch()
             key_layout.addWidget(self.alt_label, 0, Qt.AlignVCenter)
             key_layout.addWidget(self.plus_label, 0, Qt.AlignVCenter)
             key_layout.addWidget(self.key_edit, 0, Qt.AlignVCenter)
@@ -1037,12 +1107,14 @@ class SettingsWindow(QWidget):
         self._resolve_timer.setInterval(150)
         self._resolve_timer.timeout.connect(self._resolve_now)
 
-        self._build()
-        # La fuente del pack, igual que en la ventana principal: sin ella el
+        # La fuente del pack va ANTES de armar. Dos razones: sin ella el
         # `font-weight` de las hojas no encuentra una cara real y macOS
-        # sintetiza la negrita, con lo que todo lo que el disenio pide en 600
-        # sale con el peso de una 700 falsa.
+        # sintetiza la negrita -todo lo que el disenio pide en 600 sale con el
+        # peso de una 700 falsa-, y ademas lo que se mide al armar hay que
+        # medirlo con la fuente definitiva. Qt la propaga a los hijos que se
+        # creen despues.
         UIStyle.apply_ui_font(self)
+        self._build()
         self._load_rows()
         # El punto de comparacion de Cancel y Save. Se toma de las filas recien
         # cargadas y no del .ini: asi los dos lados de la comparacion salen del
@@ -1119,9 +1191,12 @@ class SettingsWindow(QWidget):
         self.head_row.setObjectName("lgaTableHead")
         self.head_row.setAttribute(Qt.WA_StyledBackground, True)
         self.head_row.setFrameShape(QFrame.NoFrame)
-        head = QHBoxLayout(self.head_row)
-        head.setContentsMargins(0, 0, 0, 0)
-        head.setSpacing(9)
+        self.head_layout = QHBoxLayout(self.head_row)
+        # El margen derecho lo escribe _fit_table con el ancho de la barra de
+        # scroll, para que el encabezado y las filas repartan lo mismo.
+        self.head_layout.setContentsMargins(0, 0, 0, 0)
+        self.head_layout.setSpacing(9)
+        head = self.head_layout
         self.head_labels = []
         for texto, columna in (
             ("", COL_GRIP), ("Name", COL_NAME), ("Path", COL_PATH),
@@ -1129,18 +1204,30 @@ class SettingsWindow(QWidget):
             ("Copy to", COL_COPY), ("Copy Shortcut", COL_KEY), ("", COL_TRASH),
         ):
             etiqueta = QLabel(texto)
-            if columna in (COL_SCAN, COL_COPY):
+            # Las tres de la derecha van centradas, igual que su contenido.
+            # "Copy Shortcut" quedaba pegado a la izquierda mientras el par de
+            # teclas de abajo caia al medio, o sea que el titulo no señalaba
+            # su propia columna.
+            if columna in (COL_SCAN, COL_COPY, COL_KEY):
                 etiqueta.setAlignment(Qt.AlignCenter)
             _add_column(head, etiqueta, columna)
             self.head_labels.append(etiqueta)
         # El encabezado vive AFUERA del area scrolleable, asi que cuando
         # aparece la barra vertical las columnas elasticas de las filas se
-        # corren respecto de el. El hueco reserva ese ancho, pero SOLO cuando
-        # la barra esta: reservarlo siempre desalinea al reves las veces que
-        # no hay barra, que con las cinco filas de fabrica son todas.
-        self.scroll_spacer = QLabel("")
-        self.scroll_spacer.setFixedWidth(0)
-        head.addWidget(self.scroll_spacer)
+        # corren respecto de el y hay que reservarle ese ancho. Se reserva con
+        # el MARGEN DERECHO de la fila y no con un widget de ancho cero al
+        # final:
+        #
+        #   un QHBoxLayout pone su espaciado ENTRE items, sin mirar cuanto mide
+        #   cada uno. Un noveno item de 0 px de ancho igual sumaba los 9 px de
+        #   espaciado que van antes, o sea que el encabezado tenia 9 px menos
+        #   para repartir entre sus columnas elasticas que las filas. Como las
+        #   elasticas van primero, TODO lo que viene despues -Scan, Copy to,
+        #   Copy Shortcut- quedaba corrido 9 px a la izquierda respecto de su
+        #   propio contenido. Se veia como si los titulos no estuvieran
+        #   centrados, y estaban: centrados en una columna corrida.
+        #
+        # Lo pone _fit_table, que es quien sabe si la barra esta o no.
         caja.addWidget(self.head_row)
 
         # --- filas -------------------------------------------------------------
@@ -1174,8 +1261,7 @@ class SettingsWindow(QWidget):
         bajo.addWidget(self.add_button)
         self.card_included = self._info_card(
             "Locations included by another scan path remain checked but "
-            "disabled.\nDisable or remove the parent path to edit them.",
-            ancho=CARD_WIDTH_WIDE,
+            "disabled.\nDisable or remove the parent path to edit them."
         )
         bajo.addWidget(self.card_included)
         bajo.addStretch()
@@ -1275,30 +1361,67 @@ class SettingsWindow(QWidget):
         linea.setFixedHeight(1)
         return linea
 
-    def _info_card(self, texto, ancho=CARD_WIDTH):
+    def _info_card(self, texto):
         """
-        Una tarjeta de ayuda: icono a la izquierda y dos renglones de texto.
+        Una tarjeta de ayuda: icono a la izquierda y el texto al lado.
 
-        El ancho es un parametro y no una constante para todas: el texto ya
-        trae sus propios saltos de linea, y una tarjeta mas angosta que su
-        renglon mas largo lo parte al medio y suma un tercer renglon que no
-        estaba escrito. Se le da a cada una el ancho que sus renglones piden.
+        El ancho lo decide el RENGLON MAS LARGO del texto, medido. El texto ya
+        trae escritos sus propios saltos de linea, asi que una tarjeta mas
+        angosta que su renglon mas largo lo parte al medio y aparece un renglon
+        que nadie escribio. Con un ancho a ojo eso vuelve cada vez que cambia
+        el texto o la fuente, y volvio: 360 se quedaba corto por 10 px.
         """
         tarjeta = QWidget(self)
         layout = QHBoxLayout(tarjeta)
-        layout.setContentsMargins(15, 13, 15, 13)
-        layout.setSpacing(12)
+        layout.setContentsMargins(CARD_PADDING, 13, CARD_PADDING, 13)
+        layout.setSpacing(CARD_ICON_GAP)
         icono = QLabel("")
-        icono.setFixedSize(20, 20)
+        icono.setFixedSize(CARD_ICON_SIZE, CARD_ICON_SIZE)
         icono.setProperty("lgaCardIcon", True)
         cuerpo = QLabel(texto)
         cuerpo.setWordWrap(True)
+        # La fuente definitiva se le pone ACA, al QFont, y no por hoja de
+        # estilo: el ancho de la tarjeta se decide preguntandole a este label
+        # como envuelve, asi que tiene que estar ya con la letra con la que se
+        # va a dibujar. Por eso la hoja de la tarjeta no declara font-size.
+        cuerpo.setFont(_card_font(cuerpo.font()))
         layout.addWidget(icono, 0, Qt.AlignTop)
         layout.addWidget(cuerpo, 1)
-        tarjeta.setFixedWidth(ancho)
+        tarjeta.setFixedWidth(self._card_width(texto, cuerpo))
         tarjeta.icono = icono
         tarjeta.cuerpo = cuerpo
         return tarjeta
+
+    @staticmethod
+    def _card_width(texto, cuerpo):
+        """
+        El ancho mas chico con el que la tarjeta NO parte ningun renglon.
+
+        No se calcula con QFontMetrics: se le PREGUNTA AL PROPIO LABEL, con
+        heightForWidth(), y se agranda hasta que el alto que pide entra en la
+        cantidad de renglones que el texto declara. Medir el ancho del texto a
+        mano y confiar en que Qt va a envolverlo igual ya fallo dos veces -una
+        por medir con otra fuente, otra por un par de pixeles de redondeo-, y
+        el sintoma siempre es el mismo: un renglon de mas. El que envuelve es
+        Qt, asi que el que tiene que decidir es Qt.
+
+        El label ya tiene puesta su fuente definitiva cuando esto corre: se la
+        pone _info_card antes de llamar.
+        """
+        renglones = texto.count("\n") + 1
+        metrica = QtGui.QFontMetrics(cuerpo.font())
+        # Medio renglon de tolerancia, para no depender del redondeo del alto.
+        alto_maximo = metrica.lineSpacing() * (renglones + 0.5)
+        chrome = CARD_PADDING * 2 + CARD_ICON_SIZE + CARD_ICON_GAP
+
+        ancho = CARD_MIN_WIDTH
+        while ancho < CARD_MAX_WIDTH:
+            if cuerpo.heightForWidth(ancho - chrome) <= alto_maximo:
+                return ancho
+            ancho += CARD_WIDTH_STEP
+        # Ni al maximo entra: mejor una tarjeta ancha que una ventana que no
+        # entra en la pantalla. Envuelve, pero no se lleva puesta la ventana.
+        return CARD_MAX_WIDTH
 
     # ---------------------------------------------------------------- filas --
     def _load_rows(self):
@@ -1555,7 +1678,10 @@ class SettingsWindow(QWidget):
             tarjeta.setStyleSheet(
                 "QWidget { background-color: %s; border: 1px solid %s;"
                 " border-radius: %dpx; }"
-                "QLabel { border: none; color: %s; font-size: 12px; }"
+                # Sin font-size: la letra de la tarjeta la lleva su propio
+                # QFont, que es con el que se midio el ancho. Declararla en los
+                # dos lados es volver a poder medir con una y dibujar con otra.
+                "QLabel { border: none; color: %s; }"
                 % (UI.Color.SURFACE, UI.Color.BORDER, UIStyle.Metric.RADIUS,
                    UI.Color.TEXT)
             )
@@ -1675,8 +1801,10 @@ class SettingsWindow(QWidget):
         # tope, asi que la barra aparece exactamente cuando el contenido lo
         # supera. Reservando el ancho siempre, las veces que NO hay barra el
         # encabezado quedaba corrido 10 px contra las filas.
-        self.scroll_spacer.setFixedWidth(
-            UIStyle.Metric.SCROLLBAR_WIDTH if contenido > TABLE_MAX_HEIGHT else 0
+        self.head_layout.setContentsMargins(
+            0, 0,
+            UIStyle.Metric.SCROLLBAR_WIDTH if contenido > TABLE_MAX_HEIGHT else 0,
+            0,
         )
 
     # ------------------------------------------------------------- resolucion --

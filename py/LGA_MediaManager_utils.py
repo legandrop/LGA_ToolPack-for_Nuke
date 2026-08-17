@@ -1,11 +1,16 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.32 | Lega
+  LGA_MediaManager_utils v2.36 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.34: PathDelegate dibuja con un desplazamiento propio
+         (set_offset): es el scroll horizontal de esa columna sola.
+         El recorte pasa a hacerse ANTES de mover el origen y en
+         coordenadas de la celda; puesto despues se corria junto con
+         el texto y el path se salia de su columna al scrollear.
   v2.31: paint_row_separator, la linea entre filas que ahora
          dibuja cada delegado. Y ReadCellDelegate pinta el fondo de
          la seleccion el mismo: la hoja de la tabla declara
@@ -169,6 +174,13 @@ COL_NUM = 5
 # El aire a los costados del texto de la celda Read, el mismo `padding: 0 10`
 # que el prototipo le da a esa columna.
 READ_CELL_PADDING = 10
+
+# Donde arranca el path adentro de su celda, y el aire que le queda del otro
+# lado. Los usa PathDelegate al dibujar y el FileScanner al medir cuanto mide
+# el path mas largo: si salieran de dos lados distintos, la medicion daria de
+# menos y el path terminaria cortado igual.
+PATH_CELL_LEFT = 6
+PATH_CELL_RIGHT = 10
 
 
 def paint_row_separator(painter, rect, color):
@@ -354,6 +366,8 @@ class PathDelegate(QStyledItemDelegate):
         self.font_size = font_size
         self.shot_segs = []
         self.query = ""
+        # El scroll horizontal de esta columna. Ver set_offset().
+        self.offset = 0
         self._doc = QTextDocument()
         self._doc.setDocumentMargin(0)
 
@@ -386,6 +400,20 @@ class PathDelegate(QStyledItemDelegate):
             mark_bg=UI.Color.MARK_BG,
         )
 
+    def set_offset(self, pixeles):
+        """
+        Cuanto se corre el path hacia la izquierda dentro de su celda.
+
+        Es el scroll horizontal de ESTA columna sola. La tabla entera no
+        scrollea a proposito: si lo hiciera, el numero de fila, el Read y el
+        Status se irian de la vista, y esos tienen que estar siempre.
+        """
+        pixeles = max(0, int(pixeles))
+        if pixeles == self.offset:
+            return False
+        self.offset = pixeles
+        return True
+
     def paint(self, painter, option, index):
         path = index.data() or ""
         painter.save()
@@ -393,6 +421,12 @@ class PathDelegate(QStyledItemDelegate):
         seleccionada = bool(option.state & QStyle.State_Selected)
         if seleccionada:
             painter.fillRect(option.rect, QColor(self.UI.Color.SURFACE_SELECTED))
+
+        # El recorte va ANTES de mover el origen y en coordenadas de la celda:
+        # asi vale igual con cualquier desplazamiento. Puesto despues, el
+        # rectangulo se corria junto con el texto y el path se salia de su
+        # columna al scrollear.
+        painter.setClipRect(option.rect)
 
         # El path va un punto mas grande que el resto de la tabla: se lee
         # caracter por caracter -un 8 contra un 3, un _v02 contra un _v03- y a
@@ -410,11 +444,8 @@ class PathDelegate(QStyledItemDelegate):
 
         alto = self._doc.size().height()
         painter.translate(
-            option.rect.left() + 6,
+            option.rect.left() + PATH_CELL_LEFT - self.offset,
             option.rect.top() + max(0, (option.rect.height() - alto) / 2.0),
-        )
-        painter.setClipRect(
-            0, 0, max(0, option.rect.width() - 8), option.rect.height()
         )
         self._doc.drawContents(painter)
         painter.restore()

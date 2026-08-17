@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.32 | Lega
+  LGA_mediaManager v2.36 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -20,6 +20,48 @@ _______________________________________________________________________
   LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
   mano en la interfaz.
 
+  v2.36: Aparece por que los titulos de la tabla de ajustes no
+         caian sobre su contenido, despues de tres intentos de
+         centrarlos: SI estaban centrados, pero en una columna
+         corrida. El encabezado tenia un widget de ancho cero al
+         final para reservar la barra de scroll, y un QHBoxLayout
+         suma su espaciado ENTRE items sin mirar cuanto mide cada
+         uno, asi que ese item de 0 px igual se llevaba 9. El
+         encabezado repartia 9 px menos que las filas entre sus
+         columnas elasticas, y como esas van primero, las tres de la
+         derecha quedaban corridas 9 px. Se reserva con el margen del
+         layout, que no agrega item.
+         El ancho de las tarjetas se lo decide Qt y no una cuenta
+         propia, y Status suma 5 px.
+  v2.35: Fixes de lo de v2.34, que no se veia. La ventana principal
+         abria con media pantalla vacia a la derecha: el ancho de la
+         columna del path se recalculaba en el resizeEvent de la
+         VENTANA, y ahi Qt todavia no reacomodo a los hijos, asi que
+         el viewport medido era el de antes y la columna se quedaba
+         en su minimo. Ahora se recalcula cuando el viewport avisa
+         que cambio, que es el unico momento en que ya se sabe cuanto
+         mide. Ninguna columna se puede arrastrar a mano.
+         En los ajustes, el ancho de las tarjetas se medía con la
+         fuente equivocada: el label todavia no tiene la familia del
+         pack cuando se lo crea, y su tamano se lo pone recien la
+         hoja de estilo. Medido con otra fuente, el calculo daba de
+         menos y el renglon se partia igual.
+  v2.34: El scroll horizontal pasa a ser de la COLUMNA del path y no
+         de la tabla: el numero de fila, el Read y el Status quedan
+         siempre a la vista. Read y Status dejan de tener ancho fijo
+         y se miden sobre su contenido, que en las dos se conoce
+         entero. En los ajustes, las tres columnas de la derecha se
+         ajustan a lo que mide su encabezado y van centradas, titulo
+         y contenido; y el ancho de las tarjetas de ayuda lo decide
+         el renglon mas largo, medido.
+  v2.33: La ventana principal abre con el ancho justo para que entre
+         el path mas largo sin cortarse, con tope en el 80% del ancho
+         de la pantalla. Pasado ese tope el path NO se recorta:
+         aparece el scroll horizontal, porque no poder leer un path
+         entero es justo lo que esta herramienta viene a resolver.
+         En los ajustes, "Resolves to" recupera ancho: era la unica
+         columna que no habia que tocar y quedo tan angosta que se
+         comia el nombre de la carpeta resuelta.
   v2.32: Las dos ventanas se pueden achicar. El minimo de la
          principal lo fijaba la leyenda del pie, que es texto de
          ayuda y era la fila mas ancha de todas; ahora las

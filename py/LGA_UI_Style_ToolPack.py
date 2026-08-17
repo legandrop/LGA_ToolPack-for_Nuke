@@ -1033,6 +1033,11 @@ QCheckBox {
     padding: 2px;
     background: transparent;
     border: none;
+    /* Sin aire entre el cuadrito y el texto. Un QCheckBox("") sin texto igual
+       reserva esa separacion, asi que el widget mide mas que su indicador y al
+       centrarlo en una columna el cuadrito queda corrido a la izquierda: el
+       titulo de la columna, ese si centrado de verdad, no le caia encima. */
+    spacing: 0px;
 }
 QCheckBox::indicator {
     width: 16px;

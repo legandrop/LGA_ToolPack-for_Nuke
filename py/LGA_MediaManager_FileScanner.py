@@ -1,10 +1,46 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.32 | Lega
+  LGA_MediaManager_FileScanner v2.36 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.36: Status suma 5 px. Read y Status ganan una perilla de ajuste
+         fino -COL_READ_EXTRA y COL_STATUS_EXTRA- que se suma a lo
+         medido: es el unico lugar donde retocar cuanto respiran, sin
+         tener que meterse en el calculo.
+  v2.35: El ancho de la columna del path se recalcula cuando avisa el
+         VIEWPORT y no en el resizeEvent de la ventana: Qt le entrega
+         el resize al padre antes de reacomodar a los hijos, asi que
+         ahi el viewport todavia medía lo de antes y la columna se
+         quedaba en su minimo con media ventana vacia al lado.
+         Las cuatro columnas van en Fixed: ninguna se arrastra a
+         mano. Los anchos los decide la herramienta, asi que un
+         arrastre solo podia desarmarlos y dejar huecos. Se va
+         tambien el resizeColumnsToContents, que devolvia algo que se
+         pisaba dos lineas mas abajo y en miles de filas no es gratis.
+  v2.34: La tabla deja de scrollear en horizontal y el que scrollea
+         es el path adentro de su columna, con su propia barra. Con
+         la de la tabla se iban de la vista tambien el numero de
+         fila, el Read y el Status, que son con lo que se decide que
+         hacer con la fila.
+         Read y Status dejan de ser anchos fijos: se miden. Son las
+         dos columnas cuyo contenido se conoce entero -"Read15",
+         "Offline"- asi que un numero a ojo solo puede sobrar, y lo
+         que sobra ahi se lo saca al path, que es la unica que de
+         verdad necesita lugar. Status se mide sobre los CUATRO
+         estados y no sobre los cargados, para que la columna no
+         cambie de ancho segun lo que encuentre el escaneo.
+  v2.33: El ancho de la ventana y el de la columna del path salen de
+         medir el path MAS LARGO con la letra del delegado. La
+         columna deja el modo Stretch, que llena el viewport siempre
+         y por lo tanto encoge el path al achicar la ventana y lo
+         recorta sin ofrecer scroll: pasa a Interactive y la maneja
+         fit_path_column, que le da todo el sobrante pero nunca menos
+         de lo que hace falta. Asi la barra horizontal aparece sola.
+         El ancho de la ventana toma el mismo tope que el alto, el
+         80% de la pantalla: sin el, un path largo la abria mas ancha
+         que el monitor y no se podia ni mover.
   v2.32: El minimo de ancho de la ventana lo fija SOLO la barra de
          herramientas. Antes mandaba la mas ancha entre la barra y
          el pie, y el pie ganaba por varios cientos de pixeles: la
@@ -146,6 +182,7 @@ except Exception:
     QAction = QtWidgets.QAction
 QProgressBar = QtWidgets.QProgressBar
 QLineEdit = QtWidgets.QLineEdit
+QScrollBar = QtWidgets.QScrollBar
 QBrush = QtGui.QBrush
 QColor = QtGui.QColor
 QFont = QtGui.QFont
@@ -227,6 +264,10 @@ TOOLTIPS = {
     # La ✕ del buscador.
     "search_clear": "Limpiar",
     "rescan": "Vuelve a escanear el proyecto desde cero",
+    "path_scroll": (
+        "Corre el path para ver el final.\n"
+        "Aparece cuando el mas largo no entra en su columna"
+    ),
     "search": "Filtra por coincidencia parcial del path",
     "pill_all": "Muestra todos los archivos, sin filtrar por estado",
     "pill_offline": "Solo los archivos que un Read referencia y no existen",
@@ -277,9 +318,30 @@ LEGEND_OUTSIDE_INFO = "File is outside every scan location"
 # Anchos del disenio: `52 | 1fr (min 300) | 96 | 118`. El del path no se fija:
 # es la que se estira.
 COL_NUM_WIDTH = 52
-COL_READ_WIDTH = 96
-COL_STATUS_WIDTH = 118
+# Read y Status ya no son anchos fijos: se miden sobre su contenido, que en las
+# dos se conoce entero. Esto es solo el piso, para que una tabla vacia o un
+# escaneo sin Reads no deje columnas de dos pixeles.
+COL_READ_MIN_WIDTH = 60
+COL_STATUS_MIN_WIDTH = 84
+# ----------------------------------------------------------------------------
+#  PERILLAS DE AJUSTE FINO de las dos columnas medidas. El ancho lo calculan
+#  read_column_width() y status_column_width() sobre su contenido; estos dos
+#  numeros se le SUMAN a esa cuenta. Suben o bajan de a pixel, y no hay que
+#  tocar nada mas: son el unico lugar donde retocar cuanto respiran.
+# ----------------------------------------------------------------------------
+COL_READ_EXTRA = 0
+COL_STATUS_EXTRA = 5
 COL_PATH_MIN_WIDTH = 300
+# Lo mas angosta que se deja la columna del path en pantalla. No es lo que el
+# path NECESITA -eso se mide- sino hasta donde se la deja comprimir antes de
+# que deje de ser legible; de ahi en mas la diferencia la cubre su barra.
+COL_PATH_VIEW_MIN = 160
+# Cuanto corre la barra del path por click en sus flechas o por rueda.
+PATH_SCROLL_STEP = 24
+# Hasta donde puede crecer la ventana para que entre el path mas largo. Mas
+# alla de eso el path se corta y aparece el scroll horizontal: una ventana mas
+# ancha que la pantalla no se puede ni mover.
+WINDOW_MAX_SCREEN_RATIO = 0.80
 
 # Cabecera: alto derivado del tamano de letra (fs + 25), el icono de orden a
 # 13 px y su separacion del texto.
@@ -388,6 +450,9 @@ from LGA_MediaManager_utils import (
     tinted_icon,
     PathDelegate,
     ReadCellDelegate,
+    READ_CELL_PADDING,
+    PATH_CELL_LEFT,
+    PATH_CELL_RIGHT,
     paint_row_separator,
     RelinkSearchWorker,
     ScannerWorker,
@@ -897,6 +962,19 @@ class FileScanner(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.ExtendedSelection)
         self.table.setSortingEnabled(True)
+        # La tabla NUNCA scrollea en horizontal. Si lo hiciera, el numero de
+        # fila, el Read y el Status se irian de la vista junto con el path, y
+        # esos tres tienen que estar siempre: son con lo que se decide que
+        # hacer con la fila. El que scrollea es el path adentro de su columna,
+        # con su propia barra. Ver path_scroll y fit_path_column.
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # Ninguna columna se arrastra a mano. Se fija al armar y no al medir la
+        # ventana: entre una cosa y la otra el usuario ya podia agarrar un
+        # divisor.
+        cabecera = self.table.horizontalHeader()
+        cabecera.setStretchLastSection(False)
+        for columna in (COL_PATH, COL_NUM, COL_READ, COL_STATUS):
+            cabecera.setSectionResizeMode(columna, QHeaderView.Fixed)
         # Al reordenar hay que rehacer el '#': cuenta lo que se ve, de arriba
         # hacia abajo. Va por layoutChanged y no por sortIndicatorChanged
         # porque ese se emite ANTES de que Qt mueva las filas, y renumerar
@@ -915,6 +993,17 @@ class FileScanner(QWidget):
         # barra arranca apagada salvo Settings.
         self.update_button_states()
         self.layout.addWidget(self.table)
+
+        # La barra del path. Va afuera de la tabla y no adentro porque no
+        # scrollea la tabla: scrollea UNA columna. La de adentro moveria
+        # tambien el numero de fila, el Read y el Status, que son con lo que se
+        # decide que hacer con la fila y tienen que estar siempre a la vista.
+        # Aparece sola cuando el path mas largo no entra en su columna.
+        self.path_scroll = QScrollBar(Qt.Horizontal, self)
+        self.path_scroll.setToolTip(TOOLTIPS["path_scroll"])
+        self.path_scroll.hide()
+        self.path_scroll.valueChanged.connect(self._scroll_path)
+        self.layout.addWidget(self.path_scroll)
 
         # Cambiar el color de fondo de la tabla y el tamano de la fuente.
         # La seleccion se deja transparente a proposito: si la hoja define un
@@ -1263,6 +1352,8 @@ class FileScanner(QWidget):
     def resizeEvent(self, event):
         super(FileScanner, self).resizeEvent(event)
         self.fit_footer_legend()
+        # El path NO se ajusta aca: lo hace el filtro de eventos del viewport,
+        # que es el unico lugar donde ya se sabe cuanto mide.
 
     # ----------------------------------------------------------------------
     #                   Pastillas de estado y buscador
@@ -1767,6 +1858,13 @@ class FileScanner(QWidget):
         ):
             if event.type() == QtCore.QEvent.Resize:
                 self.position_empty_label()
+                # El ancho del path se recalcula ACA y no en el resizeEvent de
+                # la ventana. Qt le entrega el resize al padre ANTES de
+                # reacomodar a los hijos, asi que ahi el viewport todavia mide
+                # lo de antes: la columna se quedaba con el minimo y sobraba
+                # media ventana vacia a la derecha. Este evento llega cuando el
+                # viewport ya tiene su tamano nuevo.
+                self.fit_path_column()
         return super(FileScanner, self).eventFilter(obj, event)
 
     def refresh_path_delegate(self):
@@ -2059,6 +2157,10 @@ class FileScanner(QWidget):
         # porque las cuatro columnas tienen delegado propio y pintan la celda
         # entera ellos, tapandola.
         self.table.setShowGrid(False)
+        if getattr(self, "path_scroll", None) is not None:
+            # La misma barra fina del pack, sobre el fondo de la ventana: vive
+            # afuera de la caja de la tabla, no adentro.
+            self.path_scroll.setStyleSheet(UI.Style.SCROLLBAR)
         self.table.setStyleSheet(
             (
                 # La tabla es una caja con borde y esquinas redondeadas, igual
@@ -2089,8 +2191,10 @@ class FileScanner(QWidget):
             + UI.Style.SCROLLBAR
             # El riel va transparente: la hoja comun lo pinta del gris de
             # VENTANA, que adentro de la caja de la tabla dibuja una franja
-            # oscura al costado de todas las filas.
-            + "QScrollBar:vertical { background: transparent; }"
+            # oscura al costado de todas las filas. La horizontal aparece
+            # cuando el path mas largo no entra, asi que necesita lo mismo.
+            + "QScrollBar:vertical, QScrollBar:horizontal"
+            " { background: transparent; }"
         )
 
     def update_table_font_size(self, tamano):
@@ -2103,6 +2207,9 @@ class FileScanner(QWidget):
         self.font_size = tamano
         self.apply_table_stylesheet()
         self.table.verticalHeader().setDefaultSectionSize(tamano + 22)
+        # El path se dibuja con la letra derivada de esta, asi que lo que medi
+        # antes ya no vale: se descarta para que se vuelva a medir.
+        self._path_width = None
         # El alto de la cabecera tambien se deriva del tamano: fs + 25.
         if getattr(self, "header", None) is not None:
             self.header.set_font_size(tamano)
@@ -2356,14 +2463,16 @@ class FileScanner(QWidget):
         # Desactivar temporalmente el estiramiento de la ultima columna
         self.table.horizontalHeader().setStretchLastSection(False)
 
-        # Ajustar las columnas al contenido
-        self.table.resizeColumnsToContents()
-        # Y despues los anchos del disenio, que no salen del contenido:
-        # `52 | 1fr (min 300) | 96 | 118`. Van DESPUES del ajuste al contenido
-        # porque ese los pisaria.
+        # Los cuatro anchos los decide la herramienta: '#' es fijo, Read y
+        # Status se miden sobre su contenido y el path se lleva el resto. No se
+        # llama a resizeColumnsToContents: lo que devolveria se pisa entero dos
+        # lineas mas abajo, y en una tabla de miles de filas no es gratis.
         self.apply_column_widths()
 
-        # Calcular el ancho de la ventana basado en el ancho de las columnas
+        # El ancho sale de que entre el path MAS LARGO sin cortarse. Se lo pone
+        # a la columna antes de sumar, si no se estaria midiendo el ancho que
+        # la columna tenia de antes.
+        self.table.setColumnWidth(COL_PATH, self.path_column_width(recalcular=True))
         width = (
             self.table.verticalHeader().width() + 4
         )  # Con ajuste para evitar scroll horizontal
@@ -2416,7 +2525,14 @@ class FileScanner(QWidget):
         top_layout_height = 0
         for i in range(self.layout.count()):
             item = self.layout.itemAt(i)
-            if item.widget() is self.table:
+            widget = item.widget()
+            if widget is self.table:
+                continue
+            # Lo escondido no ocupa lugar. La barra del path esta oculta
+            # mientras el path mas largo entre en su columna, pero su sizeHint
+            # sigue informando alto: sumarlo dejaba la ventana con una franja
+            # vacia abajo justo en el caso normal.
+            if widget is not None and widget.isHidden():
                 continue
             top_layout_height += item.sizeHint().height()
         height += top_layout_height
@@ -2444,6 +2560,23 @@ class FileScanner(QWidget):
         max_height = screen_height * 0.8
         self.logger.debug(f"[Altura] Alto maximo permitido (80%): {max_height}")
 
+        # El ancho tiene el MISMO tope que el alto: 80% de la pantalla. Sin el,
+        # un path largo abria la ventana mas ancha que el monitor y no se podia
+        # ni mover. Cortada ahi, el path no se recorta: la columna conserva lo
+        # que necesita y aparece el scroll horizontal.
+        max_width = int(
+            QApplication.primaryScreen().geometry().width() * WINDOW_MAX_SCREEN_RATIO
+        )
+        final_width = min(width, max_width)
+        # El minimo de la ventana -que lo pone la barra de herramientas- manda
+        # sobre el tope: si la barra no entra en el 80%, la ventana no puede
+        # ser mas angosta que ella igual.
+        final_width = max(final_width, self.minimumWidth())
+        self.logger.debug(
+            "[Ancho] Pedido %d, tope 80%% %d, minimo %d, final %d"
+            % (width, max_width, self.minimumWidth(), final_width)
+        )
+
         # Usar el menor entre la altura calculada y el maximo permitido
         final_height = min(height, max_height)
         # Cuando el tope recorta, el alto que queda no cae en un limite de
@@ -2469,19 +2602,32 @@ class FileScanner(QWidget):
         self.logger.debug(f"[Altura] Alto final aplicado: {final_height}")
         self.logger.debug(f"[Altura] El limite maximo recorto el alto: {height > max_height}")
 
-        # Reactivar el estiramiento de la ultima columna
-        # La que se estira es File Path y NO la ultima. Con la ultima, el
-        # bloque de color de Status crecia hasta el borde de la ventana y el
-        # path -que es lo largo y lo que se lee- quedaba cortado con el resto
-        # vacio al lado. El diseno fija 52 | 1fr | 96 | 118.
+        # La que crece es File Path y NO la ultima. Con la ultima, el bloque de
+        # color de Status crecia hasta el borde de la ventana y el path -que es
+        # lo largo y lo que se lee- quedaba cortado con el resto vacio al lado.
+        #
+        # NINGUNA columna se arrastra a mano: las cuatro van en Fixed, que
+        # bloquea al usuario pero deja que setColumnWidth siga valiendo. Los
+        # anchos los decide la herramienta -tres medidos sobre su contenido y
+        # el path con todo el sobrante-, asi que un arrastre solo podia
+        # desarmar eso y dejar huecos.
+        #
+        # Stretch tampoco sirve para el path: llena el viewport SIEMPRE, o sea
+        # que al achicar la ventana encoge la columna y recorta el path sin
+        # ofrecer forma de llegar al final. El ancho lo pone fit_path_column y
+        # lo que no entra lo cubre la barra del path.
         encabezado = self.table.horizontalHeader()
         encabezado.setStretchLastSection(False)
-        encabezado.setSectionResizeMode(COL_PATH, QHeaderView.Stretch)
-        for columna in (COL_NUM, COL_READ, COL_STATUS):
+        for columna in (COL_PATH, COL_NUM, COL_READ, COL_STATUS):
             encabezado.setSectionResizeMode(columna, QHeaderView.Fixed)
 
         # Ajustar el tamano de la ventana
-        self.resize(width, final_height)
+        self.resize(final_width, final_height)
+        # Explicito y no solo por resizeEvent: si el alto y el ancho que se
+        # acaban de pedir son los que la ventana ya tenia, Qt no emite resize
+        # y la columna del path se quedaria con el ancho de la medicion en vez
+        # del que le toca en pantalla.
+        self.fit_path_column()
         QApplication.processEvents()
         self.logger.debug(
             "[Altura] Resize aplicado. Se agenda validacion post-layout para medir geometria real."
@@ -2560,18 +2706,139 @@ class FileScanner(QWidget):
 
     def apply_column_widths(self):
         """
-        Los anchos fijos del disenio. El path no lleva: es el que se estira.
+        Los anchos de las columnas que no son el path.
 
-        El minimo del path no es un lujo: sin el, con paths cortos la columna
-        se achica hasta que el resto de la ventana no tiene de donde agarrarse.
+        Read y Status se MIDEN: son las dos columnas cuyo contenido se conoce
+        entero -"Read15", "Offline"- asi que un ancho a ojo solo puede sobrar.
+        Y lo que sobra ahi se lo saca al path, que es la unica que de verdad
+        necesita lugar.
         """
         if getattr(self, "table", None) is None:
             return
         self.table.setColumnWidth(COL_NUM, COL_NUM_WIDTH)
-        self.table.setColumnWidth(COL_READ, COL_READ_WIDTH)
-        self.table.setColumnWidth(COL_STATUS, COL_STATUS_WIDTH)
-        if self.table.columnWidth(COL_PATH) < COL_PATH_MIN_WIDTH:
-            self.table.setColumnWidth(COL_PATH, COL_PATH_MIN_WIDTH)
+        self.table.setColumnWidth(COL_READ, self.read_column_width())
+        self.table.setColumnWidth(COL_STATUS, self.status_column_width())
+
+    def read_column_width(self):
+        """Lo que mide el Read mas largo, con el aire de la celda."""
+        if getattr(self, "table", None) is None:
+            return COL_READ_MIN_WIDTH
+        fuente = QFont(self.table.font())
+        fuente.setPixelSize(max(1, self.font_size - 1))
+        metrica = QFontMetrics(fuente)
+        ancho = 0
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, COL_READ)
+            if item is not None:
+                ancho = max(ancho, horizontal_advance(metrica, item.text()))
+        # El mismo padding a los dos lados que usa ReadCellDelegate, mas la
+        # perilla de ajuste fino.
+        return max(
+            COL_READ_MIN_WIDTH,
+            ancho + READ_CELL_PADDING * 2 + COL_READ_EXTRA,
+        )
+
+    def status_column_width(self):
+        """
+        Lo que mide el estado mas largo, con su punto y sus paddings.
+
+        Se mide sobre los CUATRO estados y no sobre los que haya cargados: si
+        no, la columna cambiaba de ancho segun lo que el escaneo encontrara.
+        """
+        fuente = QFont(self.table.font()) if getattr(self, "table", None) else QFont()
+        fuente.setPixelSize(max(1, self.font_size - 1))
+        metrica = QFontMetrics(fuente)
+        texto = max(
+            (horizontal_advance(metrica, estado) for estado in STATUS_ORDER),
+            default=0,
+        )
+        ancho = (
+            STATUS_CELL_PADDING * 2
+            + STATUS_DOT_SIZE
+            + STATUS_CELL_GAP
+            + texto
+            + COL_STATUS_EXTRA
+        )
+        return max(COL_STATUS_MIN_WIDTH, ancho)
+
+    # ----------------------------------------------------------------------
+    #                       Ancho de la columna del path
+    # ----------------------------------------------------------------------
+    # La politica es: la ventana abre con el ancho JUSTO para que entre el path
+    # mas largo sin cortarse, y si eso pasa el 80% del ancho de la pantalla se
+    # corta ahi. Pero cortada la ventana, el path NO se recorta: la columna
+    # conserva el ancho que necesita y aparece el scroll horizontal, porque no
+    # poder leer un path completo es justamente lo que esta herramienta viene a
+    # resolver.
+
+    def path_column_width(self, recalcular=False):
+        """
+        Lo que mide el path MAS LARGO de la tabla, dibujado como se dibuja.
+
+        Se mide con la fuente del delegado -un punto mas grande que el resto de
+        la tabla- y no con la de la tabla: con la chica el calculo daba de
+        menos y el path mas largo terminaba cortado igual.
+
+        El resultado se cachea. Recorrer miles de filas midiendo texto es
+        barato una vez y caro en cada resize, que es de donde se llama.
+        """
+        if getattr(self, "table", None) is None:
+            return COL_PATH_MIN_WIDTH
+        if not recalcular and getattr(self, "_path_width", None) is not None:
+            return self._path_width
+
+        fuente = QFont(self.table.font())
+        fuente.setPixelSize(self.font_size + UIStyle.Metric.PATH_FONT_OFFSET)
+        metrica = QFontMetrics(fuente)
+        ancho = 0
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, COL_PATH)
+            if item is None:
+                continue
+            ancho = max(ancho, horizontal_advance(metrica, item.text()))
+        # El aire que el delegado usa de los dos lados sin dibujar texto.
+        ancho += PATH_CELL_LEFT + PATH_CELL_RIGHT
+        self._path_width = max(COL_PATH_MIN_WIDTH, ancho)
+        return self._path_width
+
+    def fit_path_column(self):
+        """
+        El path ocupa TODO el sobrante, y si no le alcanza, se scrollea el.
+
+        La columna nunca se pasa del viewport: la tabla no tiene scroll
+        horizontal, asi que el numero de fila, el Read y el Status quedan
+        siempre a la vista. Cuando el path mas largo no entra en lo que le
+        toca, la diferencia la cubre `path_scroll`, una barra que corre el
+        dibujo del path adentro de su propia columna.
+        """
+        if getattr(self, "table", None) is None:
+            return
+        otras = (
+            COL_NUM_WIDTH
+            + self.table.columnWidth(COL_READ)
+            + self.table.columnWidth(COL_STATUS)
+        )
+        sobrante = max(COL_PATH_VIEW_MIN, self.table.viewport().width() - otras)
+        self.table.setColumnWidth(COL_PATH, sobrante)
+
+        barra = getattr(self, "path_scroll", None)
+        if barra is None:
+            return
+        faltante = max(0, self.path_column_width() - sobrante)
+        barra.setRange(0, faltante)
+        barra.setPageStep(max(1, sobrante))
+        barra.setSingleStep(PATH_SCROLL_STEP)
+        # La barra solo existe cuando hay algo que alcanzar. Con rango cero
+        # seria un riel muerto debajo de la tabla.
+        barra.setVisible(faltante > 0)
+        if not faltante:
+            barra.setValue(0)
+
+    def _scroll_path(self, valor):
+        """Corre el dibujo del path y repinta solo lo que se ve."""
+        delegado = getattr(self, "path_delegate", None)
+        if delegado is not None and delegado.set_offset(valor):
+            self.table.viewport().update()
 
     def toggle_columns(self, state):
 

@@ -75,6 +75,87 @@ El `#` es la columna 5 y no la 0: se agrega al final y se mueve al primer lugar
 **visual** con `moveSection()`. En Qt el orden visual es independiente del
 lógico, así que se ve primera sin correr un solo índice.
 
+## Tamaño de las ventanas
+
+### Ventana principal
+
+- **Ancho al abrir**: el justo para que entre el **path más largo** sin
+  cortarse. Se mide con la letra del delegado —un punto más grande que la de
+  la tabla— más el chrome de la celda.
+- **Tope**: el 80% del ancho de la pantalla. Una ventana más ancha que el
+  monitor no se puede ni mover.
+- **Cuando el tope corta, el path no se recorta**: aparece un scroll
+  horizontal. Poder llegar al final de un path es el punto de la herramienta.
+- **Ese scroll es de la columna, no de la tabla.** `self.table` tiene la barra
+  horizontal apagada y la columna del path ocupa siempre todo el sobrante del
+  viewport (`fit_path_column()`); cuando el path más largo no entra, la
+  diferencia la cubre `self.path_scroll`, que corre el dibujo con
+  `PathDelegate.set_offset()`. Con el scroll de la tabla se iban de la vista
+  también el número de fila, el `Read` y el `Status`, que son con lo que se
+  decide qué hacer con la fila.
+- **Los anchos de `Read` y `Status` se miden**, no son constantes: su
+  contenido se conoce entero, así que un número a ojo sólo puede sobrar, y lo
+  que sobra ahí se lo saca al path. `Status` se mide sobre los cuatro estados
+  y no sobre los cargados, para que no cambie de ancho según lo que encuentre
+  el escaneo.
+- **Ninguna columna se arrastra a mano**: las cuatro van en `QHeaderView.Fixed`,
+  que bloquea al usuario pero deja que `setColumnWidth` siga valiendo. Los
+  anchos los decide la herramienta, así que un arrastre sólo podría desarmarlos.
+- **`fit_path_column()` se llama desde el `eventFilter` del viewport, nunca
+  desde el `resizeEvent` de la ventana.** Qt le entrega el resize al padre
+  *antes* de reacomodar a los hijos, así que ahí el viewport todavía mide lo
+  de antes: la columna se quedaba en su mínimo y sobraba media ventana vacía.
+- **Ancho mínimo**: lo fija sólo la barra de herramientas, que es lo único
+  incompresible. Las explicaciones de la leyenda del pie se esconden cuando no
+  entran (`fit_footer_legend()`) en vez de cortarse a la mitad de una palabra.
+- **Alto**: el del contenido, con el mismo tope del 80%, y recortado para
+  cerrar en una fila entera.
+
+### Ventana de ajustes
+
+El mínimo sale del contenido —la suma de los mínimos de las columnas más los
+márgenes— y no de un número escrito a mano. El área de filas se puede
+comprimir hasta `TABLE_MIN_ROWS` y de ahí se scrollea.
+
+Los anchos de columna son las tuplas `COL_*` de
+`LGA_MediaManager_settings.py`, en el formato
+`(ancho fijo o None, factor de estiramiento, ancho mínimo)`. El encabezado y
+cada fila salen de esa misma lista: si no salieran del mismo lugar se
+desalinean en cuanto una cambia.
+
+Las tres de la derecha —`Scan`, `Copy to`, `Copy Shortcut`— miden lo que mide
+su **encabezado**, que es lo más ancho que tienen adentro: el contenido son un
+checkbox de 19 px y un par de teclas. Cualquier holgura sobre eso se lee como
+un hueco entre columnas, no como aire. Título y contenido van los dos
+centrados.
+
+> **El encabezado y las filas tienen que tener los MISMOS items.** Son dos
+> `QHBoxLayout` distintos que se alinean sólo porque recorren la misma lista de
+> columnas. Un `QHBoxLayout` pone su espaciado *entre* items sin mirar cuánto
+> mide cada uno, así que **agregar al encabezado un widget aunque sea de ancho
+> 0 le roba un espaciado entero** (9 px) a las columnas elásticas — y como esas
+> van primero, corre todo lo que viene después. Fue exactamente lo que pasó con
+> el hueco que reservaba la barra de scroll. Eso se reserva con el
+> `contentsMargins` derecho del layout del encabezado (lo escribe
+> `_fit_table()`), nunca con un item.
+
+Los anchos de `Read` y `Status` de la ventana principal tienen sus perillas de
+ajuste fino en `COL_READ_EXTRA` y `COL_STATUS_EXTRA` (en
+`LGA_MediaManager_FileScanner.py`): se suman a lo medido y son el único lugar
+donde retocarlos.
+
+**El ancho de las tarjetas de ayuda no es una constante**: lo mide
+`_card_width()` sobre el renglón más largo del texto. El texto trae sus saltos
+de línea escritos, así que una tarjeta más angosta parte un renglón y aparece
+uno que nadie escribió.
+
+Se mide con la **familia y el tamaño exactos con los que se dibuja**
+(`UIStyle.font_family()` y `CARD_FONT_SIZE`), no con `cuerpo.font()`: el label
+todavía no tiene la familia del pack cuando se lo crea, y su tamaño se lo pone
+recién `apply_appearance()`. Medir con una fuente y dibujar con otra es como no
+medir — falló así. Por lo mismo, `apply_ui_font()` se llama **antes** de
+`_build()`: todo lo que se mida al armar tiene que medirse con la definitiva.
+
 ## Aspecto de las ventanas
 
 Todo lo visual sale de `py/LGA_UI_Style_ToolPack.py`; acá no se escribe ningún
