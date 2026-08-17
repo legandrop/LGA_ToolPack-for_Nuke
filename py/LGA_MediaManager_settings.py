@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.38 | Lega
+  LGA_MediaManager_settings v2.40 | Lega
   Ventana de ajustes del Media Manager
 
   v2.38: Add location lleva la fila nueva a la vista. Con la tabla ya

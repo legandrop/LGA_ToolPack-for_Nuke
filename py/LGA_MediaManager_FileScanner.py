@@ -1,10 +1,48 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.38 | Lega
+  LGA_MediaManager_FileScanner v2.40 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.40: Once defectos de concurrencia que salieron de auditar lo de
+         v2.39. El peor: se arrancaban DOS ScannerWorker en cada
+         apertura -uno en __init__ que nadie conectaba y otro en
+         scan_project- asi que el disco se recorria dos veces, el
+         resultado de uno se tiraba, y la X de la ventana de escaneo
+         cancelaba justo el inutil: el que llenaba la tabla seguia
+         corriendo despues de abortar.
+         El escaneo tocaba la API de Nuke desde el hilo del pool.
+         get_read_files envolvia el allNodes pero despues leia los
+         knobs de los nodos devueltos afuera, con lo cual el wrapper
+         no servia de nada. Ahora se saca una FOTO en el hilo
+         principal y al worker le llegan datos, no nodos.
+         expand_sequence fallaba en cuatro formas de path que la
+         propia herramienta genera: nombres con version -v###_####,
+         donde reemplazaba los dos grupos de #-, corchetes en el
+         nombre, rangos negativos y rutas sin rango. Las filas se
+         salteaban en silencio y el total del cartel no las contaba.
+         Copy to podia mandar dos archivos distintos al MISMO destino
+         -dos versiones del mismo plano se llaman igual- y el segundo
+         pisaba al primero informando los dos como copiados.
+         Sumado: closeEvent que corta todo lo que este corriendo,
+         setAutoDelete(False) en los cuatro workers, las filas a
+         borrar se buscan por ruta y no por indice, Rescan bloqueado
+         durante una tanda, cancelar un relink deja de decir "File
+         not found", la bandera de cancelacion del escaneo se mira en
+         todos los bucles largos y no en dos, y se van el
+         processEvents y el sleep que el worker hacia sobre un hilo
+         sin bucle de eventos.
+  v2.39: delete_selected y copy_to se rehacen sobre el mismo patron:
+         el hilo principal arma el plan y el worker solo toca disco.
+         El borrado leia la tabla desde el worker y ademas hacia
+         start() seguido de wait(), o sea un hilo que no servia para
+         nada porque congelaba la ventana igual. La copia encadenaba
+         una ventana por archivo con cinco caminos distintos para
+         terminar; ahora la tanda entera va en un worker, porque no
+         queda nada que preguntar entre archivo y archivo.
+         La sobreescritura se pregunta UNA vez por tanda, con
+         Overwrite / Skip: con diez filas eran diez carteles.
   v2.38: El icono de Rescan gira mientras dura el escaneo. Es lo
          unico que dice que la herramienta esta haciendo algo, y no
          hacia nada. Se redibuja rotado en cada cuadro con el painter
@@ -469,9 +507,10 @@ from LGA_MediaManager_utils import (
     RelinkSearchWorker,
     ScannerWorker,
     TransparentTextDelegate,
-    LoadingWindow,
-    CopyThread,
-    DeleteThread,
+    CopyWorker,
+    DeleteWorker,
+    ProgressWindow,
+    expand_sequence,
     COL_PATH,
     COL_READ,
     COL_STATUS,
@@ -483,6 +522,34 @@ from LGA_MediaManager_utils import (
 
 # Importar SettingsWindow desde settings
 from LGA_MediaManager_settings import SettingsWindow
+
+
+def _rango_original(read_node_name):
+    """
+    (origfirst, origlast) de un Read, o None si no se pudo leer.
+
+    Va envuelto en executeInMainThreadWithResult porque lo llama el WORKER del
+    escaneo: `nuke.toNode` y `getValue` desde un hilo del pool no son
+    thread-safe, y el sintoma tipico con un script grande es un cuelgue duro de
+    Nuke, no un error.
+    """
+
+    def leer():
+        nodo = nuke.toNode(read_node_name)
+        if nodo is None:
+            return None
+        try:
+            return (
+                int(nodo["origfirst"].getValue()),
+                int(nodo["origlast"].getValue()),
+            )
+        except Exception:
+            return None
+
+    try:
+        return nuke.executeInMainThreadWithResult(leer)
+    except Exception:
+        return None
 
 
 def read_sort_key(texto):
@@ -702,33 +769,6 @@ class SortHeaderView(QHeaderView):
         )
 
 
-class CopyStepWindow(LoadingWindow):
-    """
-    La ventanita de "Copying..." de un paso de la tanda de copias.
-
-    Avisa cuando el paso termino para poder encadenar el siguiente. El aviso
-    cuelga del cierre de la ventanita y no de las senales del CopyThread
-    porque la copia termina por cinco caminos distintos -fin, fin de archivo
-    unico, cancelado, cancelado unico y error-, algunos de los cuales se
-    emiten dos veces para el mismo archivo. Lo unico que hacen todos, siempre,
-    es cerrar esta ventana.
-    """
-
-    def __init__(self, mensaje, parent, al_terminar):
-        super(CopyStepWindow, self).__init__(mensaje, parent)
-        self._al_terminar = al_terminar
-        self._avisado = False
-
-    def stop(self):
-        super(CopyStepWindow, self).stop()
-        if self._avisado:
-            return
-        self._avisado = True
-        # Diferido: el callback abre la ventanita del paso siguiente, y
-        # crearla adentro del cierre de esta las deja a las dos vivas.
-        QTimer.singleShot(0, self._al_terminar)
-
-
 class FileScanner(QWidget):
     def __init__(self, parent=None):
         super(FileScanner, self).__init__(parent)  # Inicializar la clase base primero
@@ -762,8 +802,12 @@ class FileScanner(QWidget):
         self.relink_directory = ""
         self.relink_missing = []
         # La tanda de copias, encadenada por la misma razon: una por vez.
-        self.copy_queue = []
-        self.copy_dest_folder = ""
+        # La tanda en curso -copia o borrado- y su ventana. Se guardan para
+        # que el worker no lo destruya Python mientras su run() esta saliendo.
+        self._batch_worker = None
+        self._batch_window = None
+        self._delete_paths = []
+        self._copy_reapuntar = {}
         # Filtro de estado y busqueda. Se combinan con AND: la pastilla dice
         # que estados se ven y el buscador que paths, y una fila se muestra
         # solo si pasa los dos.
@@ -796,8 +840,13 @@ class FileScanner(QWidget):
                 "No se pudo leer la configuracion: %s" % self.settings["load_error"]
             )
 
-        # Crear el scanner_worker después de que los atributos estén inicializados
-        self.scanner_worker = ScannerWorker(self)
+        # El worker del escaneo lo crea scan_project(), que es quien lo conecta
+        # y lo arranca. Aca se creaba OTRO que nadie conectaba nunca: recorria
+        # el disco entero y llamaba a la API de Nuke en paralelo con el bueno,
+        # tiraba su resultado a la basura, y encima era el que la X de la
+        # ventana de escaneo cancelaba, asi que cancelar no paraba el que
+        # estaba llenando la tabla.
+        self.scanner_worker = None
 
         # Asumimos que la inicialización es exitosa
         self.initialization_successful = True
@@ -2124,6 +2173,11 @@ class FileScanner(QWidget):
         if self._scan_running:
             debug_print("Ya hay un escaneo corriendo: se ignora el Rescan")
             return
+        # Tampoco con una copia o un borrado en curso: el Rescan vacia la tabla
+        # y la tanda termina buscando filas que ya no existen.
+        if getattr(self, "_batch_worker", None) is not None:
+            debug_print("Hay una tanda en curso: se ignora el Rescan")
+            return
 
         self.table.setSortingEnabled(False)
         self.table.setRowCount(0)
@@ -2421,9 +2475,25 @@ class FileScanner(QWidget):
         self.update_table_font_size(self.table_font_size)
 
     def nk_dir(self):
-        """La carpeta del .nk abierto, contra la que se resuelve todo."""
+        """
+        La carpeta del .nk abierto, contra la que se resuelve todo.
+
+        Cacheada: la llama tambien el worker del escaneo -por
+        resolve_shot_folder- y nuke.root() desde un hilo del pool no es
+        thread-safe. El valor se refresca en refresh_nk_dir(), que corre en el
+        hilo principal antes de arrancar cada escaneo; el .nk no cambia de
+        nombre en el medio de uno.
+        """
+        cacheado = getattr(self, "_nk_dir", None)
+        if cacheado is None:
+            cacheado = self.refresh_nk_dir()
+        return cacheado
+
+    def refresh_nk_dir(self):
+        """Relee la carpeta del .nk. Solo desde el hilo principal."""
         project_path = nuke.root().name()
-        return os.path.dirname(project_path) if project_path else ""
+        self._nk_dir = os.path.dirname(project_path) if project_path else ""
+        return self._nk_dir
 
     def load_settings(self):
         """
@@ -2529,6 +2599,26 @@ class FileScanner(QWidget):
         # vuelta por la misma senal y todo queda como estaba.
         self.settings_window.appearance_previewed.connect(self.apply_appearance)
         self.settings_window.show()
+
+    def closeEvent(self, event):
+        """
+        Al cerrar la ventana se corta TODO lo que este corriendo.
+
+        Sin esto, cerrar el Media Manager con un borrado de tres mil frames en
+        curso dejaba al worker mandando archivos a la papelera sin nada que lo
+        mostrara ni forma de pararlo: la ventana de progreso es hija de esta y
+        desaparecia con ella.
+        """
+        for atributo in ("_batch_worker", "relink_worker", "scanner_worker"):
+            worker = getattr(self, atributo, None)
+            if worker is not None:
+                try:
+                    worker.cancel()
+                except (RuntimeError, AttributeError):
+                    pass
+        self.relink_queue = []
+        self.relink_missing = []
+        super(FileScanner, self).closeEvent(event)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
@@ -3111,6 +3201,7 @@ class FileScanner(QWidget):
             return
 
         self.relink_directory = directory
+        self._relink_cancelado = False
         self.relink_queue = [self.row_path(fila) for fila in filas]
         self.relink_queue = [ruta for ruta in self.relink_queue if ruta]
         self.relink_missing = []
@@ -3230,7 +3321,14 @@ class FileScanner(QWidget):
         # Ventana propia y no self.loading_window, que la comparten la copia y
         # el borrado: con la busqueda corriendo en paralelo, el que terminaba
         # primero cerraba la ventanita del otro.
-        self.relink_loading_window = LoadingWindow("Searching...", self)
+        self.relink_loading_window = ProgressWindow("Searching...", self)
+        self.center_window(self.relink_loading_window)
+        # La X corta la busqueda Y la tanda entera: cancelar una sola de N
+        # busquedas y seguir con la siguiente no es lo que nadie espera de una
+        # cruz. La barra va indeterminada porque un os.walk no sabe cuanto le
+        # falta hasta que termina.
+        self.relink_loading_window.progressBar.setRange(0, 0)
+        self.relink_loading_window.cancelled.connect(self._cancel_relink)
         self.relink_loading_window.show()
         QApplication.processEvents()
         self.logger.debug(
@@ -3248,6 +3346,18 @@ class FileScanner(QWidget):
         )
         QThreadPool.globalInstance().start(self.relink_worker)
 
+    def _cancel_relink(self):
+        """Corta la busqueda en curso y descarta lo que quedaba de la tanda."""
+        # La bandera hace falta aparte de vaciar la cola: el worker cortado
+        # emite `finished("")`, que es lo mismo que emite cuando no encontro el
+        # archivo. Sin distinguirlas, cancelar terminaba abriendo un cartel de
+        # "File not found." justo despues de apretar la X.
+        self._relink_cancelado = True
+        if self.relink_worker is not None:
+            self.relink_worker.cancel()
+        self.relink_queue = []
+        self.relink_missing = []
+
     def on_relink_search_finished(self, file_name, found_path):
         """Aplica el resultado de la busqueda. Corre en el hilo principal."""
         self.relink_worker = None
@@ -3258,7 +3368,16 @@ class FileScanner(QWidget):
         try:
             if self.relink_loading_window is not None:
                 self.relink_loading_window.close()
+                # deleteLater y no solo close: es hija del Media Manager, asi
+                # que sin esto se acumula una ventana escondida por busqueda.
+                self.relink_loading_window.deleteLater()
                 self.relink_loading_window = None
+
+            if getattr(self, "_relink_cancelado", False):
+                # Cancelado: ni se aplica el resultado ni se acumula como
+                # faltante ni se sigue con el proximo de la tanda.
+                self._relink_cancelado = False
+                return
 
             if found_path:
                 self.update_read_node(file_name, found_path)
@@ -3481,11 +3600,12 @@ class FileScanner(QWidget):
                                 read_node_name = nodes[
                                     0
                                 ]  # Tomando el primer nodo como ejemplo
-                                read_node = nuke.toNode(read_node_name)
-                                if read_node:
-                                    # Toma los valores originales del nodo Read
-                                    orig_first = int(read_node["origfirst"].getValue())
-                                    orig_last = int(read_node["origlast"].getValue())
+                                # Envuelto: esto corre en el worker del
+                                # escaneo, y toNode/getValue desde un hilo del
+                                # pool no son thread-safe.
+                                rango = _rango_original(read_node_name)
+                                if rango:
+                                    orig_first, orig_last = rango
                                     frame_range = f"[{orig_first}-{orig_last}]"
                                 else:
                                     # En caso de que no haya informacion disponible, deja un rango predeterminado
@@ -3500,11 +3620,9 @@ class FileScanner(QWidget):
                             read_node_name = nodes[
                                 0
                             ]  # Tomando el primer nodo como ejemplo
-                            read_node = nuke.toNode(read_node_name)
-                            if read_node:
-                                # Toma los valores originales del nodo Read
-                                orig_first = int(read_node["origfirst"].getValue())
-                                orig_last = int(read_node["origlast"].getValue())
+                            rango = _rango_original(read_node_name)
+                            if rango:
+                                orig_first, orig_last = rango
                                 frame_range = f"[{orig_first}-{orig_last}]"
                             else:
                                 # En caso de que no haya informacion disponible, deja un rango predeterminado
@@ -3570,69 +3688,73 @@ class FileScanner(QWidget):
         # Importar la función para resolver rutas relativas
         from LGA_MediaManager_utils import resolve_relative_path
         
-        # Obtener el directorio del proyecto para resolver rutas relativas
-        project_path = nuke.root().name()
-        if project_path:
-            project_folder = os.path.dirname(project_path)
-        else:
-            project_folder = ""
+        # ------------------------------------------------------------------
+        # TODA la API de Nuke se toca adentro del lambda, o sea en el hilo
+        # PRINCIPAL, y lo que sale de ahi son datos de Python. Antes solo se
+        # envolvia el allNodes() y despues se leian los knobs de los nodos
+        # devueltos desde el hilo del worker, con lo cual el wrapper no servia
+        # de nada: allNodes/toNode/getValue no son thread-safe y el sintoma
+        # tipico es un cuelgue duro con un script grande.
+        # ------------------------------------------------------------------
+        def foto_del_script():
+            """Corre en el hilo principal. Devuelve datos, no nodos."""
+            ruta = nuke.root().name()
+            carpeta = os.path.dirname(ruta) if ruta else ""
+            lecturas = []
+            for tipo in node_types:
+                for nodo in nuke.allNodes(tipo):
+                    lecturas.append(
+                        (nodo.name(), nodo["file"].getValue().replace("\\", "/"))
+                    )
+            copycats = []
+            for nodo in nuke.allNodes("CopyCat"):
+                copycats.append(
+                    (
+                        nodo.name(),
+                        nodo["dataDirectory"].getValue().replace("\\", "/")
+                        if nodo.knob("dataDirectory")
+                        else "",
+                        nodo["checkpointFile"].getValue().replace("\\", "/")
+                        if nodo.knob("checkpointFile")
+                        else "",
+                    )
+                )
+            return carpeta, lecturas, copycats
 
-        # Procesar nodos Read y similares (usando knob 'file')
-        for node_type in node_types:
-            nodes = nuke.executeInMainThreadWithResult(lambda: nuke.allNodes(node_type))
-            for node in nodes:
-                file_path = node["file"].getValue().replace("\\", "/")
-                # Resolver ruta relativa a absoluta
-                resolved_path = resolve_relative_path(file_path, project_folder)
-                if resolved_path not in read_files:
-                    read_files[resolved_path] = []
-                read_files[resolved_path].append(node.name())
-
-        # Procesar nodos CopyCat (usando knobs 'dataDirectory' y 'checkpointFile')
-        copycat_nodes = nuke.executeInMainThreadWithResult(
-            lambda: nuke.allNodes("CopyCat")
+        project_folder, lecturas, copycats = nuke.executeInMainThreadWithResult(
+            foto_del_script
         )
+
+        for nombre, file_path in lecturas:
+            resolved_path = resolve_relative_path(file_path, project_folder)
+            if resolved_path not in read_files:
+                read_files[resolved_path] = []
+            read_files[resolved_path].append(nombre)
+
+        # Los CopyCat ya vienen en la foto: aca solo se resuelven las rutas.
         logger = configure_logger()
         logger.debug(
-            f"[READ_COPYCAT] Encontrados {len(copycat_nodes)} nodos CopyCat en el proyecto"
+            f"[READ_COPYCAT] Encontrados {len(copycats)} nodos CopyCat en el proyecto"
         )
-
-        for node in copycat_nodes:
-            logger.debug(f"[READ_COPYCAT] Procesando nodo CopyCat: {node.name()}")
-
-            # Obtener dataDirectory si existe
-            if node.knob("dataDirectory"):
-                data_dir = node["dataDirectory"].getValue().replace("\\", "/")
-                # Resolver ruta relativa a absoluta
-                resolved_data_dir = resolve_relative_path(data_dir, project_folder)
-                logger.debug(f"[READ_COPYCAT]   - dataDirectory original: '{data_dir}'")
-                logger.debug(f"[READ_COPYCAT]   - dataDirectory resuelto: '{resolved_data_dir}'")
-                if resolved_data_dir and resolved_data_dir not in read_files:
-                    read_files[resolved_data_dir] = []
-                if resolved_data_dir:
-                    read_files[resolved_data_dir].append(node.name())
-                    logger.debug(
-                        f"[READ_COPYCAT]   - Agregado dataDirectory al read_files: {resolved_data_dir} -> {node.name()}"
-                    )
-            else:
-                logger.debug(f"[READ_COPYCAT]   - Sin knob dataDirectory")
-
-            # Obtener checkpointFile si existe
-            if node.knob("checkpointFile"):
-                checkpoint_file = node["checkpointFile"].getValue().replace("\\", "/")
-                # Resolver ruta relativa a absoluta
-                resolved_checkpoint = resolve_relative_path(checkpoint_file, project_folder)
-                logger.debug(f"[READ_COPYCAT]   - checkpointFile original: '{checkpoint_file}'")
-                logger.debug(f"[READ_COPYCAT]   - checkpointFile resuelto: '{resolved_checkpoint}'")
-                if resolved_checkpoint and resolved_checkpoint not in read_files:
-                    read_files[resolved_checkpoint] = []
-                if resolved_checkpoint:
-                    read_files[resolved_checkpoint].append(node.name())
-                    logger.debug(
-                        f"[READ_COPYCAT]   - Agregado checkpointFile al read_files: {resolved_checkpoint} -> {node.name()}"
-                    )
-            else:
-                logger.debug(f"[READ_COPYCAT]   - Sin knob checkpointFile")
+        for nombre, data_dir, checkpoint_file in copycats:
+            logger.debug(f"[READ_COPYCAT] Procesando nodo CopyCat: {nombre}")
+            for etiqueta, crudo in (
+                ("dataDirectory", data_dir),
+                ("checkpointFile", checkpoint_file),
+            ):
+                if not crudo:
+                    logger.debug(f"[READ_COPYCAT]   - Sin knob {etiqueta}")
+                    continue
+                resuelto = resolve_relative_path(crudo, project_folder)
+                logger.debug(f"[READ_COPYCAT]   - {etiqueta} original: '{crudo}'")
+                logger.debug(f"[READ_COPYCAT]   - {etiqueta} resuelto: '{resuelto}'")
+                if not resuelto:
+                    continue
+                read_files.setdefault(resuelto, []).append(nombre)
+                logger.debug(
+                    f"[READ_COPYCAT]   - Agregado {etiqueta} al read_files: "
+                    f"{resuelto} -> {nombre}"
+                )
 
         return read_files
 
@@ -3647,6 +3769,10 @@ class FileScanner(QWidget):
         # WORKER, no esta funcion: resolver un comodin es un os.scandir por
         # nivel y por rama, y contra un servidor eso cuelga Nuke entero.
 
+        # La carpeta del .nk se relee ACA, en el hilo principal: el worker la
+        # necesita y nuke.root() no se puede llamar desde el pool.
+        self.refresh_nk_dir()
+
         # Un escaneo por vez: dos workers escribiendo sobre la misma tabla se
         # pisan las filas.
         self._scan_running = True
@@ -3660,15 +3786,14 @@ class FileScanner(QWidget):
         # escribe despues para esa fila cae en otra.
         self.table.setSortingEnabled(False)
 
-        # El escaneo real se realizará en el worker
-        scanner_worker = ScannerWorker(self)  # Solo pasamos la instancia de FileScanner
-
-        # Conectar señales
-        scanner_worker.signals.files_found.connect(self.on_files_found)
-        scanner_worker.signals.finished.connect(self.on_scan_finished)
-
-        # Iniciar el escaneo en segundo plano
-        QThreadPool.globalInstance().start(scanner_worker)
+        # El worker vigente se guarda en self.scanner_worker: es el que la X de
+        # la ventana de escaneo tiene que poder cancelar. Antes era una variable
+        # local y la X terminaba cancelando otro worker.
+        self.scanner_worker = ScannerWorker(self)
+        self.scanner_worker.signals.files_found.connect(self.on_files_found)
+        self.scanner_worker.signals.finished.connect(self.on_scan_finished)
+        QThreadPool.globalInstance().start(self.scanner_worker)
+        return self.scanner_worker
 
     def on_scan_finished(self):
         """
@@ -4158,301 +4283,219 @@ class FileScanner(QWidget):
         ]
 
     ##### Borrado:
-    def delete_selected(self):
-        selected_items = self.table.selectedItems()
-        if not selected_items:
-            return
+    # ======================================================================
+    #                         Borrado y copia
+    # ======================================================================
+    # Las dos siguen la misma forma, y es a proposito:
+    #
+    #   1. Aca, en el hilo principal, se arma el PLAN: se lee la tabla, se
+    #      expanden las secuencias a archivos reales y se hacen TODAS las
+    #      preguntas.
+    #   2. El worker recibe el plan ya decidido y solo toca disco.
+    #
+    # Antes no era asi y las dos consecuencias eran graves: el borrado leia la
+    # tabla desde el hilo worker -tocar widgets de Qt fuera del hilo principal
+    # es comportamiento indefinido- y ademas lo arrancaba con start() seguido
+    # de wait(), o sea que congelaba la ventana igual; y la copia terminaba
+    # corriendo shutil.copy en el hilo principal, porque la senal que la
+    # disparaba estaba conectada a un slot del propio objeto, que vive ahi.
 
-        rows_to_delete = set()  # Usar un conjunto para evitar duplicados
-        files_to_delete = []  # Almacena los archivos que se van a borrar
-
-        # Primera fase: Verificacion y confirmaciones
-        for item in selected_items:
-            row = self.table.row(item)
-
-            # Verificar si la fila ya ha sido procesada
-            if row in rows_to_delete:
-                continue
-
-            # Path, estado y Read de la fila seleccionada.
-            file_path = self.table.item(row, COL_PATH).text()
-            status = self.table.item(row, COL_STATUS).text()
-            read_node_name = self.table.item(row, COL_READ).text()
-
-            # Verifica si el estado es 'Offline'
-            if status == "Offline":
-                QMessageBox.warning(
-                    self, "Cannot Delete", "Cannot delete an offline file."
-                )
-                return  # Si algun archivo esta "Offline", cancelar la operacion completa
-
-            # Mostrar un mensaje de advertencia si el archivo esta siendo usado por un nodo Read
-            if read_node_name != READ_NONE and len(rows_to_delete) == 0:
-                read_warning_msg = QMessageBox(self)
-                read_warning_msg.setIcon(QMessageBox.Warning)
-                read_warning_msg.setWindowTitle("File in Use")
-                read_warning_msg.setText(
-                    f"The file {file_path} is being used by a Read node in Nuke."
-                )
-                read_warning_msg.setInformativeText(
-                    "Are you sure you want to delete it?"
-                )
-                read_warning_msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-                read_warning_msg.setDefaultButton(QMessageBox.No)
-                read_reply = read_warning_msg.exec_()
-
-                if read_reply == QMessageBox.No:
-                    return  # Cancelar la operacion de borrado si el usuario no confirma
-
-            # Agregar la fila al conjunto de filas a borrar
-            rows_to_delete.add(row)
-            files_to_delete.append((file_path, row))
-
-        multiple_delete = len(rows_to_delete) > 1
-
-        total_files_to_delete = self.calculate_total_files_to_delete(files_to_delete)
-
-        # Confirmacion de borrado basado en el tipo y cantidad de archivos
-        if multiple_delete:
-            print("muchas fila")
-            # Confirmacion para multiples filas (usando el calculo total de archivos)
-            msgBox = QMessageBox(self)
-            msgBox.setIcon(QMessageBox.Warning)
-            msgBox.setWindowTitle("Confirm delete")
-            msgBox.setText(
-                f"Are you sure you want to delete <font color='white'>{total_files_to_delete} files</font>?"
-            )
-            # msgBox.setInformativeText(f"<i>{file_path}</i>")
-            msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msgBox.setDefaultButton(QMessageBox.No)
-            reply = msgBox.exec_()
-            if reply != QMessageBox.Yes:
-                return  # Si el usuario cancela, no se borra nada
-        else:
-            print("1 fila")
-            # Confirmacion para una sola fila (archivo unico o secuencia)
-            file_path = files_to_delete[0][0]
-            sequence_status = self.table.item(
-                files_to_delete[0][1], COL_SEQUENCE
-            ).text()
-
-            msgBox = QMessageBox(self)
-            msgBox.setIcon(QMessageBox.Warning)
-            msgBox.setWindowTitle("Confirm delete")
-
-            if sequence_status.lower() == "true":
-                # Si es una secuencia, mostrar el numero total de archivos en la secuencia
-                msgBox.setText(
-                    f"Are you sure you want to delete the <font color='white'>{total_files_to_delete} files</font> in the sequence?"
-                )
-            else:
-                # Si es un solo archivo, mensaje estandar
-                msgBox.setText(
-                    f"Are you sure you want to send to trash <font color='white'>1 file</font>?"
-                )
-
-            msgBox.setInformativeText(f"<i>{file_path}</i>")
-            msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msgBox.setDefaultButton(QMessageBox.No)
-            reply = msgBox.exec_()
-            if reply != QMessageBox.Yes:
-                return  # Si el usuario cancela, no proceder con el borrado
-
-        # Segunda fase: Borrado de archivos
-        self.show_delete_window(total_files_to_delete)
-        QApplication.processEvents()  # Asegura que la ventana de borrado se muestre antes de proceder
-        # Usamos un QTimer de una sola vez para introducir una pequena pausa
-        QTimer.singleShot(50, lambda: None)  # Pausa de 50 milisegundos
-
-        # Evitar procesar filas duplicadas durante el borrado
-        for file_path, row in set(files_to_delete):
-            delete_thread = DeleteThread(file_path, self)
-            delete_thread.start()
-            delete_thread.wait()  # Esperar a que el hilo termine antes de proceder
-
-        # Tercera fase: Actualizacion de la GUI
-        for row in sorted(rows_to_delete, reverse=True):
-            self.table.removeRow(row)
-
-        self.close_delete_window()
-
-    def calculate_total_files_to_delete(self, files_to_delete):
-        total_files = 0
-        processed_rows = set()  # Para evitar procesar la misma fila mas de una vez
-
-        # Imprimir el contenido de files_to_delete
-        debug_print("Contenido de files_to_delete:")
-        for file_path, row in files_to_delete:
-            debug_print(f"  - file_path: {file_path}, row: {row}")
-
-        for file_path, row in files_to_delete:
-            if row in processed_rows:
-                continue  # Si ya procesamos esta fila, la saltamos
-
-            # Agregar la fila al conjunto de filas procesadas
-            processed_rows.add(row)
-
-            # Obtener el texto del file_path directamente desde la tabla
-            file_path_text = self.table.item(row, COL_PATH).text()  # Columna "File Path"
-            sequence_status = self.table.item(row, COL_SEQUENCE).text()  # Columna "Sequence"
-
-            # Imprimir los valores para depuracion
-            debug_print(f"Fila {row}:")
-            debug_print(f"  - File Path: {file_path_text}")
-            debug_print(f"  - Sequence Status: {sequence_status}")
-
-            # Verificar si es una secuencia buscando el rango en el file_path_text
-            frame_range_match = re.search(r"\[(\d+)-(\d+)\]", file_path_text)
-            if frame_range_match:
-                start_frame, end_frame = map(int, frame_range_match.groups())
-                total_files += end_frame - start_frame + 1
-                debug_print(
-                    f"  - Secuencia detectada: {end_frame - start_frame + 1} archivos"
-                )
-            else:
-                # Si no es una secuencia, contar como un solo archivo
-                total_files += 1
-                debug_print("  - Archivo unico detectado")
-
-        debug_print(f"Total de archivos a borrar: {total_files}")
-        return total_files
-
-    def show_delete_window(self, total_files_to_delete):
-        self.delete_window = QWidget(self)
-        self.delete_window.setWindowFlags(
-            Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
-        )
-        self.delete_window.setStyleSheet(
-            "background-color: #333; color: white; font-weight: bold;"
-        )
-
-        # Definir el mensaje basado en el numero de archivos a borrar
-        if total_files_to_delete == 1:
-            message = "Deleting..."
-        elif 2 <= total_files_to_delete <= 200:
-            message = (
-                f"Deleting {total_files_to_delete} files.<br><br>"
-                "<span style='color: #CCCCCC;'>Please wait...</span>"
-            )
-        elif 201 <= total_files_to_delete <= 500:
-            message = (
-                f"Deleting {total_files_to_delete} files.<br><br>"
-                "<span style='color: #CCCCCC;'>"
-                "The Nuke GUI may become unresponsive or freeze.<br>"
-                "It will return once the deletion is complete.<br>"
-                "Please wait..."
-                "</span>"
-            )
-        else:  # Mas de 500 archivos
-            message = (
-                f"Deleting {total_files_to_delete} files.<br><br>"
-                "<span style='color: #CCCCCC;'>"
-                "The Nuke GUI may become unresponsive or freeze.<br>"
-                "It will return once the deletion is complete.<br>"
-                "This may take some time.<br>"
-                "Please wait..."
-                "</span>"
-            )
-
-        # Configurar el layout con mayor margen libre
-        layout = QVBoxLayout(self.delete_window)
-        layout.setContentsMargins(
-            20, 30, 20, 30
-        )  # Margenes: izquierda, arriba, derecha, abajo
-
-        # Crear QLabel con el mensaje
-        label = QLabel(message)
-        label.setAlignment(Qt.AlignCenter)
-        label.setTextFormat(
-            Qt.RichText
-        )  # Habilitar HTML para cambiar el color del texto
-        layout.addWidget(label)
-
-        # Calcular el numero de lineas de texto
-        lines_of_text = (
-            message.count("<br>") + 1
-        )  # Cuenta los <br> y suma 1 para considerar todas las lineas
-
-        # Ajusta la altura de la ventana en funcion del numero de lineas
-        additional_height = 40 + (
-            lines_of_text * 10
-        )  # Ajusta 10 pixeles adicionales por linea
-
-        # Calcular el tamano de la ventana segun el texto
-        label.adjustSize()
-        self.delete_window.resize(
-            label.sizeHint().width() + 100,
-            label.sizeHint().height() + additional_height,
-        )
-
-        # Centramos la ventana usando el metodo ya existente
-        self.center_window(self.delete_window)
-
-        # Mostrar la ventana
-        self.delete_window.show()
-
-    def close_delete_window(self):
-        if hasattr(self, "delete_window"):
-            self.delete_window.close()
-            del self.delete_window
-
-    def on_delete_finished(self):
-        # Se llama cuando el hilo de eliminacion termina
-        self.loading_window.stop()  # Cerrar la ventana de carga
-
-    def deleteTableRow(self, row):
-        self.table.removeRow(row)  # Elimina la fila en el hilo principal
-
-    def print_debug_info(self, file_path):
-        # print(f"Normalized requested to delete: '{file_path}'", f"Length: {len(file_path)}")
-        for row in range(self.table.rowCount()):
-            table_file_path = self.table.item(row, COL_PATH).text().replace("\\", "/").lower()
-
-    def _confirm_and_delete(self, file_path):
-        # Crear un QMessageBox personalizado para confirmar la eliminacion
-        msgBox = QMessageBox(self)
-        msgBox.setIcon(QMessageBox.Warning)
-        msgBox.setWindowTitle("Confirm delete")
-        msgBox.setText(f"Are you sure you want to delete {file_path}?")
-        msgBox.setInformativeText(
-            "<b><font color='#f67d7d'>Warning:</font></b> <font color='#cce56c'>This will permanently delete the file(s) without sending them to the recycle bin.</font>"
-        )
-        msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        msgBox.setDefaultButton(QMessageBox.No)
-
-        reply = (
-            msgBox.exec_()
-        )  # Mostrar el QMessageBox y esperar la respuesta del usuario
-
-        if reply == QMessageBox.Yes:
-            self.loading_window = LoadingWindow("Deleting...", self)
-            self.center_window(self.loading_window)
-            self.loading_window.show()
-
-            # Iniciar el hilo de eliminacion
-            self.delete_thread = DeleteThread(file_path, self)
-            self.delete_thread.deleteRow.connect(self.deleteTableRow)
-            self.delete_thread.finished.connect(self.on_delete_finished)
-            self.delete_thread.start()
-        else:
-            print("Deletion cancelled.")
-
-    ##### Copia:
-    def copy_to(self, location):
+    def _run_batch(self, worker, titulo, al_terminar):
         """
-        Copia a la location elegida TODAS las filas seleccionadas.
+        Lanza una tanda con su ventana de progreso y su X para abortar.
 
-        Las copias van encadenadas y no en paralelo: cada una puede abrir su
-        propio cartel de confirmacion por sobreescritura, y varias a la vez
-        serian varios carteles pisandose sobre la misma carpeta destino.
+        Comun a la copia y al borrado: las dos muestran lo mismo, se cancelan
+        igual y terminan igual. Lo unico que cambia es el worker.
+        """
+        ventana = ProgressWindow(titulo, self)
+        self.center_window(ventana)
+        ventana.set_progress(0, max(1, len(worker.items)))
+        ventana.cancelled.connect(worker.cancel)
+        worker.signals.progress.connect(ventana.set_progress)
+        # Con `ventana` como contexto: si la ventana muere -por ejemplo porque
+        # se cerro el Media Manager- Qt desconecta sola. Con un lambda pelado
+        # la conexion sobrevive y el slot corre sobre un widget destruido.
+        worker.signals.item.connect(
+            ventana,
+            lambda nombre: ventana.set_message("%s\n%s" % (titulo, nombre)),
+        )
+
+        def cerrar(hechos, salteados, errores, cancelado):
+            # El trabajo de cierre va PRIMERO. Cerrando antes, un RuntimeError
+            # de la ventana ya destruida se llevaba puesto al callback: los
+            # archivos quedaban copiados pero los Reads sin reapuntar, y
+            # _batch_worker nunca volvia a None, con lo que Copy to y Delete
+            # quedaban muertos para el resto de la sesion.
+            try:
+                al_terminar(hechos, salteados, errores, cancelado)
+            finally:
+                try:
+                    ventana.stop()
+                    ventana.deleteLater()
+                except RuntimeError:
+                    pass
+
+        worker.signals.finished.connect(cerrar)
+        # La referencia se guarda: sin ella, el worker y sus senales se pueden
+        # destruir mientras el hilo del pool todavia esta saliendo de run().
+        self._batch_window = ventana
+        self._batch_worker = worker
+        ventana.show()
+        QApplication.processEvents()
+        QThreadPool.globalInstance().start(worker)
+
+    @staticmethod
+    def _resumen_tanda(hechos, salteados, errores, cancelado, verbo):
+        """El texto del cartel final. Uno solo por tanda, nunca uno por archivo."""
+        partes = ["%d %s." % (hechos, verbo)]
+        if cancelado and salteados:
+            partes.append("%d sin procesar por la cancelacion." % salteados)
+        if errores:
+            partes.append("%d con error:" % len(errores))
+            partes.append("\n".join(errores[:10]))
+            if len(errores) > 10:
+                partes.append("...")
+        return "\n".join(partes)
+
+    # ------------------------------------------------------------ borrado ---
+    def delete_selected(self):
+        """
+        Manda a la papelera los archivos de TODAS las filas seleccionadas.
+
+        Siempre a la papelera: es la unica red que le queda al usuario si se
+        equivoco de seleccion, y aca se borra media de proyectos.
         """
         filas = self.selected_rows()
         if not filas:
             return
+        if getattr(self, "_batch_worker", None) is not None:
+            debug_print("Ya hay una tanda en curso")
+            return
 
-        # Guard de siempre, ahora sobre TODAS las filas: Copy to es traerse
-        # adentro del shot algo que esta afuera, y copiar de nuevo algo que ya
-        # esta adentro no significa nada.
+        # Offline no se puede borrar: el archivo no esta, asi que no hay nada
+        # que mandar a la papelera. Se corta la operacion entera y no solo esa
+        # fila, para no borrar la mitad de lo que el usuario pidio.
+        if any(self.row_status(fila) == "Offline" for fila in filas):
+            QMessageBox.warning(
+                self, "Cannot Delete", "Cannot delete an offline file."
+            )
+            return
+
+        # El plan: de cada fila salen sus archivos REALES, y de las carpetas
+        # borrables su carpeta. Se arma aca, en el hilo principal, que es el
+        # unico que puede leer la tabla.
+        plan = []
+        carpetas = []
+        # Cuantos archivos se van a la papelera de verdad. No es len(plan): una
+        # secuencia que se borra por carpeta son mil archivos y UNA entrada.
+        total = 0
+        for fila in filas:
+            ruta = self.row_path(fila)
+            archivos = expand_sequence(ruta)
+            if not archivos:
+                continue
+            total += len(archivos)
+            item_carpeta = self.table.item(fila, COL_FOLDER_DELETE)
+            borrable = (
+                item_carpeta is not None and item_carpeta.text().lower() == "true"
+            )
+            if borrable and "#" in ruta:
+                # La secuencia tiene su carpeta para ella sola: se manda la
+                # carpeta y no los N archivos, que es una operacion en vez de
+                # miles y ademas deja la papelera prolija.
+                carpeta_seq = os.path.normpath(os.path.dirname(archivos[0]))
+                # Sin deduplicar, dos filas cuya secuencia vive en la misma
+                # carpeta la mandaban dos veces: el segundo send2trash falla y
+                # el usuario ve un error que no existe.
+                if carpeta_seq not in carpetas:
+                    carpetas.append(carpeta_seq)
+            else:
+                plan.extend(archivos)
+
+        if not plan and not carpetas:
+            return
+
+        # Un solo cartel de confirmacion por tanda, con el total real.
+        en_uso = [f for f in filas if self.row_read_names(f)]
+        aviso = ""
+        if en_uso:
+            # Cuenta FILAS y lo dice: con una secuencia de mil frames, decir
+            # "1 archivo" seria mentir por tres ordenes de magnitud.
+            aviso = "\n\n%d of them %s used by a Read in Nuke." % (
+                len(en_uso),
+                "is" if len(en_uso) == 1 else "are",
+            )
+        respuesta = QMessageBox.question(
+            self,
+            "Confirm delete",
+            "Send %d file(s) to the trash?\n%d row(s) selected.%s"
+            % (total, len(filas), aviso),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if respuesta != QMessageBox.Yes:
+            return
+
+        # Las carpetas van al final: si se borrara la carpeta primero, los
+        # archivos de adentro que todavia estan en la lista ya no existirian.
+        worker = DeleteWorker(plan + carpetas)
+        # Se guardan las RUTAS y no los indices de fila. La ventana de progreso
+        # no es modal, asi que durante la tanda el usuario puede ordenar la
+        # tabla y los indices pasan a apuntar a otras filas: se terminaba
+        # sacando la fila equivocada.
+        self._delete_paths = [self.row_path(f) for f in filas]
+        self._run_batch(worker, "Deleting...", self._on_delete_finished)
+
+    def _on_delete_finished(self, hechos, salteados, errores, cancelado):
+        """Saca de la tabla las filas cuyos archivos ya no estan."""
+        self._batch_worker = None
+        # La fila se busca AHORA por su ruta: entre que arranco la tanda y
+        # ahora, la tabla pudo reordenarse. Se recorre al reves para que los
+        # indices de las que faltan sacar no se corran al ir sacandolas.
+        pedidas = set(getattr(self, "_delete_paths", []))
+        for fila in range(self.table.rowCount() - 1, -1, -1):
+            ruta = self.row_path(fila)
+            if ruta not in pedidas:
+                continue
+            archivos = expand_sequence(ruta)
+            # La fila se saca solo si su archivo REALMENTE dejo de estar: con
+            # la tanda cancelada a la mitad, sacar todas las filas mostraria
+            # como borrado lo que sigue en disco.
+            if archivos and not os.path.exists(archivos[0]):
+                self.table.removeRow(fila)
+        self._delete_paths = []
+        self.renumber_visible_rows()
+        self.update_status_counts()
+        self.update_button_states()
+        if errores or cancelado:
+            QMessageBox.information(
+                self,
+                "Delete",
+                self._resumen_tanda(
+                    hechos, salteados, errores, cancelado, "enviados a la papelera"
+                ),
+            )
+
+    # -------------------------------------------------------------- copia ---
+    def copy_to(self, location):
+        """
+        Copia a la location elegida TODAS las filas seleccionadas.
+
+        La tanda entera va en UN worker y no encadenada de a una: no hay nada
+        que preguntar entre archivo y archivo -las sobreescrituras se resuelven
+        antes de arrancar- asi que encadenar solo agregaba una ventana por
+        archivo y cinco caminos distintos para terminar.
+        """
+        filas = self.selected_rows()
+        if not filas:
+            return
+        if getattr(self, "_batch_worker", None) is not None:
+            debug_print("Ya hay una tanda en curso")
+            return
+
+        # Guard de siempre, sobre TODAS las filas: Copy to es traerse adentro
+        # del shot algo que esta afuera, y copiar de nuevo algo que ya esta
+        # adentro no significa nada.
         if any(self.row_status(fila) != "Outside" for fila in filas):
             QMessageBox.warning(
                 self,
@@ -4461,278 +4504,183 @@ class FileScanner(QWidget):
             )
             return
 
-        if self.copy_queue:
-            debug_print("Ya hay una tanda de copias en curso")
-            return
-
-        # El destino sale de la ruta de la location, resuelta contra
-        # disco. Un comodin puede abrir cero o varias carpetas, y en los
-        # dos casos elegir por el usuario seria adivinar: con cero no hay
-        # que crear nada -"../*assets*" no es un nombre de carpeta- y con
-        # varias no hay forma de saber cual queria. La ventana de ajustes
-        # ya avisa antes de guardar; esto es la red de atras.
+        # El destino sale de la ruta de la location, resuelta contra disco. Un
+        # comodin puede abrir cero o varias carpetas, y en los dos casos elegir
+        # por el usuario seria adivinar.
         resultado = mm_paths.resolve(location.get("path", ""), self.nk_dir())
+        etiqueta = location.get("name") or location.get("path", "")
         if len(resultado.folders) > 1:
             QMessageBox.warning(
                 self,
                 "Copy Not Allowed",
-                "\"%s\" matches %d folders, so there is no single "
+                '"%s" matches %d folders, so there is no single '
                 "destination:\n\n%s"
-                % (location.get("name", ""), len(resultado.folders),
-                   "\n".join(resultado.folders[:8])),
+                % (etiqueta, len(resultado.folders), "\n".join(resultado.folders[:8])),
             )
             return
         if not resultado.folders:
             QMessageBox.warning(
                 self,
                 "Copy Not Allowed",
-                "\"%s\" does not match any existing folder."
-                % (location.get("name") or location.get("path", "")),
+                '"%s" does not match any existing folder.' % etiqueta,
             )
             return
 
-        self.copy_dest_folder = resultado.folders[0]
-        self.copy_queue = [
-            (self.row_path(fila), self.row_read(fila))
-            for fila in filas
-            if self.row_path(fila)
-        ]
-        self._copy_next()
-
-    def _copy_next(self):
-        """Arranca la copia del proximo archivo de la tanda, si queda alguno."""
-        if not self.copy_queue:
+        destino_base = resultado.folders[0]
+        plan, conflictos, colisiones, reapuntar = self._plan_copy(filas, destino_base)
+        if not plan:
             return
 
-        source_file_path, read_node_name = self.copy_queue.pop(0)
+        # Dos origenes distintos que caen en el mismo destino no es algo que se
+        # pueda resolver eligiendo: uno de los dos se perderia sin que nadie se
+        # entere. Se corta y se dice cuales son.
+        if colisiones:
+            detalle = "\n".join(
+                "%s\n%s\n  -> %s" % (a, b, d) for a, b, d in colisiones[:5]
+            )
+            QMessageBox.warning(
+                self,
+                "Copy Not Allowed",
+                "%d file(s) from different folders would end up at the same "
+                "destination, so one would overwrite the other:\n\n%s"
+                % (len(colisiones), detalle),
+            )
+            return
 
-        # Verificar si el footage pertenece a algun Read
-        if read_node_name and read_node_name != READ_NONE:
+        # UNA sola pregunta por tanda. Preguntando archivo por archivo, con
+        # diez filas eran diez carteles seguidos.
+        if conflictos:
+            caja = QMessageBox(self)
+            caja.setIcon(QMessageBox.Warning)
+            caja.setWindowTitle("Files already exist")
+            caja.setText(
+                "%d of the selected files already exist in \"%s\"."
+                % (len(conflictos), etiqueta)
+            )
+            caja.setInformativeText("What do you want to do with them?")
+            boton_sobre = caja.addButton("Overwrite all", QMessageBox.AcceptRole)
+            boton_saltear = caja.addButton("Skip them", QMessageBox.DestructiveRole)
+            caja.addButton(QMessageBox.Cancel)
+            caja.setDefaultButton(boton_saltear)
+            caja.exec_()
+            elegido = caja.clickedButton()
+            if elegido is boton_saltear:
+                en_conflicto = set(conflictos)
+                plan = [par for par in plan if par[1] not in en_conflicto]
+            elif elegido is not boton_sobre:
+                return
+            if not plan:
+                return
+
+        self._copy_reapuntar = reapuntar
+        worker = CopyWorker(plan)
+        self._run_batch(worker, "Copying...", self._on_copy_finished)
+
+    def _plan_copy(self, filas, destino_base):
+        """
+        Que archivo va a donde, y cuales ya existen.
+
+        Devuelve (plan, conflictos, reapuntar):
+          plan        pares (origen, destino) de archivos REALES
+          conflictos  destinos que ya existen
+          reapuntar   {nodo Read: carpeta destino}, para despues de copiar
+
+        Se arma entero antes de arrancar el worker: es lo que permite hacer
+        una sola pregunta por la sobreescritura en vez de una por archivo, y
+        lo que deja al worker sin nada que consultarle a la ventana.
+        """
+        plan = []
+        conflictos = []
+        colisiones = []
+        vistos = {}
+        reapuntar = {}
+        for fila in filas:
+            ruta = self.row_path(fila)
+            archivos = expand_sequence(ruta)
+            if not archivos:
+                continue
+            # Una secuencia se copia con su carpeta contenedora, para no
+            # desparramar miles de frames sueltos en el destino.
+            if "#" in ruta:
+                carpeta = os.path.join(
+                    destino_base, os.path.basename(os.path.dirname(archivos[0]))
+                )
+            else:
+                carpeta = destino_base
+            for origen in archivos:
+                destino = os.path.join(carpeta, os.path.basename(origen))
+                # Dos filas distintas pueden dar el MISMO destino: dos versiones
+                # del mismo plano en carpetas distintas se llaman igual. Sin
+                # detectarlo, la segunda pisaba a la primera y el resumen
+                # informaba las dos como copiadas. os.path.exists no lo ve:
+                # cuando se planifica, el destino todavia no existe.
+                if destino in vistos:
+                    colisiones.append((vistos[destino], origen, destino))
+                    continue
+                vistos[destino] = origen
+                plan.append((origen, destino))
+                if os.path.exists(destino):
+                    conflictos.append(destino)
             # Con varios Reads sobre la misma media se reapunta el primero:
             # los demas siguen apuntando al original hasta que el usuario los
             # relinkee. Es lo que hacia antes y no cambia aca.
-            self.current_read_node_name = read_node_name.split(",")[0].strip()
-            nuke.executeInMainThread(
-                lambda: self.logger.debug(
-                    f"\n  El footage pertenece al nodo Read: {self.current_read_node_name}"
-                )
-            )
-        else:
-            self.current_read_node_name = None
-            nuke.executeInMainThread(
-                lambda: self.logger.debug(
-                    "\n  El footage no pertenece a ningun nodo Read."
-                )
-            )
+            nodos = self.row_read_names(fila)
+            if nodos:
+                reapuntar[nodos[0]] = carpeta
+        return plan, conflictos, colisiones, reapuntar
 
-        self.loading_window = CopyStepWindow("Copying...", self, self._copy_next)
-        self.center_window(self.loading_window)
-        self.loading_window.show()
-
-        # El hilo anterior se guarda un paso mas: si se lo suelta apenas
-        # termina de emitir, Python puede destruir el QThread mientras su
-        # run() todavia esta saliendo.
-        self.previous_copy_thread = getattr(self, "copy_thread", None)
-
-        self.copy_thread = CopyThread(source_file_path, self.copy_dest_folder)
-        self.copy_thread.finishedCopying.connect(self.on_copy_finished)
-        self.copy_thread.finishedCopyingUnico.connect(self.on_copy_finished_unico)
-        self.copy_thread.errorOccurred.connect(self.show_simple_message)
-        self.copy_thread.confirmationNeeded.connect(self.show_confirmation_dialog)
-        self.copy_thread.confirmationNeededUnico.connect(
-            self.show_confirmation_dialog_unico
-        )
-        self.copy_thread.copyCancelled.connect(self.on_copy_cancelled)
-        self.copy_thread.copyCancelledUnico.connect(self.on_copy_finished_unico)
-        self.copy_thread.copyCancelledUnico.connect(self.on_copy_cancelled_unico)
-
-        self.copy_thread.start()
-
-    def on_copy_finished(self, specific_dest_folder):
-        if self.current_read_node_name:
-            read_node = nuke.toNode(self.current_read_node_name)
-            if read_node:
-                # Ejecutar en el hilo principal
-                nuke.executeInMainThread(
-                    lambda: self.update_read_node_and_gui(
-                        read_node, specific_dest_folder
-                    )
-                )
-        self.loading_window.stop()
-
-    def update_read_node_and_gui(self, read_node, specific_dest_folder):
-        # Seleccionar al nodo Read en el node graph
-        nuke.selectAll()
-        nuke.invertSelection()
-        read_node.setSelected(True)
-        nuke.zoomToFitSelected()
-        read_node.showControlPanel()
-
-        # Obtener el nombre del archivo o patron de archivo desde la ruta actual
-        original_file_path = read_node["file"].getValue()
-        filename = os.path.basename(original_file_path)
-
-        # Construir la nueva ruta con el nombre del archivo y la carpeta de destino
-        new_file_path = os.path.join(specific_dest_folder, filename).replace("\\", "/")
-
-        # Reemplaza los especificadores de formato por '#'
-        new_file_path_table = re.sub(
-            r"%0(\d+)d", lambda m: "#" * int(m.group(1)), new_file_path
-        )
-
-        # Establecer la nueva ruta en el nodo Read
-        if read_node.Class() == "Read":
-            read_node["file"].setValue(new_file_path)
-
-        # Buscar la fila en la tabla que corresponde al archivo copiado
-        for row in range(self.table.rowCount()):
-            # Actualizar la ruta en el QTableWidgetItem
-            table_path = self.table.item(row, COL_PATH).text()
-            if table_path.startswith(original_file_path[: -len(filename)]):
-                # Actualizar la ruta manteniendo los '#' y el rango de cuadros
-                new_table_path = (
-                    new_file_path_table + table_path[len(original_file_path) :]
-                )
-                self.table.item(row, COL_PATH).setText(new_table_path)
-                # El path lo repinta el delegado a partir del item.
-
-                # El archivo se trajo adentro del shot: deja de estar Outside.
-                status_item = self.table.item(row, COL_STATUS)
-                if status_item is not None and status_item.text() == "Outside":
-                    self.set_row_status(row, "Online")
-                    self.update_status_counts()
-
-    def on_copy_finished_unico(self, specific_dest_folder=None):
-        if specific_dest_folder and self.current_read_node_name:
-            read_node = nuke.toNode(self.current_read_node_name)
-            if read_node:
-                # Ejecutar en el hilo principal
-                nuke.executeInMainThread(
-                    lambda: self.update_read_node_and_gui_unico(
-                        read_node, specific_dest_folder
-                    )
-                )
-        self.loading_window.stop()
-
-    def update_read_node_and_gui_unico(self, read_node, specific_dest_folder):
-        # Seleccionar al nodo Read en el node graph
-        nuke.selectAll()
-        nuke.invertSelection()
-        read_node.setSelected(True)
-        nuke.zoomToFitSelected()
-        read_node.showControlPanel()
-
-        # Preparar la nueva ruta del archivo
-        original_file_path = read_node["file"].getValue()
-        filename = os.path.basename(original_file_path)
-        new_file_path = os.path.join(specific_dest_folder, filename).replace("\\", "/")
-
-        if read_node.Class() == "Read":
-            # Establecer la nueva ruta del archivo en el nodo Read
-            read_node["file"].setValue(new_file_path)
-
-        # Buscar la fila en la tabla que corresponde al archivo copiado
-        for row in range(self.table.rowCount()):
-            if self.table.item(row, COL_PATH).text() == original_file_path:
-                # Actualizar la ruta en el QTableWidgetItem
-                self.table.item(row, COL_PATH).setText(new_file_path)
-                # El path lo repinta el delegado a partir del item.
-
-                # El archivo se trajo adentro del shot: deja de estar Outside.
-                status_item = self.table.item(row, COL_STATUS)
-                if status_item is not None and status_item.text() == "Outside":
-                    self.set_row_status(row, "Online")
-                    self.update_status_counts()
-
-    def show_simple_message(self, message):
-        QMessageBox.information(self, "Error", message)
-        self.on_copy_finished("")
-
-    def show_confirmation_dialog_unico(self, message, dest_path, source_path):
-        # Dialogo de confirmacion para la sobreescritura de secuencias de cuadros
-
-        # Verificar si el archivo de origen y destino son el mismo
-        source_dir = os.path.dirname(source_path)
-        if os.path.normpath(source_dir) == os.path.normpath(dest_path):
-            QMessageBox.information(
-                self,
-                "Same Source and Destination",
-                "The source and destination files are the same. No action taken.",
-            )
-            self.copy_thread.copyCancelledUnico.emit()  # Emite la senal de cancelacion especifica para archivos unicos
-            return
-
-        reply = QMessageBox.question(
-            self,
-            "Confirm Overwrite",
-            message,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-
-        if reply == QMessageBox.Yes:
-            self.copy_thread.start_copying_signal.emit(
-                source_path, dest_path
-            )  # Emite una senal para empezar la copia
-        else:
-            nuke.executeInMainThread(
-                lambda: self.logger.debug("  Copy operation cancelled.")
-            )
-            self.copy_thread.copyCancelledUnico.emit()  # Emite la senal de cancelacion especifica para archivos unicos
-
-    def show_confirmation_dialog(self, message, dest_path, source_path):
-        # Dialogo de confirmacion para la sobreescritura de secuencias de cuadros
-
-        # Verificar si el archivo de origen y destino son el mismo
-        # Obtener el directorio base de la secuencia de origen
-        source_dir = os.path.dirname(source_path)
-        dest_dir = os.path.dirname(dest_path)
-        nuke.executeInMainThread(
-            lambda: self.logger.debug(f"    source_dir {source_dir}")
-        )
-        nuke.executeInMainThread(lambda: self.logger.debug(f"    dest_dir {dest_dir}"))
-
-        # Comparar los directorios normalizados
-        if os.path.normpath(source_dir) == os.path.normpath(dest_dir):
-            QMessageBox.information(
-                self,
-                "Same Source and Destination",
-                "The source and destination directories for the sequence are the same. No action taken.",
-            )
-            self.copy_thread.copyCancelled.emit()  # Emite la senal de cancelacion
-            return
-
-        reply = QMessageBox.question(
-            self,
-            "Confirm Overwrite",
-            message,
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-
-        if reply == QMessageBox.Yes:
+    def _on_copy_finished(self, hechos, salteados, errores, cancelado):
+        """Reapunta los Reads de lo que se copio y actualiza la tabla."""
+        self._batch_worker = None
+        for nombre, carpeta in (getattr(self, "_copy_reapuntar", {}) or {}).items():
+            nodo = nuke.toNode(nombre)
+            if nodo is None:
+                continue
             try:
-                # Llama a copy_sequence con los detalles almacenados
-                self.copy_thread.copy_sequence(
-                    self.copy_thread.start_frame,
-                    self.copy_thread.end_frame,
-                    self.copy_thread.file_base,
-                    self.copy_thread.frame_padding,
-                    self.copy_thread.extension,
-                    self.copy_thread.specific_dest_folder,
-                )
-                self.on_copy_finished(self.copy_thread.specific_dest_folder)
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Error while copying: {e}")
-                self.on_copy_finished(self.copy_thread.specific_dest_folder)
-        else:
-            print("Copy operation cancelled.")
-            self.copy_thread.copyCancelled.emit()  # Emitir la senal cuando la copia es cancelada
+                self.repoint_read(nodo, carpeta)
+            except Exception as problema:
+                debug_print("No se pudo reapuntar %s: %s" % (nombre, problema))
+        self._copy_reapuntar = {}
+        self.update_status_counts()
+        self.update_button_states()
+        if errores or cancelado:
+            QMessageBox.information(
+                self,
+                "Copy to",
+                self._resumen_tanda(hechos, salteados, errores, cancelado, "copiados"),
+            )
 
-    def on_copy_cancelled_unico(self):
-        print("Copy operation for a single file was cancelled.")
-        self.loading_window.stop()
+    def repoint_read(self, read_node, dest_folder):
+        """
+        Deja el Read apuntando a la copia, y la tabla al dia.
 
-    def on_copy_cancelled(self):
-        print("Copy operation for a single file was cancelled.")
-        self.loading_window.stop()
+        Corre en el hilo principal -lo llama el `finished` del worker- asi que
+        toca la API de Nuke y la tabla sin ceremonia.
+        """
+        original = read_node["file"].getValue()
+        nombre = os.path.basename(original)
+        nuevo = os.path.join(dest_folder, nombre).replace("\\", "/")
+        if read_node.Class() == "Read":
+            read_node["file"].setValue(nuevo)
+
+        # El '#' de la tabla contra el %0Nd que usa Nuke en el knob.
+        nuevo_tabla = re.sub(r"%0(\d+)d", lambda m: "#" * int(m.group(1)), nuevo)
+        prefijo = original[: -len(nombre)] if nombre else original
+        for fila in range(self.table.rowCount()):
+            celda = self.table.item(fila, COL_PATH)
+            if celda is None:
+                continue
+            actual = celda.text()
+            if not actual.startswith(prefijo):
+                continue
+            celda.setText(nuevo_tabla + actual[len(original):])
+            # El archivo se trajo adentro del shot: deja de estar Outside.
+            estado = self.table.item(fila, COL_STATUS)
+            if estado is not None and estado.text() == "Outside":
+                self.set_row_status(fila, "Online")
+
+        nuke.selectAll()
+        nuke.invertSelection()
+        read_node.setSelected(True)
+        nuke.zoomToFitSelected()
+        read_node.showControlPanel()

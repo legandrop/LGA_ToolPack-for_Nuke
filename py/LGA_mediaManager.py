@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.38 | Lega
+  LGA_mediaManager v2.40 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -20,6 +20,52 @@ _______________________________________________________________________
   LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
   mano en la interfaz.
 
+  v2.40: Once defectos de concurrencia que salieron de auditar lo de
+         v2.39. El peor: se arrancaban DOS ScannerWorker en cada
+         apertura -uno en __init__ que nadie conectaba y otro en
+         scan_project- asi que el disco se recorria dos veces, el
+         resultado de uno se tiraba, y la X de la ventana de escaneo
+         cancelaba justo el inutil: el que llenaba la tabla seguia
+         corriendo despues de abortar.
+         El escaneo tocaba la API de Nuke desde el hilo del pool.
+         get_read_files envolvia el allNodes pero despues leia los
+         knobs de los nodos devueltos afuera, con lo cual el wrapper
+         no servia de nada. Ahora se saca una FOTO en el hilo
+         principal y al worker le llegan datos, no nodos.
+         expand_sequence fallaba en cuatro formas de path que la
+         propia herramienta genera: nombres con version -v###_####,
+         donde reemplazaba los dos grupos de #-, corchetes en el
+         nombre, rangos negativos y rutas sin rango. Las filas se
+         salteaban en silencio y el total del cartel no las contaba.
+         Copy to podia mandar dos archivos distintos al MISMO destino
+         -dos versiones del mismo plano se llaman igual- y el segundo
+         pisaba al primero informando los dos como copiados.
+         Sumado: closeEvent que corta todo lo que este corriendo,
+         setAutoDelete(False) en los cuatro workers, las filas a
+         borrar se buscan por ruta y no por indice, Rescan bloqueado
+         durante una tanda, cancelar un relink deja de decir "File
+         not found", la bandera de cancelacion del escaneo se mira en
+         todos los bucles largos y no en dos, y se van el
+         processEvents y el sleep que el worker hacia sobre un hilo
+         sin bucle de eventos.
+  v2.39: Copia y borrado se rehacen enteros. Las dos andaban mal de
+         hilos: el borrado leia la TABLA desde el hilo worker -tocar
+         widgets de Qt fuera del principal es comportamiento
+         indefinido- y encima arrancaba el hilo y lo esperaba en la
+         linea siguiente, o sea que congelaba la ventana igual; y la
+         copia terminaba corriendo shutil.copy en el hilo principal,
+         porque la senal que la disparaba estaba conectada a un slot
+         del propio objeto, que vive ahi. Ademas armaba las rutas con
+         separadores de Windows escritos a mano, asi que en macOS le
+         pasaba rutas rotas a send2trash.
+         Ahora las dos siguen la misma forma: el hilo principal arma
+         el PLAN -lee la tabla, expande las secuencias y hace TODAS
+         las preguntas- y el worker recibe el plan decidido y solo
+         toca disco. Las tres operaciones andan sobre varias filas,
+         con una ventana de progreso que se puede abortar.
+         Copying y Deleting pasan al tema, con la misma ventana que
+         el escaneo. El borrado permanente, que estaba muerto, se va:
+         todo va a la papelera.
   v2.38: La ventana del escaneo -la primera que ve el usuario- pasa
          al tema: esquinas redondeadas, la fuente del pack, sin
          negrita y la barra de progreso en el violeta de acento. Y
@@ -214,7 +260,6 @@ import send2trash
 # Importar clases desde archivos auxiliares
 from LGA_MediaManager_utils import (
     TransparentTextDelegate,
-    LoadingWindow,
     StartupWindow,
     ScannerSignals,
     ScannerWorker,
@@ -280,12 +325,18 @@ def main():
             QTimer.singleShot(100, delayed_show)  # 100ms de retraso
 
         startup_window.cancelled.connect(on_cancel)
-        # Usar el scanner_worker de window.scan_project()
-        window.scanner_worker.signals.progress.connect(startup_window.updateProgress)
-        window.scanner_worker.signals.finished.connect(on_scan_complete)
-
-        # Iniciar el escaneo en segundo plano usando el worker existente
-        QThreadPool.globalInstance().start(window.scanner_worker)
+        # El worker YA esta corriendo: lo arranco scan_project() desde initUI.
+        # Aca solo se enganchan el progreso y el fin. Arrancarlo de nuevo -que
+        # es lo que se hacia- ponia un segundo hilo a recorrer el disco sobre
+        # la misma ventana.
+        if window.scanner_worker is not None:
+            window.scanner_worker.signals.progress.connect(
+                startup_window.updateProgress
+            )
+            window.scanner_worker.signals.finished.connect(on_scan_complete)
+        else:
+            # Sin worker no hay escaneo que esperar: el .nk no estaba guardado.
+            startup_window.stop()
 
 
 if __name__ == "__main__":

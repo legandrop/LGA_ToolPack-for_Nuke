@@ -1,11 +1,56 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.38 | Lega
+  LGA_MediaManager_utils v2.40 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.40: Once defectos de concurrencia que salieron de auditar lo de
+         v2.39. El peor: se arrancaban DOS ScannerWorker en cada
+         apertura -uno en __init__ que nadie conectaba y otro en
+         scan_project- asi que el disco se recorria dos veces, el
+         resultado de uno se tiraba, y la X de la ventana de escaneo
+         cancelaba justo el inutil: el que llenaba la tabla seguia
+         corriendo despues de abortar.
+         El escaneo tocaba la API de Nuke desde el hilo del pool.
+         get_read_files envolvia el allNodes pero despues leia los
+         knobs de los nodos devueltos afuera, con lo cual el wrapper
+         no servia de nada. Ahora se saca una FOTO en el hilo
+         principal y al worker le llegan datos, no nodos.
+         expand_sequence fallaba en cuatro formas de path que la
+         propia herramienta genera: nombres con version -v###_####,
+         donde reemplazaba los dos grupos de #-, corchetes en el
+         nombre, rangos negativos y rutas sin rango. Las filas se
+         salteaban en silencio y el total del cartel no las contaba.
+         Copy to podia mandar dos archivos distintos al MISMO destino
+         -dos versiones del mismo plano se llaman igual- y el segundo
+         pisaba al primero informando los dos como copiados.
+         Sumado: closeEvent que corta todo lo que este corriendo,
+         setAutoDelete(False) en los cuatro workers, las filas a
+         borrar se buscan por ruta y no por indice, Rescan bloqueado
+         durante una tanda, cancelar un relink deja de decir "File
+         not found", la bandera de cancelacion del escaneo se mira en
+         todos los bucles largos y no en dos, y se van el
+         processEvents y el sleep que el worker hacia sobre un hilo
+         sin bucle de eventos.
+  v2.39: CopyThread y DeleteThread se van y entran CopyWorker y
+         DeleteWorker sobre una base comun, BatchWorker: reciben un
+         plan ya decidido y solo tocan disco. No leen widgets, no
+         abren carteles y no llaman a la API de Nuke.
+         El borrado va SIEMPRE a la papelera, con separadores
+         nativos: la version vieja los forzaba a '\\' siempre, asi
+         que en macOS y Linux le pasaba a send2trash rutas que no
+         existen.
+         ProgressWindow queda como la ventana de progreso de las
+         cuatro operaciones -escaneo, busqueda del relink, copia y
+         borrado- con su X que aborta. StartupWindow ya solo agrega
+         el progreso que avanza solo, y LoadingWindow se va porque no
+         la usaba nadie mas.
+         expand_sequence() convierte una fila de la tabla en sus
+         archivos reales. Vive aca porque la usan los dos workers y
+         tambien el hilo principal, que necesita CONTAR los archivos
+         antes de preguntar nada.
   v2.38: StartupWindow pasa al tema y suma la X que aborta. Es la
          primera ventana que se ve, y si no se parece a las dos que
          vienen despues la herramienta arranca pareciendo otra cosa:
@@ -197,14 +242,14 @@ PATH_CELL_LEFT = 6
 PATH_CELL_RIGHT = 10
 
 # --------------------------------------------------------------------------
-#  La ventana del escaneo inicial
+#  Las ventanas de progreso: escaneo, copia y borrado
 # --------------------------------------------------------------------------
-STARTUP_WIDTH = 320
-STARTUP_PADDING = 18
-STARTUP_SPACING = 14
-STARTUP_FONT_SIZE = 13
-STARTUP_BAR_HEIGHT = 6
-STARTUP_CLOSE_SIZE = 22
+PROGRESS_WIDTH = 340
+PROGRESS_PADDING = 18
+PROGRESS_SPACING = 14
+PROGRESS_FONT_SIZE = 13
+PROGRESS_BAR_HEIGHT = 6
+PROGRESS_CLOSE_SIZE = 22
 
 
 def _tema():
@@ -557,440 +602,211 @@ sys.path.append(
 import send2trash
 
 
-class CopyThread(QThread):
-    start_copying_signal = Signal(str, str)
-    finishedCopying = Signal(str)  # Modificado para emitir el directorio especifico
-    finishedCopyingUnico = Signal(str)
-    errorOccurred = Signal(str)  # Senal para enviar mensajes de error
-    confirmationNeeded = Signal(
-        str, str, str, int, int, str, int, str, str
-    )  # Anade los parametros necesarios para copy_sequence
-    confirmationNeededUnico = Signal(str, str, str)  # Mensaje, destino, origen
-    copyCancelled = Signal()  # senal de que tiene que cerrar ventana de Copying...
-    copyCancelledUnico = Signal()
+# ---------------------------------------------------------------------------
+#                     Copia y borrado: el plan y el worker
+# ---------------------------------------------------------------------------
+# Las dos operaciones siguen la MISMA forma, y es a proposito:
+#
+#   1. El hilo principal arma un PLAN: la lista completa de archivos reales,
+#      resuelta desde la tabla, y las preguntas que haya que hacer se hacen
+#      ACA, antes de arrancar.
+#   2. El worker recibe el plan ya decidido y solo toca disco. No lee widgets,
+#      no abre carteles y no pregunta nada.
+#
+# Es lo que resuelve de raiz los dos problemas que tenian las versiones
+# anteriores: el borrado leia la tabla -rowCount(), item()- desde el hilo
+# worker, que es comportamiento indefinido en Qt, y la copia terminaba
+# corriendo shutil.copy en el hilo principal, o sea congelando la ventana que
+# la barra de progreso decia estar animando.
 
-    def __init__(self, source_file_path, dest_folder, parent=None):
-        super(CopyThread, self).__init__(parent)
-        self.source_file_path = source_file_path
-        self.start_copying_signal.connect(self.copy_single_file)
-        self.dest_folder = dest_folder
-        # Agregar atributos para almacenar informacion de la secuencia
-        self.start_frame = None
-        self.end_frame = None
-        self.file_base = None
-        self.frame_padding = None
-        self.extension = None
-        self.specific_dest_folder = None
-        # Configurar logger
+
+class BatchSignals(QObject):
+    """Las senales de una tanda. Viven en el hilo principal."""
+
+    # (hechos, total) despues de cada archivo
+    progress = Signal(int, int)
+    # el archivo que se esta por tocar, para el cartel
+    item = Signal(str)
+    # (hechos, salteados, errores, cancelado)
+    finished = Signal(int, int, list, bool)
+
+
+class BatchWorker(QRunnable):
+    """
+    Base de las tandas: progreso, cancelacion y conteo de errores.
+
+    La cancelacion es una BANDERA que se mira entre archivo y archivo, no un
+    kill del hilo: cortar a la mitad de un shutil.copy deja un archivo
+    truncado en el destino que despues parece bueno.
+    """
+
+    def __init__(self, items):
+        super(BatchWorker, self).__init__()
+        self.items = list(items)
+        self.signals = BatchSignals()
+        self.signals.moveToThread(QApplication.instance().thread())
         self.logger = configure_logger()
+        self._cancelado = False
+        # Sin esto Qt destruye el objeto C++ apenas run() termina, y el
+        # cancel() que la ventana hace al cerrarse tira RuntimeError: el
+        # `finished` viaja en cola, asi que hay un hueco entre que el worker
+        # muere y que el hilo principal se entera.
+        self.setAutoDelete(False)
 
-    def copy_sequence(
-        self,
-        start_frame,
-        end_frame,
-        file_base,
-        frame_padding,
-        extension,
-        specific_dest_folder,
-    ):
-        for frame in range(start_frame, end_frame + 1):
-            frame_file = f"{file_base.replace('#' * frame_padding, str(frame).zfill(frame_padding))}{extension}"
-            dest_file_path = os.path.join(
-                specific_dest_folder, os.path.basename(frame_file)
-            )
-            try:
-                nuke.executeInMainThread(
-                    lambda: self.logger.debug(
-                        f"      Copied seq sobreescribir: {frame_file} to {dest_file_path}"
-                    )
-                )
-                shutil.copy(frame_file, dest_file_path)
-            except Exception as e:
-                nuke.executeInMainThread(
-                    lambda: self.logger.debug(f"      ++++Error copying: {e}")
-                )
+    def cancel(self):
+        self._cancelado = True
 
-    def copy_single_file(self, source_path, dest_path):
+    def cancelado(self):
+        return self._cancelado
 
+
+class CopyWorker(BatchWorker):
+    """
+    Copia una tanda ya resuelta. Cada item es (origen, destino_final).
+
+    El destino viene completo -carpeta y nombre- porque decidirlo es parte del
+    plan, no de la copia: ahi es donde se resuelve si una secuencia va a su
+    propia subcarpeta y si algo se sobreescribe o se saltea.
+    """
+
+    @Slot()
+    def run(self):
+        hechos = 0
+        errores = []
         try:
-            shutil.copy(source_path, dest_path)
-            self.finishedCopyingUnico.emit(
-                dest_path
-            )  # Emite la senal indicando que la copia ha finalizado
-        except Exception as e:
-            self.errorOccurred.emit(f"Error while copying: {e}")
+            for origen, destino in self.items:
+                if self._cancelado:
+                    break
+                self.signals.item.emit(os.path.basename(origen))
+                try:
+                    carpeta = os.path.dirname(destino)
+                    if carpeta and not os.path.isdir(carpeta):
+                        os.makedirs(carpeta, exist_ok=True)
+                    # copy2 y no copy: conserva fecha de modificacion, que en
+                    # media es lo que despues permite comparar dos copias.
+                    shutil.copy2(origen, destino)
+                    hechos += 1
+                except Exception as problema:
+                    errores.append("%s: %s" % (os.path.basename(origen), problema))
+                self.signals.progress.emit(hechos + len(errores), len(self.items))
+        except Exception as problema:
+            errores.append(str(problema))
+        # Salteados: los que el plan dejo afuera ya no estan en self.items, asi
+        # que aca solo se informa lo que se dejo sin hacer por la cancelacion.
+        sin_hacer = len(self.items) - hechos - len(errores)
+        self.signals.finished.emit(hechos, max(0, sin_hacer), errores, self._cancelado)
 
+
+class DeleteWorker(BatchWorker):
+    """
+    Manda a la papelera una tanda ya resuelta. Cada item es una ruta real.
+
+    SIEMPRE a la papelera, nunca borrado permanente: es la unica red que tiene
+    el usuario si se equivoco de seleccion, y la herramienta borra media de
+    proyectos.
+    """
+
+    @Slot()
     def run(self):
-        start_copy_time = time.time()
-        nuke.executeInMainThread(
-            lambda: self.logger.debug(
-                f"  copy execution time start: {start_copy_time} seconds"
-            )
-        )
-
-        nuke.executeInMainThread(
-            lambda: self.logger.debug("  Copying in background thread")
-        )
-        # Normalizar las rutas de origen y destino
-        normalized_source_path = os.path.normpath(self.source_file_path)
-        normalized_dest_folder = os.path.normpath(self.dest_folder)
-        # Inicializa el contador de archivos
-        copied_files_count = 0
-
-        if "#" in normalized_source_path:
-            # Identificar el nombre de la carpeta contenedora
-            source_folder = os.path.dirname(normalized_source_path)
-            folder_name = os.path.basename(source_folder)
-
-            # Verificar y crear la carpeta en el destino si no existe
-            specific_dest_folder = os.path.join(normalized_dest_folder, folder_name)
-            self.specific_dest_folder = (
-                specific_dest_folder  # Establecer el atributo de la clase
-            )
-
-            if not os.path.exists(specific_dest_folder):
-                os.makedirs(specific_dest_folder)
-                nuke.executeInMainThread(
-                    lambda: self.logger.debug(
-                        f"    Creating folder {specific_dest_folder}"
-                    )
-                )
-
-            # Copiar los archivos de la secuencia
-            frame_range_match = re.search(r"\[(\d+)-(\d+)\]", normalized_source_path)
-            if frame_range_match:
-                start_frame, end_frame = map(int, frame_range_match.groups())
-                file_base = normalized_source_path.split("[")[0]
-                extension = normalized_source_path.split("]")[1]
-                hash_match = re.search(r"#+", file_base)
-                frame_padding = len(hash_match.group()) if hash_match else 1
-                # Almacenar los detalles de la secuencia
-                self.start_frame = start_frame
-                self.end_frame = end_frame
-                self.file_base = file_base
-                self.frame_padding = frame_padding
-                self.extension = extension
-                self.specific_dest_folder = specific_dest_folder
-
-                # Solo verifica el primer archivo de la secuencia
-                first_frame_file = f"{file_base.replace('#' * frame_padding, str(start_frame).zfill(frame_padding))}{extension}"
-                if not os.path.exists(first_frame_file):
-                    error_message = f"The file does not exist: {first_frame_file}"
-                    self.errorOccurred.emit(error_message)
-                    return  # No proceder si el primer archivo no existe
-
-                # Comprobar si el primer archivo de la secuencia ya existe en el destino
-                dest_first_frame_file_path = os.path.join(
-                    specific_dest_folder, os.path.basename(first_frame_file)
-                )
-                if os.path.exists(dest_first_frame_file_path):
-                    confirm_message = f"The sequence starting with {os.path.basename(first_frame_file)} already exists in the destination. Do you want to overwrite it?"
-                    self.confirmationNeeded.emit(
-                        confirm_message,
-                        dest_first_frame_file_path,
-                        first_frame_file,
-                        start_frame,
-                        end_frame,
-                        file_base,
-                        frame_padding,
-                        extension,
-                        specific_dest_folder,
-                    )
-                    # self.confirmationNeeded.emit(confirm_message, dest_first_frame_file_path, first_frame_file)
-                    return  # Esperar confirmacion antes de proceder
-
-                # Si el archivo no existe o si el usuario confirmo la sobrescritura, copiar la secuencia
-                for frame in range(start_frame, end_frame + 1):
-                    frame_file = f"{file_base.replace('#' * frame_padding, str(frame).zfill(frame_padding))}{extension}"
-                    dest_file_path = os.path.join(
-                        specific_dest_folder, os.path.basename(frame_file)
-                    )
-                    nuke.executeInMainThread(
-                        lambda: self.logger.debug(
-                            f"      Copied seq unico: {frame_file} to {dest_file_path}"
-                        )
-                    )
-                    # try:
-                    #    print(f"Copied seq unico: {frame_file} to {dest_file_path}")
-                    shutil.copy(frame_file, dest_file_path)
-                    copied_files_count += 1  # Incrementa el contador
-                    # except Exception as e:
-                    #    print(f"Error copying: {e}")
-                self.finishedCopying.emit(
-                    specific_dest_folder
-                )  # Emite la senal indicando que la copia ha finalizado
-        else:
-            copied_files_count = 1
-            # Para archivos unicos, verifica primero si el archivo existe
-            if os.path.exists(normalized_source_path):
-                self.specific_dest_folder = (
-                    self.dest_folder
-                )  # Esto deberia ser solo el directorio
-                nuke.executeInMainThread(
-                    lambda: self.logger.debug(
-                        f"        normalized_source_path: {normalized_source_path}"
-                    )
-                )
-                dest_file_path = os.path.join(
-                    self.specific_dest_folder, os.path.basename(normalized_source_path)
-                )
-                nuke.executeInMainThread(
-                    lambda: self.logger.debug(
-                        f"        Checking if FILE dest_file_path {dest_file_path} exists in destination..."
-                    )
-                )
-
-                # Verifica si el archivo ya existe en el destino
-                if os.path.exists(dest_file_path):
-                    # Si existe, emite una senal para pedir confirmacion
-                    confirm_message = f"The file {os.path.basename(normalized_source_path)} already exists in the destination. Do you want to overwrite it?"
-                    self.confirmationNeededUnico.emit(
-                        confirm_message,
-                        self.specific_dest_folder,
-                        normalized_source_path,
-                    )
-
-                # Si no existe, copia el archivo
-                else:
-                    dest_folder_path = os.path.dirname(dest_file_path)
-                    self.start_copying_signal.emit(
-                        normalized_source_path, dest_folder_path
-                    )
-            else:
-                # Si el archivo no existe, muestra un mensaje de error
-                error_message = f"The file does not exist: {normalized_source_path}"
-                self.errorOccurred.emit(error_message)
-
-        end_time = time.time()
-        nuke.executeInMainThread(
-            lambda: self.logger.debug(
-                f"      Copied {copied_files_count} files in {end_time - start_copy_time} seconds."
-            )
-        )
+        hechos = 0
+        errores = []
+        try:
+            for ruta in self.items:
+                if self._cancelado:
+                    break
+                self.signals.item.emit(os.path.basename(ruta))
+                try:
+                    # send2trash quiere separadores nativos. La version vieja
+                    # los forzaba a '\\' siempre, o sea que en macOS y Linux le
+                    # pasaba rutas que no existen.
+                    send2trash.send2trash(os.path.normpath(ruta))
+                    hechos += 1
+                except Exception as problema:
+                    errores.append("%s: %s" % (os.path.basename(ruta), problema))
+                self.signals.progress.emit(hechos + len(errores), len(self.items))
+        except Exception as problema:
+            errores.append(str(problema))
+        sin_hacer = len(self.items) - hechos - len(errores)
+        self.signals.finished.emit(hechos, max(0, sin_hacer), errores, self._cancelado)
 
 
-class DeleteThread(QThread):
-    deleteRow = Signal(int)
-    # finishedDeleting = Signal()
-
-    def __init__(self, file_path, main_window, parent=None):
-        super(DeleteThread, self).__init__(parent)
-        self.file_path = file_path
-        self.main_window = (
-            main_window  # Referencia a la instancia principal de FileScanner
-        )
-
-    def run(self):
-        debug_print("--------------- run (delete) ----------------")
-        normalized_file_path = self.main_window.normalize_sequence_path_for_comparison(
-            self.file_path
-        )
-        # print(f"file_path: {self.file_path}")
-        # print(f"normalized_file_path: {normalized_file_path}")
-        found = False
-        for row in range(self.main_window.table.rowCount()):
-            table_file_path = (
-                self.main_window.table.item(row, 0).text().replace("\\", "/").lower()
-            )
-            normalized_table_file_path = (
-                self.main_window.normalize_sequence_path_for_comparison(table_file_path)
-            )
-            if normalized_table_file_path == normalized_file_path:
-                # Verificar si el nombre del archivo en la tabla contiene '#'
-                # print(f"table_file_path: {table_file_path}")
-                if "#" in table_file_path:
-                    # Es una secuencia de cuadros, expandir rango de frames
-                    # print("es secuencia")
-                    frame_range_match = re.search(r"\[(\d+)-(\d+)\]", table_file_path)
-                    if frame_range_match:
-                        start_frame, end_frame = map(int, frame_range_match.groups())
-                        file_base = table_file_path.split("[")[0]
-                        extension = table_file_path.split("]")[1]
-                        hash_match = re.search(r"#+", file_base)
-                        frame_padding = len(hash_match.group()) if hash_match else 1
-
-                        all_frame_files = [
-                            f"{file_base.replace('#' * frame_padding, str(frame).zfill(frame_padding))}{extension}"
-                            for frame in range(start_frame, end_frame + 1)
-                        ]
-                else:
-                    # No es una secuencia, es un archivo unico
-                    all_frame_files = table_file_path.replace(
-                        "/", "\\"
-                    )  # Reemplazar barras normales con barras invertidas
-                    # print(f"Delete file NO Seq: {all_frame_files}") # SOLO USAR PRINT COMENTANDO EL BORRADO O SE CUELGA!
-                    send2trash.send2trash(all_frame_files)
-                    # os.remove(all_frame_files)
-
-                # Comprobar si la carpeta es borrable
-                folder_delete_value = (
-                    self.main_window.table.item(row, 3).text().lower() == "true"
-                )
-                if (
-                    folder_delete_value and "#" in table_file_path
-                ):  # Solo intentar borrar la carpeta si es una secuencia
-                    folder_path = os.path.dirname(table_file_path).replace(
-                        "/", "\\"
-                    )  # Normalizar la ruta de la carpeta
-                    # print(f"Delete folder Seq: {folder_path}")
-                    send2trash.send2trash(folder_path)
-                else:
-                    # Borrado de archivos individualmente si la carpeta no se puede borrar
-                    if "#" in table_file_path:
-                        # Borrado de archivos de la secuencia
-                        for frame_file in all_frame_files:
-                            normalized_frame_file = frame_file.replace(
-                                "/", "\\"
-                            )  # Normalizar la ruta
-                            # print(f"Delete file Seq: {normalized_frame_file}")
-                            send2trash.send2trash(normalized_frame_file)
-
-                self.deleteRow.emit(row)
-                found = True
-                break
-
-        if not found:
-            print(f"File path not found in the table: {normalized_file_path}")
+# El rango de frames va SIEMPRE al final del nombre y acepta signo: un Read
+# offline puede traer origfirst negativo. Sin anclar al final, un '[' en el
+# propio nombre del archivo -"take[1-2]_####.exr"- partia mal la ruta.
+_RANGO_RE = re.compile(r"\[(-?\d+)-(-?\d+)\]\s*$")
 
 
-# Cuanto se aclara el color propio de una celda cuando su fila esta
-# seleccionada. Se aclara el color en vez de mezclarlo con el gris de seleccion
-# porque los dos tienen una luminancia parecida: la mezcla daba un color casi
-# identico al de la fila sin seleccionar, o sea no se notaba cual estaba
-# elegida. Aclarandolo se mantiene el tono -verde sigue siendo verde- y el
-# salto se ve.
-SELECTION_LIGHTEN = 165
-
-
-class TransparentTextDelegate(QItemDelegate):
+def expand_sequence(path):
     """
-    El color propio de una celda sobrevive a la seleccion de la fila.
+    Los archivos REALES de una fila de la tabla.
 
-    La columna Status pinta su fondo con el color del estado, y ese color ES
-    la informacion: taparlo con el gris de seleccion escondia justo el estado
-    de la fila que el usuario acababa de elegir para relinkearla.
+    Una fila puede ser un archivo suelto o una secuencia escrita
+    `nombre.####.exr[1001-1129]`. Devuelve siempre una lista, asi que quien
+    llama no tiene que preguntar cual de las dos cosas es; con una lista vacia
+    quiere decir que no pudo interpretarla.
 
-    Antes se resolvia aclarando el color con lighter(). Aclarar sube el brillo
-    pero NO desatura, asi que la celda quedaba mas roja en vez de mas gris. Lo
-    correcto es mezclarla contra el gris de seleccion, y esa mezcla ya esta
-    resuelta por tema en el modulo de estilo: cada fondo de estado tiene su
-    version _SELECTED derivada.
+    Vive aca y no adentro de cada worker porque la usan los dos y ademas el
+    hilo principal, que necesita CONTAR los archivos antes de preguntar nada.
+
+    Tres cosas que parecen detalles y no lo son, porque esta herramienta las
+    genera sola:
+
+      - El grupo de '#' del frame es el ULTIMO, no el primero: un nombre puede
+        traer una version escrita "sh010_v###_####.exr". Se sustituye POR
+        POSICION y no con str.replace, que reemplazaria los dos grupos.
+      - El rango va anclado al final: un '[' en el nombre no es el rango.
+      - El rango acepta signo: origfirst puede ser negativo.
+    """
+    if not path:
+        return []
+    ruta = path.replace("\\", "/")
+    if "#" not in ruta:
+        return [os.path.normpath(ruta)]
+
+    rango = _RANGO_RE.search(ruta)
+    if not rango:
+        return []
+    inicio, fin = int(rango.group(1)), int(rango.group(2))
+    if fin < inicio:
+        return []
+    base = ruta[: rango.start()]
+
+    # El ULTIMO grupo de '#', que es el del frame.
+    grupos = list(re.finditer(r"#+", base))
+    if not grupos:
+        return []
+    marca = grupos[-1]
+    relleno = marca.end() - marca.start()
+    izquierda, derecha = base[: marca.start()], base[marca.end():]
+
+    salida = []
+    for f in range(inicio, fin + 1):
+        # zfill no sirve con negativos -pone los ceros antes del signo- asi que
+        # el relleno se arma a mano.
+        signo = "-" if f < 0 else ""
+        numero = signo + str(abs(f)).rjust(relleno - len(signo), "0")
+        salida.append(os.path.normpath(izquierda + numero + derecha))
+    return salida
+
+
+class ProgressWindow(QWidget):
+    """
+    La ventana de progreso del pack: escaneo, copia y borrado.
+
+    Frameless con esquinas redondeadas y todo el color del tema. Al no tener
+    marco no hay boton de cerrar del sistema, asi que la X va adentro, arriba a
+    la derecha, y ABORTA la operacion en vez de solo esconder la ventana:
+    esconderla dejaria el trabajo corriendo sin nada que lo muestre, que es
+    peor que no poder cerrarla.
+
+    El corte siempre es ENTRE archivos, nunca a la mitad de uno.
     """
 
-    def __init__(self, table, ui=None, parent=None):
-        super(TransparentTextDelegate, self).__init__(parent or table)
-        self.UI = ui
-        self._mezclas = {}
-        self.set_theme(ui)
-
-    def set_theme(self, ui):
-        """Rearma la tabla de equivalencias fondo -> fondo seleccionado."""
-        self.UI = ui
-        if ui is None:
-            self._mezclas = {}
-            return
-        C = ui.Color
-        # La clave es el hex del fondo normal, en minuscula, porque es lo
-        # unico que la celda trae puesto.
-        self._mezclas = {
-            C.OK_BG.lower(): C.OK_BG_SELECTED,
-            C.WARNING_BG.lower(): C.WARNING_BG_SELECTED,
-            C.ERROR_BG.lower(): C.ERROR_BG_SELECTED,
-            C.OUTSIDE_BG.lower(): C.OUTSIDE_BG_SELECTED,
-            C.OUTSIDE_BG_INFO.lower(): C.OUTSIDE_BG_INFO_SELECTED,
-        }
-
-    def _selected_color(self, background):
-        """El fondo que le toca a esa celda cuando la fila esta seleccionada."""
-        gris = QColor((self.UI.Color if self.UI else Color).SURFACE_SELECTED)
-        if background is None:
-            return gris
-        propio = background.color()
-        mezcla = self._mezclas.get(propio.name().lower())
-        if mezcla:
-            return QColor(mezcla)
-        # Un color que no esta en la tabla -no deberia pasar- se aclara, que
-        # es lo que se hacia antes: peor que la mezcla, pero legible.
-        return propio.lighter(SELECTION_LIGHTEN)
-
-    def paint(self, painter, option, index):
-        C = self.UI.Color if self.UI else Color
-        if index.column() == COL_PATH:
-            # El path lo dibuja PathDelegate, asi que el texto del item va
-            # transparente para que no se pise con el.
-            option.palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0, 0))
-            option.palette.setColor(QPalette.Text, QColor(0, 0, 0, 0))
-            if option.state & QStyle.State_Selected:
-                option.palette.setColor(QPalette.Highlight, QColor(C.SURFACE_SELECTED))
-        else:
-            if option.state & QStyle.State_Selected:
-                option.palette.setColor(
-                    QPalette.Highlight,
-                    self._selected_color(index.data(Qt.BackgroundRole)),
-                )
-                # La columna '#' NO se enciende al seleccionar la fila. Es un
-                # id, no contenido: en el disenio queda apagado igual que en
-                # las demas filas, y pasarlo a TEXT_STRONG lo convertia en lo
-                # mas brillante de la fila elegida, compitiendo con el path.
-                # El color se lo pone el propio item, asi que alcanza con
-                # respetarlo en vez de escribirle uno de seleccion.
-                propio = index.data(Qt.ForegroundRole)
-                if index.column() == COL_NUM and propio is not None:
-                    option.palette.setColor(
-                        QPalette.HighlightedText, QColor(propio.color())
-                    )
-                else:
-                    option.palette.setColor(
-                        QPalette.HighlightedText, QColor(C.TEXT_STRONG)
-                    )
-
-        super(TransparentTextDelegate, self).paint(painter, option, index)
-        paint_row_separator(painter, option.rect, C.ROW_LINE)
-
-
-class LoadingWindow(QWidget):
-    # Clase que sirve para abrir las ventanas de Scanning, Copying, Deleting
-    def __init__(self, message, parent=None):
-        super(LoadingWindow, self).__init__(parent)
-        self.setFixedSize(200, 50)  # Ajusta el tamano segun necesites
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
-
-        # Configura la hoja de estilos para la ventana y el texto
-        self.setStyleSheet(
-            "background-color: #282828; color: white; font-weight: bold;"
-        )
-
-        layout = QVBoxLayout(self)
-        self.label = QLabel(message, self)
-        self.label.setAlignment(Qt.AlignCenter)  # Centrar el texto
-        layout.addWidget(self.label)
-
-    def stop(self):
-        self.close()
-
-
-class StartupWindow(QWidget):
-    """
-    La ventana del escaneo inicial. Es la PRIMERA que ve el usuario.
-
-    Va con el tema del pack, no con colores sueltos: es lo primero que aparece
-    y si no se parece a las dos que vienen despues, la herramienta arranca
-    pareciendo otra cosa.
-
-    Frameless con esquinas redondeadas: sin marco no hay boton de cerrar del
-    sistema, asi que la X va adentro, arriba a la derecha, y ABORTA el escaneo
-    -que puede tardar minutos contra un servidor- en vez de solo esconder la
-    ventana. Sin ella, lo unico que quedaba era esperar.
-    """
-
-    # Lo emite la X. Lo escucha quien lanzo el worker, que es el unico que
-    # sabe a cual hay que cancelarle.
     cancelled = Signal()
 
-    def __init__(self, message, parent=None, ui=None):
-        super(StartupWindow, self).__init__(parent)
+    def __init__(self, message, parent=None, ui=None, cancelable=True):
+        super(ProgressWindow, self).__init__(parent)
         self.UI = ui or _tema()
-        self.setWindowTitle("Starting...")
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         # Las esquinas redondeadas necesitan que el fondo de la VENTANA sea
         # transparente: si no, Qt pinta el rectangulo entero por debajo y las
@@ -1002,48 +818,41 @@ class StartupWindow(QWidget):
         afuera.setContentsMargins(0, 0, 0, 0)
 
         self.marco = QFrame(self)
-        self.marco.setObjectName("lgaStartupCard")
+        self.marco.setObjectName("lgaProgressCard")
         self.marco.setAttribute(Qt.WA_StyledBackground, True)
         self.marco.setFrameShape(QFrame.NoFrame)
         afuera.addWidget(self.marco)
 
         adentro = QVBoxLayout(self.marco)
         adentro.setContentsMargins(
-            STARTUP_PADDING, STARTUP_PADDING - 6, STARTUP_PADDING, STARTUP_PADDING
+            PROGRESS_PADDING, PROGRESS_PADDING - 6, PROGRESS_PADDING, PROGRESS_PADDING
         )
-        adentro.setSpacing(STARTUP_SPACING)
+        adentro.setSpacing(PROGRESS_SPACING)
 
-        # --- la X, arriba a la derecha ---------------------------------------
         fila = QHBoxLayout()
         fila.setContentsMargins(0, 0, 0, 0)
         self.label = QLabel(message)
+        self.label.setWordWrap(True)
         fila.addWidget(self.label, 1)
-        self.close_button = QPushButton("✕")
-        self.close_button.setFixedSize(
-            STARTUP_CLOSE_SIZE, STARTUP_CLOSE_SIZE
-        )
-        self.close_button.setToolTip("Cancela el escaneo y cierra")
+
+        self.close_button = QPushButton("\u2715")
+        self.close_button.setFixedSize(PROGRESS_CLOSE_SIZE, PROGRESS_CLOSE_SIZE)
+        self.close_button.setToolTip("Cancela la operacion y cierra")
         self.close_button.setFocusPolicy(Qt.NoFocus)
         self.close_button.setCursor(Qt.PointingHandCursor)
         self.close_button.clicked.connect(self._cancelar)
+        self.close_button.setVisible(cancelable)
         fila.addWidget(self.close_button, 0, Qt.AlignTop)
         adentro.addLayout(fila)
 
         self.progressBar = QProgressBar(self.marco)
         self.progressBar.setRange(0, 100)
         self.progressBar.setTextVisible(False)
-        self.progressBar.setFixedHeight(STARTUP_BAR_HEIGHT)
+        self.progressBar.setFixedHeight(PROGRESS_BAR_HEIGHT)
         adentro.addWidget(self.progressBar)
 
         self.apply_theme(self.UI)
-        self.setFixedSize(STARTUP_WIDTH, self.sizeHint().height())
-
-        # El progreso se mueve solo hasta que llegue el real del worker: sin
-        # esto la barra se queda en cero durante toda la primera etapa y la
-        # ventana parece colgada.
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.updateProgressBar)
-        self.timer.start(100)
+        self.setFixedWidth(PROGRESS_WIDTH)
 
     # ------------------------------------------------------------- estilo ---
     def apply_theme(self, ui):
@@ -1052,48 +861,84 @@ class StartupWindow(QWidget):
         C = self.UI.Color
         UIStyle.apply_ui_font(self)
         self.marco.setStyleSheet(
-            "#lgaStartupCard { background-color: %s; border: 1px solid %s;"
+            "#lgaProgressCard { background-color: %s; border: 1px solid %s;"
             " border-radius: %dpx; }"
             % (C.WINDOW, C.BORDER, UIStyle.Metric.RADIUS_CARD)
         )
         # Sin negrita: es un cartel de espera, no un titulo.
         self.label.setStyleSheet(
             "QLabel { background: transparent; border: none; color: %s;"
-            " font-size: %dpx; }" % (C.TEXT_STRONG, STARTUP_FONT_SIZE)
+            " font-size: %dpx; }" % (C.TEXT_STRONG, PROGRESS_FONT_SIZE)
         )
         self.close_button.setStyleSheet(self.UI.Style.BTN_CLOSE)
         self.progressBar.setStyleSheet(
             "QProgressBar { background-color: %s; border: none;"
             " border-radius: %dpx; }"
-            "QProgressBar::chunk { background-color: %s;"
-            " border-radius: %dpx; }"
+            "QProgressBar::chunk { background-color: %s; border-radius: %dpx; }"
             % (
                 C.SURFACE_SUNKEN,
-                STARTUP_BAR_HEIGHT // 2,
-                C.ACCENT_HOVER,
-                STARTUP_BAR_HEIGHT // 2,
+                PROGRESS_BAR_HEIGHT // 2,
+                C.ACCENT,
+                PROGRESS_BAR_HEIGHT // 2,
             )
         )
 
     # -------------------------------------------------------------- estado ---
     def _cancelar(self):
-        """La X: avisa que hay que abortar y se cierra."""
+        """La X: avisa que hay que abortar. NO cierra sola.
+
+        Quien recibe `cancelled` es el que sabe cuando la operacion realmente
+        se detuvo: el worker corta entre archivos y puede tardar en enterarse.
+        Cerrar aca dejaria la ventana muerta con el trabajo todavia corriendo.
+        """
+        self.close_button.setEnabled(False)
+        self.set_message("Cancelling...")
         self.cancelled.emit()
-        self.stop()
+
+    def set_message(self, texto):
+        self.label.setText(texto)
+
+    def set_progress(self, hechos, total):
+        """Progreso real, en cantidad de archivos."""
+        if total <= 0:
+            return
+        self.progressBar.setRange(0, total)
+        self.progressBar.setValue(min(hechos, total))
+
+    def stop(self):
+        self.close()
+
+
+class StartupWindow(ProgressWindow):
+    """
+    La ventana del escaneo inicial. Es la PRIMERA que ve el usuario.
+
+    Lo unico que agrega sobre la base es el progreso que avanza SOLO hasta que
+    llegue el real del worker: sin eso la barra se queda en cero durante toda
+    la primera etapa y la ventana parece colgada.
+    """
+
+    def __init__(self, message, parent=None, ui=None):
+        super(StartupWindow, self).__init__(message, parent, ui)
+        self.setWindowTitle("Starting...")
+        self.setFixedSize(PROGRESS_WIDTH, self.sizeHint().height())
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.updateProgressBar)
+        self.timer.start(100)
 
     def updateProgressBar(self):
         current_value = self.progressBar.value()
         if current_value < 100:
             self.progressBar.setValue(current_value + 1)
         else:
-            self.timer.stop()  # Detener el temporizador cuando llegue a 100
+            self.timer.stop()
 
     def updateProgress(self, value):
         self.progressBar.setValue(value)
 
     def stop(self):
-        self.timer.stop()  # Asegurarse de detener el temporizador
-        self.close()
+        self.timer.stop()
+        super(StartupWindow, self).stop()
 
 
 class ScannerSignals(QObject):
@@ -1124,6 +969,18 @@ class RelinkSearchWorker(QRunnable):
         self.sequence_pattern = sequence_pattern
         self.signals = RelinkSearchSignals()
         self.logger = configure_logger()
+        # Cortar la busqueda. Bandera y no kill, igual que en el escaneo: se
+        # la mira en cada carpeta del walk.
+        self._cancelado = False
+        # Mismo motivo que en BatchWorker: la X puede llegar despues de que
+        # run() termino y antes de que el hilo principal procese el finished.
+        self.setAutoDelete(False)
+
+    def cancel(self):
+        self._cancelado = True
+
+    def cancelado(self):
+        return self._cancelado
 
     def run(self):
         # El primer candidato del patron se guarda pero la busqueda sigue: el
@@ -1131,6 +988,9 @@ class RelinkSearchWorker(QRunnable):
         fallback_path = ""
         try:
             for root, dirs, files in os.walk(self.directory):
+                if self._cancelado:
+                    self.logger.debug("Busqueda del relink cancelada")
+                    break
                 if "$RECYCLE.BIN" in [
                     os.path.basename(parte)
                     for parte in os.path.normpath(root).split(os.path.sep)
@@ -1182,10 +1042,14 @@ class ScannerWorker(QRunnable):
         self.start_time = time.time()
         # Abortar el escaneo. Es una bandera y no un kill: el worker corre en
         # un hilo del pool y matarlo dejaria la tabla a medio llenar. Se la
-        # mira en los dos bucles largos -el recorrido de carpetas y el de
-        # archivos- y ahi devuelve, que es lo mas cerca de "ya" que se puede
-        # estar sin romper nada.
+        # mira en TODOS los bucles largos -el conteo inicial, la fase 1, las
+        # dos pasadas de find_files y antes de buscar los Reads sueltos- y ahi
+        # devuelve, que es lo mas cerca de "ya" que se puede estar sin romper
+        # nada.
         self._cancelado = False
+        # La X de la ventana de escaneo puede llegar despues de que run()
+        # termino: sin esto el objeto C++ ya no esta y cancel() explota.
+        self.setAutoDelete(False)
 
         # Definir los rangos de progreso para cada etapa
         self.Etapa1_inicio = 0
@@ -1309,6 +1173,8 @@ class ScannerWorker(QRunnable):
                         f"{self.get_timestamp()}   (No se pudo leer {carpeta})"
                     )
             for carpeta, item in root_items:
+                if self._cancelado:
+                    break
                 item_path = os.path.join(carpeta, item)
                 if os.path.isfile(item_path):
                     total_items += 1
@@ -1328,9 +1194,12 @@ class ScannerWorker(QRunnable):
                         )
                         continue
 
-            # Contar nodos Read para el cálculo del progreso
-            read_nodes = nuke.allNodes("Read")
-            total_reads = len(read_nodes)
+            # Contar nodos Read para el calculo del progreso. Va envuelto:
+            # allNodes desde el hilo del pool no es thread-safe, y con un
+            # script grande el sintoma es un cuelgue duro de Nuke.
+            total_reads = nuke.executeInMainThreadWithResult(
+                lambda: len(nuke.allNodes("Read"))
+            )
 
             # Calcular incrementos usando los rangos definidos
             items_increment = 1.0 / total_items if total_items > 0 else 0
@@ -1370,11 +1239,12 @@ class ScannerWorker(QRunnable):
                     self.logger.debug(
                         f"{self.get_timestamp()} Progreso {progress}%: {description}"
                     )
+                # Solo la senal: viaja en cola al hilo principal y ahi se
+                # repinta. El processEvents() que habia aca procesaba la cola
+                # de ESTE hilo, que no tiene bucle de eventos, o sea que no
+                # repintaba nada; y el sleep de 1 ms por item era un peaje de
+                # segundos sobre un escaneo de miles de archivos.
                 self.signals.progress.emit(progress)
-                # Forzar el procesamiento de eventos de la UI
-                QApplication.processEvents()
-                # Pequeña pausa para permitir que la UI se actualice
-                time.sleep(0.001)
 
             # Primera fase
             self.logger.debug(
@@ -1383,6 +1253,8 @@ class ScannerWorker(QRunnable):
             processed_items = 0  # Reiniciar contador para la primera fase
 
             for carpeta, item in root_items:
+                if self._cancelado:
+                    break
                 item_path = os.path.join(carpeta, item)
                 if os.path.isdir(item_path):
                     try:
@@ -1411,6 +1283,11 @@ class ScannerWorker(QRunnable):
 
             # Marcar inicio de search_unmatched_reads
             reads_start = time.time()
+            # Cancelado: no se arranca otra etapa entera. search_unmatched_reads
+            # hace un os.listdir por secuencia y toca Nuke por cada Read.
+            if self._cancelado:
+                self.signals.finished.emit()
+                return
             unmatched_reads_data = self.file_scanner.search_unmatched_reads()
 
             for node in read_nodes:
@@ -1501,8 +1378,9 @@ class ScannerWorker(QRunnable):
                 self.logger.debug(
                     f"{self.get_timestamp()} Progreso {progress}%: {description}"
                 )
+                # Sin processEvents: procesaba la cola de ESTE hilo, que no
+                # tiene bucle de eventos, asi que no repintaba nada.
                 self.signals.progress.emit(progress)
-                QApplication.processEvents()
 
         # Log del inicio de la etapa 2
         self.logger.debug(

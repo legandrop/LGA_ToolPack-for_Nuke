@@ -58,11 +58,12 @@ ajustes la muestra abajo a la izquierda, leyéndola de ese header.
   - `TransparentTextDelegate`: el resto de las celdas; respeta el color propio
     de la columna Status cuando la fila está seleccionada
   - `tinted_icon()`: los SVG de trazo teñidos, a la escala de la pantalla
-  - `LoadingWindow`: Ventanas de progreso (Scanning, Copying, Deleting)
-  - `StartupWindow`: Ventana de inicio con barra de progreso
-  - `CopyThread`: Worker para operaciones de copia de archivos
-  - `DeleteThread`: Worker para operaciones de borrado
-  - `ScannerSignals`: Señales Qt para comunicación entre hilos
+  - `ProgressWindow`: la ventana de progreso de las cuatro operaciones, con su
+    X que aborta. `StartupWindow` la extiende para el escaneo inicial
+  - `BatchWorker` y sus dos hijos, `CopyWorker` y `DeleteWorker`: reciben un
+    plan ya decidido y sólo tocan disco
+  - `expand_sequence()`: convierte una fila de la tabla en sus archivos reales
+  - `ScannerSignals` / `BatchSignals`: señales Qt para comunicación entre hilos
 
 ### Los índices de columna viven en `utils`
 
@@ -171,7 +172,74 @@ recién `apply_appearance()`. Medir con una fuente y dibujar con otra es como no
 medir — falló así. Por lo mismo, `apply_ui_font()` se llama **antes** de
 `_build()`: todo lo que se mida al armar tiene que medirse con la definitiva.
 
-## La ventana del escaneo
+## Operaciones sobre varias filas: relink, copy to y delete
+
+Las tres trabajan sobre **todas** las filas seleccionadas y siguen la misma
+forma. Es la regla central de esta parte del código:
+
+> **El hilo principal arma el PLAN. El worker sólo toca disco.**
+>
+> 1. En el hilo principal se lee la tabla, se expanden las secuencias a
+>    archivos reales (`expand_sequence()`) y se hacen **todas** las preguntas
+>    al usuario.
+> 2. El worker recibe el plan ya decidido. No lee widgets, no abre carteles y
+>    no llama a la API de `nuke`.
+
+Eso no es una preferencia de estilo: las dos versiones anteriores lo violaban y
+las dos tenían el mismo tipo de bug. El borrado leía `table.rowCount()` y
+`table.item()` **desde el hilo worker** —comportamiento indefinido en Qt— y la
+copia terminaba corriendo `shutil.copy` **en el hilo principal**, porque la
+señal que la disparaba estaba conectada a un slot de un objeto que vive ahí.
+
+| | worker | plan que recibe |
+|---|---|---|
+| relink | `RelinkSearchWorker` (uno por archivo, encadenados) | carpeta + patrones de búsqueda |
+| copy to | `CopyWorker` (la tanda entera) | pares `(origen, destino)` ya resueltos |
+| delete | `DeleteWorker` (la tanda entera) | rutas reales a mandar a la papelera |
+
+**El relink va encadenado y las otras dos no**, y es deliberado: cada búsqueda
+es un `os.walk` sobre la misma carpeta, así que lanzarlas juntas multiplica el
+trabajo del disco por la cantidad de filas. La copia y el borrado no tienen ese
+problema: recorren una lista ya resuelta.
+
+**Sobreescritura: una pregunta por tanda.** `_plan_copy()` detecta todos los
+conflictos antes de arrancar, y `copy_to()` pregunta una sola vez —*Overwrite
+all* / *Skip them* / *Cancel*—. Preguntar dentro del worker obligaría a
+bloquear el hilo esperando un diálogo; resolverlo antes lo evita del todo.
+
+**Nada de Nuke desde un worker.** `nuke.allNodes`, `toNode` y `getValue` no son
+thread-safe, y el síntoma con un script grande es un cuelgue duro de Nuke, no
+un error. La regla es la misma que con la tabla: se saca una **foto** en el
+hilo principal —`get_read_files()` devuelve datos, no nodos— y el worker
+trabaja sobre eso. Envolver sólo el `allNodes()` y después leer los knobs de
+los nodos devueltos afuera **no sirve de nada**, que es como estaba.
+
+**`setAutoDelete(False)` en todos los workers.** El pool destruye el
+`QRunnable` apenas `run()` retorna, pero el `finished` viaja en cola: hay un
+hueco en el que el objeto C++ ya no está y la ventana todavía no se enteró. Un
+clic en la X ahí adentro llama a `cancel()` sobre un objeto muerto.
+
+**`closeEvent` corta todo.** Cerrar el Media Manager con una tanda en curso
+cancela el batch, el relink y el escaneo. La `ProgressWindow` es hija de la
+ventana principal, así que sin esto desaparecía y el worker seguía trabajando
+sin nada que lo mostrara ni forma de pararlo.
+
+**Cancelación.** Siempre una **bandera** mirada entre archivo y archivo, nunca
+un kill de hilo: cortar a la mitad de un `shutil.copy` deja un archivo truncado
+en el destino que después parece bueno. Al terminar, un solo cartel resume
+hechos / sin hacer / errores.
+
+**Borrado: siempre a la papelera.** Nunca permanente. Es la única red que le
+queda al usuario si se equivocó de selección. Y las filas se sacan de la tabla
+sólo si su archivo realmente dejó de estar: con una tanda cancelada a la mitad,
+sacarlas todas mostraría como borrado lo que sigue en disco.
+
+## Las ventanas de progreso
+
+`ProgressWindow` (en `LGA_MediaManager_utils.py`) es la ventana de progreso de
+las cuatro operaciones: escaneo, búsqueda del relink, copia y borrado.
+
+### El escaneo inicial
 
 `StartupWindow` (en `LGA_MediaManager_utils.py`) es la **primera** que ve el
 usuario, y se abre **antes** que la principal: no hay ventana a quién
@@ -188,9 +256,9 @@ que es una **bandera** mirada en los dos bucles largos del escaneo, no un kill:
 matar el hilo dejaría la tabla a medio llenar. Cancelado, el worker no emite
 resultados — una tabla incompleta se lee igual que una completa.
 
-Las otras dos ventanas de progreso (`LoadingWindow` para Copying, y la de
-Deleting) siguen con estilo propio de antes de la migración; el prototipo no
-las dibuja.
+Copying, Deleting y la búsqueda del relink usan la misma `ProgressWindow`, con
+progreso real en cantidad de archivos. La del relink va con la barra
+indeterminada: un `os.walk` no sabe cuánto le falta hasta que termina.
 
 ## Aspecto de las ventanas
 
@@ -210,7 +278,7 @@ El detalle está en `docs/Docu_UI_Style.md`.
 2. **Escaneo**: Instancia `FileScanner` → Inicia `ScannerWorker` 
 3. **UI**: `FileScanner` muestra tabla con archivos encontrados
 4. **Configuración**: Usuario puede abrir `SettingsWindow` para ajustes
-5. **Operaciones**: Copiar/borrar archivos usando `CopyThread`/`DeleteThread`
+5. **Operaciones**: Copiar/borrar archivos usando `CopyWorker`/`DeleteWorker`
 
 ## Escaneo de Nodos Read y CopyCat
 
@@ -315,6 +383,6 @@ Training_250715_215458.110000.cat   →  Training_250715_215458.#.cat [110000-15
 | `py/LGA_MediaManager_settings.py` | `SettingsWindow._build()`, `LocationRow`, `_fit_table()`, `_persist_theme()`, `_editable_state()`, y las tuplas `COL_*` con los anchos de la tabla |
 | `py/LGA_MediaManager_config.py` | `load_settings()`, `format_ini()`, `save_settings()`, `get_write_path()`, `DEFAULT_*` |
 | `py/LGA_MediaManager_paths.py` | `parse_path()`, `resolve()`, `scanning_parent()` |
-| `py/LGA_MediaManager_utils.py` | `PathDelegate`, `ReadCellDelegate`, `TransparentTextDelegate`, `paint_row_separator()`, `tinted_icon()`, `ScannerWorker`, `PathResolveWorker`, los `COL_*` |
+| `py/LGA_MediaManager_utils.py` | `PathDelegate`, `ReadCellDelegate`, `TransparentTextDelegate`, `paint_row_separator()`, `tinted_icon()`, `ProgressWindow`, `BatchWorker`, `CopyWorker`, `DeleteWorker`, `expand_sequence()`, `ScannerWorker`, `RelinkSearchWorker`, `PathResolveWorker`, los `COL_*` |
 | `py/LGA_UI_Style_ToolPack.py` | `theme()`, `apply_ui_font()`, `semibold_css()`, `THEMES` |
 | `docs/Docu_UI_Style.md` | Cómo se usa el módulo de estilo y las trampas de Qt ya pisadas |
