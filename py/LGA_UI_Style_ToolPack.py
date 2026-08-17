@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.15 | Lega
+  LGA_UI_Style_ToolPack v1.16 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,15 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.16: BTN_PRIMARY y BTN_SECONDARY pasan de `bold` a 600 y su
+         texto a TEXT_STRONG. Con Inter cargado en 400/600/700,
+         `bold` pedia el 700 -el peso de un titulo- y los botones
+         iban dos escalones mas pesados que el resto de la ventana,
+         que enfatiza en 600. El secundario ademas aclara el borde
+         al hover, como el resto de los controles.
+         "pack" pasa a ser el primero de THEMES: es el tema BASE, y
+         en la tira de la ventana de ajustes el primero de la
+         izquierda tiene que ser el default.
   v1.15: Metric.RADIUS_FIELD y el hover de la accion destructiva,
          que el rediseno del Media Manager necesitaba y estaban
          resueltos con el token mas cercano.
@@ -365,6 +374,12 @@ class Metric(object):
 # agregar un tema en el medio de la lista no puede cambiar cual es el default
 # ni que tema tiene guardado el usuario.
 #
+# El ORDEN de la tupla si importa, pero solo para la UI: es el orden en que la
+# ventana de ajustes dibuja la tira de botones. "pack" va primero porque es el
+# tema BASE y el que recibe una tool que no pide ninguno, asi que el primero de
+# la izquierda es tambien el default. Que sea el primero no es lo que lo hace
+# default: eso lo dice BASE_THEME, por id.
+#
 # Los valores del tema "lga" salen del codigo de las apps Qt/C++ de LGA, no de
 # una captura: COLOR_VARS en LGA_Base_QT_C_Py/src/ui/mainwindow/MainWindow.cpp,
 # resources/styles/dark_theme.qss y include/lga_base_qt_c_py/DialogStyle.h.
@@ -373,53 +388,6 @@ class Metric(object):
 # los botones, incluido el violeta de accion.
 
 THEMES = (
-    {
-        "id": "lga",
-        "label": "LGA",
-        "desc": (
-            "Los colores exactos de las apps Qt/C++ de LGA (FileManager S3, PipeSync). Como el del pack pero mas oscuro, y sin ningun texto blanco."
-        ),
-        "colors": {
-            "WINDOW": "#161616",
-            "SURFACE": "#1D1D1D",
-            "SURFACE_RAISED": "#2A2A2A",
-            "SURFACE_HEADER": "#1A1A1A",
-            "SURFACE_HOVER": "#383838",
-            "SURFACE_SELECTED": "#2E2E2E",
-            "ROW_LINE": "#232323",
-            "FIELD_BG": "#1A1A1A",
-            "TEXT": "#B2B2B2",
-            "TEXT_STRONG": "#D0D0D0",
-            "TEXT_DIM": "#7B7B7B",
-            "TEXT_HEADER": "#8F8F8F",
-            "TEXT_ON_ACCENT": "#D0D0D0",
-            "BORDER": "#303030",
-            "BORDER_STRONG": "#3A3A3A",
-            "BORDER_HOVER": "#4A4A4A",
-            "ACCENT": "#443A91",
-            "ACCENT_HOVER": "#774DCB",
-            "CHECKBOX_OFF": "#2A2832",
-            "CHECKBOX_OFF_HOVER": "#3A3744",
-            "CHECKBOX_ON": "#393455",
-            "CHECKBOX_ON_HOVER": "#4C4770",
-            "CHECKBOX_BORDER": "#272727",
-            "CHECKBOX_ON_DISABLED": "#332F4A",
-            "CHECKBOX_ON_DISABLED_BORDER": "#413C5E",
-            "CHECKBOX_ON_DISABLED_TICK": "#B5AFD2",
-            "OK_BG": "#1D4413",
-            "WARNING_BG": "#44330E",
-            "ERROR_BG": "#461616",
-            "SURFACE_SUNKEN": "#0E0E0E",
-            "ACCENT_DISABLED": "#272445",
-            "ACCENT_TRACK": "#362F6C",
-            "DOT_OK": "#5FA855",
-            "DOT_WARNING": "#C4A048",
-            "DOT_ERROR": "#C45E5E",
-            "PATH_COMMON": "#C56CF0",
-            "PATH_SEPARATOR": "#5A5A5E",
-            "MARK_BG": "#4E3F0E",
-        },
-    },
     {
         "id": "pack",
         "label": "Pack",
@@ -465,6 +433,53 @@ THEMES = (
             "PATH_COMMON": "#C56CF0",
             "PATH_SEPARATOR": "#6A6A6E",
             "MARK_BG": "#5B4A16",
+        },
+    },
+    {
+        "id": "lga",
+        "label": "LGA",
+        "desc": (
+            "Los colores exactos de las apps Qt/C++ de LGA (FileManager S3, PipeSync). Como el del pack pero mas oscuro, y sin ningun texto blanco."
+        ),
+        "colors": {
+            "WINDOW": "#161616",
+            "SURFACE": "#1D1D1D",
+            "SURFACE_RAISED": "#2A2A2A",
+            "SURFACE_HEADER": "#1A1A1A",
+            "SURFACE_HOVER": "#383838",
+            "SURFACE_SELECTED": "#2E2E2E",
+            "ROW_LINE": "#232323",
+            "FIELD_BG": "#1A1A1A",
+            "TEXT": "#B2B2B2",
+            "TEXT_STRONG": "#D0D0D0",
+            "TEXT_DIM": "#7B7B7B",
+            "TEXT_HEADER": "#8F8F8F",
+            "TEXT_ON_ACCENT": "#D0D0D0",
+            "BORDER": "#303030",
+            "BORDER_STRONG": "#3A3A3A",
+            "BORDER_HOVER": "#4A4A4A",
+            "ACCENT": "#443A91",
+            "ACCENT_HOVER": "#774DCB",
+            "CHECKBOX_OFF": "#2A2832",
+            "CHECKBOX_OFF_HOVER": "#3A3744",
+            "CHECKBOX_ON": "#393455",
+            "CHECKBOX_ON_HOVER": "#4C4770",
+            "CHECKBOX_BORDER": "#272727",
+            "CHECKBOX_ON_DISABLED": "#332F4A",
+            "CHECKBOX_ON_DISABLED_BORDER": "#413C5E",
+            "CHECKBOX_ON_DISABLED_TICK": "#B5AFD2",
+            "OK_BG": "#1D4413",
+            "WARNING_BG": "#44330E",
+            "ERROR_BG": "#461616",
+            "SURFACE_SUNKEN": "#0E0E0E",
+            "ACCENT_DISABLED": "#272445",
+            "ACCENT_TRACK": "#362F6C",
+            "DOT_OK": "#5FA855",
+            "DOT_WARNING": "#C4A048",
+            "DOT_ERROR": "#C45E5E",
+            "PATH_COMMON": "#C56CF0",
+            "PATH_SEPARATOR": "#5A5A5E",
+            "MARK_BG": "#4E3F0E",
         },
     },
     {
@@ -663,7 +678,7 @@ THEMES = (
 # aca seria decidir por ellas sin que ninguna se entere.
 #
 # Una tool que quiere otro aspecto lo pide: `UI = theme("lga")`. El Media
-# Manager usa "lga", que son los colores exactos de las apps Qt/C++ de LGA.
+# Manager deja elegir el tema al usuario y arranca tambien en "pack".
 BASE_THEME = "pack"
 
 
@@ -789,16 +804,26 @@ QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
     )
 
     # --- botones -----------------------------------------------------------
+    # Los dos botones de accion van en SemiBold (600) y no en bold. El pack
+    # carga Inter en tres pesos -400, 600 y 700- y `font-weight: bold` pide el
+    # 700, que es el peso del titulo de una ventana. Al lado de una fila de
+    # controles en 400 el boton quedaba dos escalones mas pesado que todo lo
+    # demas; el rediseno usa 600 en todo lo enfatizado (barra, cabeceras de
+    # tabla, pastillas) y estos dos eran la unica excepcion.
+    #
+    # El texto va en TEXT_STRONG y no en TEXT: son la accion de la ventana, y
+    # en el gris de cuerpo se leian mas apagados que las etiquetas de al lado.
+
     # El boton de accion. Es el unico violeta de la ventana: si hay dos, el
     # usuario no sabe cual ejecuta Enter.
     Style.BTN_PRIMARY = """
 QPushButton {
     background-color: %(accent)s;
     border: none;
-    color: %(text_strong)s;
+    color: %(on_accent)s;
     padding: 7px 18px;
     border-radius: %(radius)dpx;
-    font-weight: bold;
+    font-weight: 600;
 }
 QPushButton:hover { background-color: %(accent_hover)s; color: %(on_accent)s; }
 QPushButton:disabled { background-color: %(accent_dis)s; color: %(text_dim)s; }
@@ -807,7 +832,6 @@ QPushButton:disabled { background-color: %(accent_dis)s; color: %(text_dim)s; }
         "accent_hover": Color.ACCENT_HOVER,
         "accent_dis": Color.ACCENT_DISABLED,
         "on_accent": Color.TEXT_ON_ACCENT,
-        "text_strong": Color.TEXT_STRONG,
         "text_dim": Color.TEXT_DIM,
         "radius": Metric.RADIUS,
     }
@@ -818,19 +842,20 @@ QPushButton:disabled { background-color: %(accent_dis)s; color: %(text_dim)s; }
 QPushButton {
     background-color: %(raised)s;
     border: 1px solid %(border)s;
-    color: %(text)s;
+    color: %(text_strong)s;
     padding: 7px 18px;
     border-radius: %(radius)dpx;
-    font-weight: bold;
+    font-weight: 600;
 }
-QPushButton:hover { background-color: %(hover)s; color: %(text_strong)s; }
+QPushButton:hover { background-color: %(hover)s; border-color: %(border_hover)s;
+                    color: %(text_strong)s; }
 QPushButton:disabled { background-color: %(surface)s; color: %(text_dim)s; }
 """ % {
         "raised": Color.SURFACE_RAISED,
         "surface": Color.SURFACE,
         "hover": Color.SURFACE_HOVER,
         "border": Color.BORDER_STRONG,
-        "text": Color.TEXT,
+        "border_hover": Color.BORDER_HOVER,
         "text_strong": Color.TEXT_STRONG,
         "text_dim": Color.TEXT_DIM,
         "radius": Metric.RADIUS,

@@ -1,9 +1,22 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.27 | Lega
+  LGA_MediaManager_settings v2.28 | Lega
   Ventana de ajustes del Media Manager
 
+  v2.28: El tema se guarda solo al elegirlo, y escribe sobre lo
+         GUARDADO: las locations, el shot y el tamano de letra a medio
+         editar no se cuelan por ese atajo. Cancel y Save arrancan
+         apagados y se encienden juntos cuando hay algo que descartar
+         o que guardar, contra el estado con el que abrio la ventana.
+         El campo de ruta avisa por tecla para eso, aunque siga
+         resolviendo contra disco recien al soltarlo: sin ese aviso,
+         escribir una ruta y hacer click directo en Save no guardaba
+         nada, porque un boton deshabilitado no acepta el click ni
+         mueve el foco y editingFinished no llegaba a dispararse.
+         Cancel y Save llevan su propio espaciado: el default del
+         layout lo pone el host y en macOS es 0, asi que salian
+         pegados.
   v2.27: Se rehace contra el esquema nuevo del .ini. El destino de
          Copy to y la carpeta a escanear pasan a ser la misma cosa
          -una location- asi que hay una sola tabla, con Scan y Copy
@@ -50,6 +63,7 @@ from LGA_MediaManager_config import (
     DEFAULT_SHOT,
     format_ini,
     get_write_path,
+    save_settings,
     write_ini,
 )
 from LGA_MediaManager_logging import debug_print
@@ -116,6 +130,11 @@ KEY_FONT = 12
 THEME_BUTTON_HEIGHT = 34
 THEME_BUTTON_PADDING = 14
 THEME_BUTTON_FONT = 12
+
+# El aire entre Cancel y Save, el mismo del prototipo. Va explicito porque el
+# espaciado por default de un QHBoxLayout lo pone el estilo del host y en macOS
+# es 0: los dos botones salian pegados.
+FOOTER_BUTTON_GAP = 12
 
 # La linea que marca donde cae la fila que se esta arrastrando.
 DROP_LINE_WIDTH = 2
@@ -355,6 +374,10 @@ class LocationRow(QFrame):
     """
 
     changed = Signal()
+    # Cualquier tecla, sin recalcular nada. Lo escucha solo el estado de
+    # Cancel y Save: el resto de la fila se recalcula recien al soltar el
+    # campo, que es lo que evita tocar disco por tecla.
+    edited = Signal()
     path_changed = Signal(object)
     remove_requested = Signal(object)
     drag_started = Signal(object)
@@ -464,6 +487,12 @@ class LocationRow(QFrame):
         # IO, y recalcular las inclusiones en cada tecla ademas redibuja la
         # fila mientras se escribe y el foco salta.
         self.path_edit.editingFinished.connect(lambda: self.path_changed.emit(self))
+        # El aviso liviano SI va por tecla. Sin el, escribir una ruta y hacer
+        # click directo en Save no guardaba nada: Save estaba deshabilitado, un
+        # widget deshabilitado no acepta el click ni el foco, asi que
+        # editingFinished no llegaba a dispararse nunca y el boton no se
+        # encendia.
+        self.path_edit.textChanged.connect(lambda _t: self.edited.emit())
         _add_column(layout, self.path_edit, COL_PATH)
 
         # --- a que resuelve -------------------------------------------------
@@ -948,6 +977,11 @@ class SettingsWindow(QWidget):
 
         self._build()
         self._load_rows()
+        # El punto de comparacion de Cancel y Save. Se toma de las filas recien
+        # cargadas y no del .ini: asi los dos lados de la comparacion salen del
+        # mismo lugar y una normalizacion que la lectura haga -una ruta sin
+        # espacios, un atajo en mayuscula- no cuenta como un cambio del usuario.
+        self._baseline = self._editable_state()
         self.apply_appearance()
         self.refresh()
 
@@ -1138,6 +1172,11 @@ class SettingsWindow(QWidget):
         raiz.addSpacing(16)
 
         pie = QHBoxLayout()
+        # Los dos botones de accion van separados, no pegados: sin espaciado
+        # propio el layout usa el del host -que en macOS es 0- y Cancel y Save
+        # quedaban compartiendo el borde, leyendose como un solo control
+        # partido al medio. El stretch de antes se come el resto.
+        pie.setSpacing(FOOTER_BUTTON_GAP)
         version = get_tool_version()
         self.version_label = QLabel(
             "Media Manager v%s  ·  Developed by Lega" % version
@@ -1184,6 +1223,7 @@ class SettingsWindow(QWidget):
         shot = dict(self.settings.get("shot") or DEFAULT_SHOT)
         self.shot_row = LocationRow(shot, shot=True, parent=self.rows_host)
         self.shot_row.changed.connect(self.refresh)
+        self.shot_row.edited.connect(self._update_actions_enabled)
         self.shot_row.path_changed.connect(self._path_edited)
         self.rows_layout.insertWidget(0, self.shot_row)
 
@@ -1193,6 +1233,7 @@ class SettingsWindow(QWidget):
     def _add_row(self, location):
         fila = LocationRow(location, shot=False, parent=self.rows_host)
         fila.changed.connect(self.refresh)
+        fila.edited.connect(self._update_actions_enabled)
         fila.path_changed.connect(self._path_edited)
         fila.remove_requested.connect(self._remove_row)
         fila.drag_started.connect(self._drag_started)
@@ -1291,10 +1332,48 @@ class SettingsWindow(QWidget):
             UIStyle.Metric.TABLE_FONT_SIZE
 
     def _pick_theme(self, theme_id):
+        if theme_id == self.appearance.get("theme"):
+            return
         self.appearance["theme"] = theme_id
         self.UI = UIStyle.theme(theme_id)
         self.apply_appearance()
         self.appearance_previewed.emit(dict(self.appearance))
+        self._persist_theme(theme_id)
+
+    def _persist_theme(self, theme_id):
+        """
+        Guarda el tema SOLO, apenas se lo elige.
+
+        El tema se aplica en vivo sobre las dos ventanas, asi que pedir Save
+        despues de haberlo visto puesto no significa nada: lo que se ve ya es
+        el resultado. Es la unica preferencia que se guarda sola.
+
+        Lo que se escribe es lo GUARDADO con el tema nuevo encima, nunca lo que
+        hay en pantalla: las locations, el shot y el tamano de letra siguen
+        necesitando Save, y este atajo no puede colarlos a medio editar.
+        """
+        if self.load_error:
+            # Lo que hay en memoria son los valores de fabrica y no la
+            # configuracion del usuario: escribirla la destruiria. Eso solo
+            # pasa desde Save, que lo pregunta.
+            debug_print("Tema no guardado: el .ini no se pudo leer")
+            return
+        guardado = {
+            "shot": dict(self.settings.get("shot") or DEFAULT_SHOT),
+            "locations": [dict(l) for l in (self.settings.get("locations") or ())],
+            # El tamano de letra sale del GUARDADO y no de self.appearance, que
+            # trae el que se esta previsualizando.
+            "appearance": dict(self.saved_appearance, theme=theme_id),
+        }
+        ok, ruta = save_settings(guardado)
+        if not ok:
+            debug_print("No se pudo guardar el tema en %s" % (ruta or "ningun lado"))
+            return
+        self.settings["appearance"] = dict(guardado["appearance"])
+        # Sin esto closeEvent ve una apariencia distinta de la guardada y le
+        # devuelve a la ventana principal el tema viejo al cerrar.
+        self.saved_appearance["theme"] = theme_id
+        debug_print("Tema %s guardado en %s" % (theme_id, ruta))
 
     def _pick_font_size(self, valor):
         self.appearance["table_font_size"] = valor
@@ -1304,6 +1383,11 @@ class SettingsWindow(QWidget):
         self._fit_table()
         self.adjustSize()
         self.appearance_previewed.emit(dict(self.appearance))
+        # A diferencia del tema, el tamano de letra SI necesita Save: cambia
+        # el alto de cada fila de la tabla principal, o sea cuanto entra en
+        # pantalla, y eso no es una preferencia que convenga dejar puesta de
+        # rebote por haberla probado.
+        self._update_actions_enabled()
 
     def apply_appearance(self):
         """Repinta la ventana entera con el tema y el tamano elegidos."""
@@ -1509,7 +1593,44 @@ class SettingsWindow(QWidget):
         """Recalcula inclusiones y validacion, y pide resolver contra disco."""
         self._update_inheritance()
         self._update_field_errors()
+        self._update_actions_enabled()
         self._resolve_timer.start()
+
+    # --------------------------------------------------------- cambios sin guardar --
+    def _editable_state(self):
+        """
+        Todo lo que Cancel descarta y Save escribe, en una forma comparable.
+
+        El TEMA no entra: se guarda solo al elegirlo, asi que no es ni algo que
+        Save tenga que escribir ni algo que Cancel tenga que devolver.
+
+        Las filas van SIN filtrar las que estan a medias. Al guardar se
+        descartan, pero una fila recien agregada es un cambio en pantalla que
+        Cancel si descarta, y con la lista filtrada el boton quedaba apagado
+        justo cuando habia algo para cancelar.
+        """
+        return {
+            "shot": self.shot_row.to_dict(),
+            "locations": [fila.to_dict() for fila in self.rows],
+            "font_size": self.font_size(),
+        }
+
+    def _is_dirty(self):
+        return self._editable_state() != self._baseline
+
+    def _update_actions_enabled(self):
+        """
+        Cancel y Save se encienden juntos, y solo si hay algo que hacer.
+
+        Es un solo estado porque son la misma pregunta vista de los dos lados:
+        si nada cambio desde que se abrio la ventana, Save escribiria el
+        archivo identico y Cancel no tendria nada que descartar. Un boton
+        habilitado que no hace nada miente, que es la misma regla que ya sigue
+        la barra de la ventana principal.
+        """
+        activos = self._is_dirty()
+        self.cancel_button.setEnabled(activos)
+        self.save_button.setEnabled(activos)
 
     def _update_field_errors(self):
         """Marca en rojo los campos repetidos o con un atajo que no sirve."""
@@ -1701,6 +1822,15 @@ class SettingsWindow(QWidget):
 
         debug_print("Configuracion guardada en %s" % ruta)
         self.saved_appearance = dict(self.appearance)
+        # Lo guardado pasa a ser el punto de comparacion, asi que Cancel y Save
+        # se vuelven a apagar. La ventana se cierra a continuacion, pero el
+        # estado no puede quedar mintiendo mientras tanto: _persist_theme
+        # escribe sobre self.settings y tiene que ver lo que hay en disco.
+        self.settings["shot"] = dict(datos["shot"])
+        self.settings["locations"] = [dict(l) for l in datos["locations"]]
+        self.settings["appearance"] = dict(datos["appearance"])
+        self._baseline = self._editable_state()
+        self._update_actions_enabled()
         self.settings_saved.emit()
         self.close()
 

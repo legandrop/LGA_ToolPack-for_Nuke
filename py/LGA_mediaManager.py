@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.27 | Lega
+  LGA_mediaManager v2.28 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -12,6 +12,7 @@ _______________________________________________________________________
     LGA_MediaManager_utils.py        workers de escaneo, copia y borrado
     LGA_MediaManager_settings.py     ventana de ajustes
     LGA_MediaManager_config.py       donde vive el .ini del usuario
+    LGA_MediaManager_paths.py        resolucion de rutas e inclusiones
     LGA_MediaManager_logging.py      logger a logs/LGA_mediaManager.log
 
   Version visible en la UI: la muestra la ventana de ajustes, abajo a
@@ -19,6 +20,13 @@ _______________________________________________________________________
   LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
   mano en la interfaz.
 
+  v2.28: El tema de fabrica pasa a ser el del pack, que es el que ya
+         usan las demas ventanas migradas. Se elige y se guarda solo:
+         se aplica en vivo sobre las dos ventanas, asi que pedir Save
+         despues de haberlo visto puesto no decia nada. El tamano de
+         letra sigue necesitando Save -cambia el alto de las filas, o
+         sea cuanto entra en pantalla- y Cancel y Save se apagan
+         mientras no haya nada que guardar ni que descartar.
   v2.25: Las versiones de los seis modulos quedan sincronizadas. El
          .ini pasa a la carpeta de datos del usuario y la busqueda del
          relink sale del hilo principal.

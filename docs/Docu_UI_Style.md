@@ -78,8 +78,8 @@ otros dos y un pack terminaría usando el estilo de otro sin que nada avise.
 ## Temas (sólo en este repo, desde `v1.11`)
 
 La paleta dejó de ser un juego de constantes y pasó a ser un **tema que cada
-tool elige**. Hay seis: `lga`, `pack`, `graphite`, `slate`, `nuke` y
-`high-contrast`.
+tool elige**. Hay seis: `pack`, `lga`, `graphite`, `slate`, `nuke` y
+`high-contrast`, en ese orden.
 
 ```python
 from LGA_UI_Style_ToolPack import Style, Color   # el tema BASE, "pack"
@@ -96,6 +96,10 @@ label.setStyleSheet("color: %s;" % UI.Color.TEXT)
 - **Se referencian por `id` y nunca por índice**, ni acá ni en el `.ini` de una
   tool: agregar uno en el medio de la lista no puede cambiar cuál es el default
   ni qué tema tiene guardado el usuario.
+- **El orden de `THEMES` es sólo para la UI**: es el orden en que una ventana
+  de ajustes dibuja la tira de botones. `pack` va primero porque es el base, y
+  el de más a la izquierda tiene que ser el default. Que sea el primero no es
+  lo que lo hace default —eso lo dice `BASE_THEME`, por id—.
 - **Sin estado global.** Cada tema es su propio par de objetos, así que dos
   ventanas con temas distintos pueden estar abiertas a la vez. Las hojas ya no
   se arman en el cuerpo de la clase —una sola vez al importar— sino en

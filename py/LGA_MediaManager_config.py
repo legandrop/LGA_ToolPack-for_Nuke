@@ -1,9 +1,12 @@
 """
 _______________________________________
 
-  LGA_MediaManager_config v2.27 | Lega
+  LGA_MediaManager_config v2.28 | Lega
   Donde vive la configuracion del Media Manager, y que tiene adentro
 
+  v2.28: El tema de fabrica pasa de "lga" a "pack": la herramienta
+         abre por primera vez con el aspecto del resto del ToolPack y
+         desde ahi el usuario elige. El .ini semilla va igual.
   v2.26: Suma el esquema de la configuracion, que antes estaba
          repartido entre la ventana de ajustes y el FileScanner.
          El .ini pasa a tener [ShotFolder], [Locations] y
@@ -192,7 +195,11 @@ DEFAULT_LOCATIONS = (
 # razon de ser de Copy to. Reemplaza al project_folder_depth.
 DEFAULT_SHOT = {"enabled": True, "path": "../.."}
 
-DEFAULT_APPEARANCE = {"theme": "lga", "table_font_size": 13}
+# El tema de fabrica es el del pack, el mismo que reciben las demas ventanas
+# migradas: la herramienta abre por primera vez con el aspecto del resto del
+# ToolPack y desde ahi el usuario elige. Es tambien el primero de la tira de
+# botones de la ventana de ajustes.
+DEFAULT_APPEARANCE = {"theme": "pack", "table_font_size": 13}
 
 FONT_SIZE_MIN = 9
 FONT_SIZE_MAX = 20
