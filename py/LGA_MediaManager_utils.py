@@ -1,11 +1,15 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.26 | Lega
+  LGA_MediaManager_utils v2.27 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.27: tinted_icon() para los SVG de trazo, que QIcon dibujaria
+         negros, y PathResolveWorker, que resuelve las rutas de la
+         ventana de ajustes fuera del hilo principal. El escaneo
+         recorre varias carpetas y no una sola.
   v2.25: RelinkSearchWorker, para que el os.walk del relink no
          corra en el hilo principal.
 
@@ -49,6 +53,8 @@ QPalette = QtGui.QPalette
 QMovie = QtGui.QMovie
 QScreen = QtGui.QScreen
 QIcon = QtGui.QIcon
+QPixmap = QtGui.QPixmap
+QByteArray = QtCore.QByteArray
 Qt = QtCore.Qt
 QTimer = QtCore.QTimer
 QThread = QtCore.QThread
@@ -113,6 +119,102 @@ def normalize_path_for_comparison(file_path):
     normalized = normalized.lower()
 
     return normalized
+
+
+# ---------------------------------------------------------------------------
+#                        Iconos de trazo, teñidos
+# ---------------------------------------------------------------------------
+# Los SVG de Lucide vienen con stroke="currentColor", que en Qt no hereda nada:
+# QIcon los dibujaria negros. Se reemplaza el token por el hex antes de armar
+# el icono, asi el mismo archivo sirve para el estado normal y el hover en vez
+# de tener que guardar una copia por color.
+_ICONS_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "icons")
+_icon_cache = {}
+
+
+def tinted_icon(name, color, size=24):
+    """
+    Un icono de py/icons/lucide-<name>.svg pintado del color pedido.
+
+    Devuelve un QIcon vacio si el archivo no esta: un icono que falta deja el
+    boton sin dibujo, que es feo, pero no tiene que voltear la ventana.
+    """
+    clave = (name, color, size)
+    if clave in _icon_cache:
+        return _icon_cache[clave]
+
+    icono = QIcon()
+    ruta = os.path.join(_ICONS_DIR, "lucide-%s.svg" % name)
+    try:
+        with open(ruta, "r", encoding="utf-8") as handle:
+            svg = handle.read()
+        svg = svg.replace("currentColor", color)
+        pixmap = QPixmap()
+        # El QByteArray evita tener que escribir un archivo por color.
+        if pixmap.loadFromData(QByteArray(svg.encode("utf-8")), "SVG"):
+            if size and pixmap.width() != size:
+                pixmap = pixmap.scaled(
+                    size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
+            icono = QIcon(pixmap)
+        else:
+            # Sin el plugin de SVG el tenido no se puede hacer, pero el icono
+            # de trazo negro es mejor que ningun icono.
+            icono = QIcon(ruta)
+    except (OSError, ValueError):
+        pass
+
+    _icon_cache[clave] = icono
+    return icono
+
+
+class PathResolveSignals(QObject):
+    """El resultado de resolver rutas, de vuelta en el hilo principal."""
+
+    # {clave de fila: Resolution}. Se manda el juego entero y no fila por
+    # fila para que la ventana repinte una sola vez.
+    resolved = Signal(object)
+
+
+class PathResolveWorker(QRunnable):
+    """
+    Resuelve contra disco las rutas de la ventana de ajustes.
+
+    Va en un worker porque un comodin contra un servidor tarda: resolverlo en
+    el hilo principal cuelga la ventana entera mientras se escribe.
+    """
+
+    def __init__(self, pedidos, nk_dir):
+        super().__init__()
+        # pedidos: [(clave, ruta), ...]. La clave la pone quien llama para
+        # poder devolverle cada resultado a su fila aunque el orden cambie.
+        self.pedidos = list(pedidos)
+        self.nk_dir = nk_dir
+        self.signals = PathResolveSignals()
+        self._cancelado = False
+        # Sin esto Qt destruye el objeto C++ apenas run() termina, y el
+        # cancel() que la ventana hace al cerrarse tira RuntimeError sobre un
+        # objeto que ya no existe.
+        self.setAutoDelete(False)
+
+    def cancel(self):
+        """Deja de servir: el resultado ya no le interesa a nadie."""
+        self._cancelado = True
+
+    def run(self):
+        import LGA_MediaManager_paths as paths
+
+        resultados = {}
+        for clave, ruta in self.pedidos:
+            if self._cancelado:
+                return
+            try:
+                resultados[clave] = paths.resolve(ruta, self.nk_dir)
+            except Exception as problema:  # el disco puede fallar de mil formas
+                debug_print("resolve fallo en %s: %s" % (ruta, problema))
+                resultados[clave] = paths.Resolution(paths.EMPTY)
+        if not self._cancelado:
+            self.signals.resolved.emit(resultados)
 
 
 # Agrega el directorio send2trash a sys.path
@@ -721,9 +823,31 @@ class ScannerWorker(QRunnable):
             # Cambiar self.items_log.append por self.logger.debug
             self.logger.debug(f"\n{self.get_timestamp()} Items en carpeta principal:")
 
-            root_items = os.listdir(self.file_scanner.project_folder)
-            for item in root_items:
-                item_path = os.path.join(self.file_scanner.project_folder, item)
+            # Ya no se escanea UNA carpeta sino las scan locations, que pueden
+            # ser varias: cada una entra a la cuenta del progreso y despues a
+            # find_files. Si no hay ninguna se cae a la del shot, para que un
+            # .ini sin locations no deje la ventana vacia.
+            # La resolucion contra disco se hace ACA y no en el hilo
+            # principal: es un os.scandir por nivel y por rama de cada
+            # comodin, y contra un servidor eso cuelga la ventana entera.
+            self.file_scanner.resolve_shot_folder()
+            carpetas = list(self.file_scanner.resolve_scan_folders() or [])
+            if not carpetas:
+                # Sin ninguna location con Scan no habria nada que mostrar:
+                # se cae a la carpeta del shot para no abrir la ventana vacia.
+                carpetas = [self.file_scanner.project_folder]
+
+            root_items = []
+            for carpeta in carpetas:
+                try:
+                    for nombre in os.listdir(carpeta):
+                        root_items.append((carpeta, nombre))
+                except OSError:
+                    self.logger.debug(
+                        f"{self.get_timestamp()}   (No se pudo leer {carpeta})"
+                    )
+            for carpeta, item in root_items:
+                item_path = os.path.join(carpeta, item)
                 if os.path.isfile(item_path):
                     total_items += 1
                     self.logger.debug(f"{self.get_timestamp()}   Archivo: {item}")
@@ -796,8 +920,8 @@ class ScannerWorker(QRunnable):
             )
             processed_items = 0  # Reiniciar contador para la primera fase
 
-            for item in root_items:
-                item_path = os.path.join(self.file_scanner.project_folder, item)
+            for carpeta, item in root_items:
+                item_path = os.path.join(carpeta, item)
                 if os.path.isdir(item_path):
                     try:
                         subdir_items = os.listdir(item_path)
@@ -812,7 +936,9 @@ class ScannerWorker(QRunnable):
 
             # Marcar inicio de find_files
             find_files_start = time.time()
-            files_data = self.find_files(self.file_scanner.project_folder)
+            files_data = []
+            for carpeta in carpetas:
+                files_data.extend(self.find_files(carpeta))
             find_files_time = time.time() - find_files_start
 
             # Segunda fase

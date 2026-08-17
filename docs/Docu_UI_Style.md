@@ -1,8 +1,14 @@
 # Estilo de las ventanas — cómo se hace una UI de las tools
 
 Fuente de verdad de **cómo se ve** una ventana de las tools de LGA. El módulo es
-`py/LGA_UI_Style_ToolPack.py` y existe una copia idéntica en cada uno de los
-otros tres repos.
+`py/LGA_UI_Style_ToolPack.py` y existe una copia en cada uno de los otros tres
+repos.
+
+> **Las cuatro copias están divergidas hoy.** El módulo de este repo pasó a
+> temas en `v1.11` y los otros tres siguen en el cuerpo anterior. Todo lo que
+> este documento dice de los temas vale **sólo acá**; lo demás sigue valiendo
+> en los cuatro. Sincronizarlos es una decisión pendiente, no un olvido: ver
+> "Las cuatro copias".
 
 ## La regla
 
@@ -35,13 +41,21 @@ y de `Color Space Favs` estaba calculado con la barra de título clavada en 20 p
 | `LGA_ToolPack-Layout` | `py/LGA_UI_Style_ToolPack_Layout.py` |
 | HieroTools | `LGA_NKS_Shared/LGA_UI_Style_HieroTools.py` |
 
-**Son código idéntico a propósito.** Los cuatro repos son independientes y un
-usuario puede tener instalado uno solo, así que no pueden importarse entre sí.
-Lo único que difiere es el docstring: nombre del módulo, su propio historial de
-versiones y la ruta del ejemplo de import.
+**Nacieron código idéntico a propósito.** Los cuatro repos son independientes y
+un usuario puede tener instalado uno solo, así que no pueden importarse entre
+sí. Lo único que difería era el docstring: nombre del módulo, su propio
+historial de versiones y la ruta del ejemplo de import.
 
-**Si se cambia un valor, se cambia en las cuatro.** Verificarlo comparando el
-cuerpo a partir de la línea del `class Color`:
+**Hoy no lo son.** El de este repo está en `v1.12` con los seis temas y los
+otros tres quedaron en el cuerpo de antes, que es la mitad de largo. La regla
+de "se cambia en las cuatro" sigue siendo la que se quiere, pero aplicarla
+ahora significa portar los temas a los otros tres repos y revisar sus ventanas
+una por una, que es un trabajo aparte y no una copia de archivo. Mientras
+tanto: un valor que se toque en el cuerpo COMÚN se toca igual en las cuatro; lo
+que es propio de los temas vive sólo acá.
+
+**Cómo verificarlo**, comparando el cuerpo a partir de la línea del
+`class Color`:
 
 ```bash
 python - <<'EOF'
@@ -61,6 +75,48 @@ Los nombres de módulo son distintos justamente porque los tres `py/` conviven e
 el path de Nuke: con el mismo nombre, el primero de la lista le ganaría a los
 otros dos y un pack terminaría usando el estilo de otro sin que nada avise.
 
+## Temas (sólo en este repo, desde `v1.11`)
+
+La paleta dejó de ser un juego de constantes y pasó a ser un **tema que cada
+tool elige**. Hay seis: `lga`, `pack`, `graphite`, `slate`, `nuke` y
+`high-contrast`.
+
+```python
+from LGA_UI_Style_ToolPack import Style, Color   # el tema BASE, "pack"
+from LGA_UI_Style_ToolPack import theme
+
+UI = theme("lga")                                # otro tema
+ventana.setStyleSheet(UI.Style.WINDOW)
+label.setStyleSheet("color: %s;" % UI.Color.TEXT)
+```
+
+- **El tema base es `pack`, o sea lo que había siempre.** Una tool que hace
+  `from ... import Style, Color` recibe exactamente lo mismo de antes: las
+  ventanas ya migradas no cambiaron ni de aspecto ni de código.
+- **Se referencian por `id` y nunca por índice**, ni acá ni en el `.ini` de una
+  tool: agregar uno en el medio de la lista no puede cambiar cuál es el default
+  ni qué tema tiene guardado el usuario.
+- **Sin estado global.** Cada tema es su propio par de objetos, así que dos
+  ventanas con temas distintos pueden estar abiertas a la vez. Las hojas ya no
+  se arman en el cuerpo de la clase —una sola vez al importar— sino en
+  `_build_styles()`, que recibe la paleta.
+- **Los seis definen exactamente los mismos tokens.** `Theme()` lo valida y
+  explota si a uno le falta o le sobra una clave, en vez de dejar un color
+  viejo pegado de la paleta anterior.
+
+**Algunos tokens no se escriben a mano en cada tema: se derivan.** Los escribe
+`_derivados()` mezclando otros dos, para que un tema nuevo no obligue a
+calcular hexes a ojo. Son el fondo de una celda de estado en la fila
+seleccionada (`OK_BG_SELECTED` y sus dos hermanos, mezclados contra el gris de
+selección) y los cinco de `Outside`, que se mezclan contra el fondo de **ese**
+tema.
+
+**Fuentes del pack.** `load_fonts()` registra Inter y JetBrains Mono desde
+`py/fonts/`, y `font_family()` / `mono_family()` devuelven el nombre real de la
+familia. Si no cargan se usa la del host. La mono es sólo para un campo de ruta
+editable: ahí las rutas son relativas y con una proporcional los `../` no se
+distinguen, el punto y la barra se pegan.
+
 ## Qué usar en cada caso
 
 | Situación | Qué usar |
@@ -77,6 +133,10 @@ otros dos y un pack terminaría usando el estilo de otro sin que nada avise.
 | Área scrolleable que no es tabla ni form | `SCROLLBAR` (concatenado a lo tuyo) |
 | Barra de progreso | `Style.PROGRESS` |
 | Pastilla de estado con texto encima | `Color.OK_BG` / `WARNING_BG` / `ERROR_BG` |
+| Lo mismo, en la fila seleccionada | `Color.OK_BG_SELECTED` / `WARNING_BG_SELECTED` / `ERROR_BG_SELECTED` |
+| Un archivo que está afuera del shot | `Color.OUTSIDE_BG` (y `_SELECTED`) |
+| Afuera de toda scan location, que es un dato y no un error | `Color.OUTSIDE_BG_INFO` (y `_SELECTED`) |
+| El punto de color de un estado | `Color.DOT_OK` / `DOT_WARNING` / `DOT_ERROR` / `DOT_OUTSIDE` / `DOT_OUTSIDE_INFO` |
 | Un path en un mensaje | `colorize_path()` |
 | Un origen y un destino | `colorize_path_pair()` |
 | Destacar en blanco una palabra | `emphasis()` |
@@ -182,3 +242,9 @@ confirmar que no llegue ningún `Could not parse stylesheet`.
 
 `py/LGA_UI_Style_ToolPack.py` y sus tres copias. Nada más. Cambiar un valor ahí
 lo cambia en todas las ventanas migradas a la vez — que es el punto.
+
+Con temas hay un lugar más donde no hay que tocar: **un token que cambia con el
+tema va en los seis dicts de `THEMES`, no en la clase `Color`.** Lo que se
+escribe en `Color` es el valor del tema base y, para los derivados, lo que
+`_derivados()` va a sobreescribir; dejarlo ahí y no en los temas hace que un
+tema lo herede sin poder cambiarlo.

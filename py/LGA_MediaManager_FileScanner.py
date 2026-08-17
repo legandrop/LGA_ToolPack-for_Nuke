@@ -1,10 +1,19 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.26 | Lega
+  LGA_MediaManager_FileScanner v2.27 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.27: Deja de leer el .ini a mano y de derivar la carpeta del
+         shot subiendo N niveles: la configuracion la normaliza
+         LGA_MediaManager_config y el shot es una ruta explicita.
+         Lo que se escanea son las scan locations resueltas contra
+         disco, sin repetidas ni anidadas. El atajo del menu Copy
+         to sale del campo shortcut y no del '&' del nombre, y el
+         destino de la copia sale de la ruta de la location: si el
+         comodin abre cero o varias carpetas no se copia, porque
+         elegir una seria adivinar.
   v2.25: La busqueda del relink corre en un worker y el menu Copy to
          se rehace al guardar los ajustes. La config sale del .ini del
          usuario. La clave del depth es la que la ventana de ajustes
@@ -79,6 +88,24 @@ QThreadPool = QtCore.QThreadPool
 
 from LGA_MediaManager_logging import configure_logger, debug_print
 from LGA_UI_Style_ToolPack import Color, Metric, Style
+import LGA_UI_Style_ToolPack as UIStyle
+
+
+def _is_inside(hijo, padre):
+    """Si `hijo` esta adentro de `padre`. Sin distinguir mayusculas."""
+    a = os.path.normcase(os.path.normpath(hijo))
+    b = os.path.normcase(os.path.normpath(padre))
+    if a == b:
+        return False
+    try:
+        # commonpath y no startswith: comparando texto, "shot_010" caia
+        # adentro de "shot_01".
+        return os.path.commonpath([a, b]) == b
+    except ValueError:
+        # Unidades distintas: no hay ancestro comun posible.
+        return False
+import LGA_MediaManager_config as mm_config
+import LGA_MediaManager_paths as mm_paths
 from LGA_MediaManager_config import get_read_path
 
 try:
@@ -173,6 +200,27 @@ class FileScanner(QWidget):
         self.relink_worker = None
         self.relink_loading_window = None
         self.load_settings()  # Cargar settings del archivo .ini
+        # El tema y el tamano de letra salen del .ini, asi que se resuelven
+        # ANTES de armar la UI: la hoja de la tabla los usa al construirse.
+        self.UI = UIStyle.theme(self.appearance.get("theme"))
+        self.font_size = max(
+            UIStyle.Metric.TABLE_FONT_SIZE_MIN,
+            min(UIStyle.Metric.TABLE_FONT_SIZE_MAX,
+                int(self.appearance.get("table_font_size", DEFAULT_FONT_SIZE))),
+        )
+        self.scan_folders = []
+        # Un valor de arranque para project_folder: lo definitivo lo escribe
+        # resolve_shot_folder() adentro del worker, pero hasta entonces hay
+        # codigo que lo lee y no puede encontrarse sin el atributo.
+        self.project_folder = self.nk_dir()
+        if self.settings.get("load_error"):
+            # Con el .ini ilegible lo que se cargo son los defaults y no la
+            # configuracion del usuario. Se avisa aca y no se toca el archivo:
+            # el guardado lo hace la ventana de ajustes, que vuelve a
+            # preguntar antes de pisarlo.
+            debug_print(
+                "No se pudo leer la configuracion: %s" % self.settings["load_error"]
+            )
 
         # Crear el scanner_worker después de que los atributos estén inicializados
         self.scanner_worker = ScannerWorker(self)
@@ -372,17 +420,7 @@ class FileScanner(QWidget):
         # la paleta del delegado, y la columna Status pierde su color justo cuando
         # esta seleccionada. Del color de la seleccion se encarga
         # TransparentTextDelegate, que sabe que celdas tienen color propio.
-        self.table.setStyleSheet(
-            f"""
-            QTableWidget {{
-                background-color: {Color.SURFACE};
-                font-size: {self.font_size}px;
-            }}
-            QTableWidget::item:selected {{
-                background-color: transparent;
-            }}
-        """
-        )
+        self.apply_table_stylesheet()
 
         # Aplicar el delegado a cada columna
         delegate = TransparentTextDelegate(self.table)
@@ -392,6 +430,43 @@ class FileScanner(QWidget):
         self.setLayout(self.layout)
         self.scan_project()
         self.adjust_window_size()
+
+    def apply_table_stylesheet(self):
+        """
+        La hoja de la tabla, que depende del tamano de letra elegido.
+
+        Sale a un metodo propio porque el tamano ahora se cambia desde los
+        ajustes con la ventana abierta: si quedara escrita en el armado, la
+        unica forma de aplicar un tamano nuevo seria reabrir la herramienta.
+        """
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        self.table.setStyleSheet(
+            "QTableWidget { background-color: %s; font-size: %dpx; }"
+            # La seleccion se deja transparente a proposito: si la hoja define
+            # un background para 'item:selected' le gana al setBackground() del
+            # item y a la paleta del delegado, y la columna Status pierde su
+            # color justo cuando esta seleccionada. De eso se encarga
+            # TransparentTextDelegate, que sabe que celdas tienen color propio.
+            "QTableWidget::item:selected { background-color: transparent; }"
+            % (UI.Color.SURFACE, self.font_size)
+        )
+
+    def update_table_font_size(self, tamano):
+        """
+        Cambia la letra de la tabla y, con ella, el alto de fila.
+
+        El alto se DERIVA del tamano y no es una constante: sin eso, subir la
+        letra la corta contra el borde de la fila.
+        """
+        self.font_size = tamano
+        self.apply_table_stylesheet()
+        self.table.verticalHeader().setDefaultSectionSize(tamano + 22)
+        # Los paths se dibujan en un QLabel por celda con su propio font-size,
+        # asi que la hoja de la tabla no los alcanza: hay que rehacerlos.
+        try:
+            self.change_footage_text_color(True)
+        except Exception as problema:
+            debug_print("No se pudo repintar los paths: %s" % problema)
 
     def populate_copy_menu(self):
         """
@@ -403,18 +478,17 @@ class FileScanner(QWidget):
         el usuario acababa de sacar.
         """
         self.copy_menu.clear()
-        for button_text, subdirectory in self.copy_options:
-            action = QAction(button_text, self)
-
-            # La letra despues del '&' queda como atajo
-            if "&" in button_text:
-                ampersand_index = button_text.index("&")
-                if ampersand_index < len(button_text) - 1:
-                    shortcut_letter = button_text[ampersand_index + 1].upper()
-                    action.setShortcut(f"Alt+{shortcut_letter}")
-
+        for location in self.copy_options:
+            # El nombre va limpio: el atajo dejo de estar embebido con un '&'
+            # y sale de su propio campo. Un '&' que quedo en un nombre viejo
+            # se escapa para que Qt lo dibuje y no se lo coma como mnemonico.
+            action = QAction(location["name"].replace("&", "&&"), self)
+            letra = (location.get("shortcut") or "").strip().upper()
+            if letra:
+                # Qt dibuja solo el atajo a la derecha del item.
+                action.setShortcut(f"Alt+{letra}")
             action.triggered.connect(
-                lambda checked=False, subdir=subdirectory: self.copy_to(subdir)
+                lambda checked=False, loc=location: self.copy_to(loc)
             )
             self.copy_menu.addAction(action)
 
@@ -422,77 +496,124 @@ class FileScanner(QWidget):
         """Relee el .ini y refleja lo guardado sin tener que reabrir la tool."""
         self.load_settings()
         self.populate_copy_menu()
+        # El shot y las carpetas a escanear pueden haber cambiado: sin
+        # recalcularlos, el coloreo de paths y los estados OK/Outside se
+        # siguen midiendo contra la carpeta vieja hasta el proximo escaneo.
+        self.apply_appearance(self.appearance)
+        # El shot y las carpetas a escanear se recalculan adentro del worker
+        # del escaneo, para no bloquear la ventana mientras se guarda.
 
-        # La carpeta del shot depende del depth, asi que si cambio hay que
-        # recalcularla: si no, el coloreo de paths y los estados OK/Outside
-        # se siguen midiendo contra la carpeta vieja hasta el proximo escaneo.
+    def apply_appearance(self, appearance):
+        """
+        Aplica el tema y el tamano de letra sin reabrir la ventana.
+
+        La ventana de ajustes lo llama tambien MIENTRAS esta abierta, para que
+        el usuario vea el tema sobre la tabla de atras, y le manda el guardado
+        de vuelta si cancela.
+        """
+        self.appearance = dict(appearance or {})
+        self.UI = UIStyle.theme(self.appearance.get("theme"))
+        tamano = self.appearance.get(
+            "table_font_size", UIStyle.Metric.TABLE_FONT_SIZE
+        )
+        self.table_font_size = max(
+            UIStyle.Metric.TABLE_FONT_SIZE_MIN,
+            min(UIStyle.Metric.TABLE_FONT_SIZE_MAX, int(tamano)),
+        )
+        self.update_table_font_size(self.table_font_size)
+
+    def nk_dir(self):
+        """La carpeta del .nk abierto, contra la que se resuelve todo."""
         project_path = nuke.root().name()
-        if project_path:
-            project_folder = project_path
-            for _ in range(self.project_folder_depth):
-                project_folder = os.path.dirname(project_folder)
-            self.project_folder = project_folder
+        return os.path.dirname(project_path) if project_path else ""
 
     def load_settings(self):
-        config = configparser.ConfigParser()
-        # Manda el .ini de la carpeta de datos del usuario. El que viaja
-        # adentro del pack se usa solo mientras ese no exista, o sea hasta el
-        # primer guardado: el instalador reemplaza la carpeta del pack entera
-        # en cada actualizacion y ahi se perderia lo que el usuario configuro.
-        ini_path = get_read_path()
+        """
+        Toda la configuracion, leida por el modulo que la normaliza.
+
+        La lectura, la migracion del formato viejo y los defaults viven en
+        LGA_MediaManager_config: aca solo se traduce a lo que usa la ventana.
+        """
+        self.settings = mm_config.load_settings(theme_ids=UIStyle.theme_ids())
+        self.shot = dict(self.settings.get("shot") or mm_config.DEFAULT_SHOT)
+        self.locations = list(self.settings.get("locations") or ())
+        self.appearance = dict(
+            self.settings.get("appearance") or mm_config.DEFAULT_APPEARANCE
+        )
+        # El menu Copy to ya no es una lista aparte: son las locations que
+        # tienen la casilla prendida, en el orden de la tabla.
+        self.copy_options = mm_config.copy_destinations(self.locations)
         debug_print(
-            f"INI file path: {ini_path}"
-        )  # Linea de depuracion para imprimir la ruta del INI
+            "Config leida: %d locations, %d en Copy to, shot=%s"
+            % (len(self.locations), len(self.copy_options), self.shot.get("path"))
+        )
 
-        if os.path.exists(ini_path):
-            config.read(ini_path)
+    def resolve_shot_folder(self):
+        """
+        La carpeta del shot, que es el limite de lo que esta adentro.
 
-            # Cargar la configuracion de la profundidad del proyecto
-            if "LGA_mediaManagerSettings" in config:
-                self.project_folder_depth = config.getint(
-                    "LGA_mediaManagerSettings", "project_folder_depth", fallback=3
-                )
-            else:
-                self.project_folder_depth = 3
+        Reemplaza al viejo project_folder_depth: en vez de subir N niveles
+        desde el .nk, se resuelve la ruta explicita que el usuario configuro.
+        Con el shot apagado no hay adentro ni afuera y queda en "": el estado
+        Outside pasa a medirse contra las scan locations.
+        """
+        base = self.nk_dir()
+        if not base or not self.shot.get("enabled", True):
+            self.project_folder = "" if not base else base
+            return self.project_folder
+        resultado = mm_paths.resolve(self.shot.get("path") or "", base)
+        # Con un comodin que abre varias, la primera: el shot es uno solo, y
+        # una ruta de shot con comodin ya no es una ruta de shot.
+        self.project_folder = resultado.folders[0] if resultado.folders else base
+        return self.project_folder
 
-            # Cargar configuraciones de los botones de copia dinamicamente
-            self.copy_options = []
-            if "CopyOptions" in config:
-                for key in config["CopyOptions"]:
-                    if key.endswith("_button_text"):
-                        # Obtener el indice del boton (ej. "1", "2", etc.)
-                        index = key.split("_")[1]
-                        button_text = config["CopyOptions"].get(key).strip('"')
-                        subdirectory = (
-                            config["CopyOptions"]
-                            .get(f"copy_{index}_subdirectory")
-                            .strip('"')
-                        )
-                        self.copy_options.append((button_text, subdirectory))
-        else:
-            self.project_folder_depth = 3
-            self.copy_options = [
-                ("&Input", "_input"),
-                ("&Assets", "comp/0_assets"),
-                ("&Prerenders", "comp/2_prerenders"),
-            ]
-        debug_print(
-            f"Project folder depth loaded from INI: {self.project_folder_depth}"
-        )  # Linea de depuracion
+    def resolve_scan_folders(self):
+        """
+        Las carpetas reales a escanear, sin repetidas ni anidadas.
+
+        Deduplicar no es un lujo: dos locations pueden resolver a la misma
+        carpeta, y una que contiene a otra haria que las hijas se escaneen dos
+        veces. El escaneo es recursivo, asi que con la de mas arriba alcanza.
+        """
+        base = self.nk_dir()
+        carpetas = []
+
+        # La carpeta del shot NO se escanea por ser el shot: es el limite de
+        # lo que esta adentro, no una carpeta donde buscar. De donde se busca
+        # lo dice la tabla de locations, y si el usuario quiere el shot entero
+        # se agrega como location. Sumandolo aca, el dedup por anidamiento se
+        # comia todas las demas y siempre se escaneaba el shot completo.
+        explicitas = [l for l in self.locations if l.get("path")]
+        candidatas = [{"path": l.get("path", ""), "scan": bool(l.get("scan"))}
+                      for l in explicitas]
+        for i, location in enumerate(explicitas):
+            # El scan EFECTIVO: la propia casilla, o que otra location con
+            # scan la incluya.
+            efectivo = bool(location.get("scan")) or (
+                mm_paths.scanning_parent(candidatas, i, base) is not None
+            )
+            if efectivo:
+                carpetas.extend(mm_paths.resolve(location["path"], base).folders)
+
+        # Se saca la que ya vive adentro de otra de la lista.
+        unicas = []
+        vistas = set()
+        for carpeta in carpetas:
+            clave = os.path.normcase(os.path.normpath(carpeta))
+            if clave in vistas:
+                continue
+            vistas.add(clave)
+            unicas.append(carpeta)
+
+        self.scan_folders = [
+            c for c in unicas
+            if not any(o is not c and _is_inside(c, o) for o in unicas)
+        ]
+        debug_print("Carpetas a escanear: %s" % self.scan_folders)
+        return self.scan_folders
 
     def show_settings_window(self):
-        # Cargar la configuracion del archivo .ini.
-        # La clave tiene que ser la misma que lee SettingsWindow: iba como
-        # "Shot Folder depth" contra un "Folder scan depth", asi que la ventana
-        # nunca veia el valor guardado y al guardar lo pisaba con el default.
-        settings_data = {
-            "Folder scan depth": str(self.project_folder_depth),
-        }
-        for i, (button_text, subdirectory) in enumerate(self.copy_options, start=1):
-            settings_data[f"copy_{i}_button_text"] = button_text
-            settings_data[f"copy_{i}_subdirectory"] = subdirectory
-
-        self.settings_window = SettingsWindow(settings_data, self)
+        self.settings_window = SettingsWindow(self.settings, self.nk_dir(), self)
         self.settings_window.setGeometry(
             QStyle.alignedRect(
                 Qt.LeftToRight,
@@ -505,6 +626,10 @@ class FileScanner(QWidget):
         # aparecen en el menu Copy to hasta reabrir el Media Manager, y la
         # profundidad de la ventana y la de la tabla quedan distintas.
         self.settings_window.settings_saved.connect(self.on_settings_saved)
+        # El tema y el tamano de letra se ven MIENTRAS se eligen, sobre esta
+        # tabla. Si el usuario cancela, la ventana manda los guardados de
+        # vuelta por la misma senal y todo queda como estaba.
+        self.settings_window.appearance_previewed.connect(self.apply_appearance)
         self.settings_window.show()
 
     def keyPressEvent(self, event):
@@ -1397,12 +1522,9 @@ class FileScanner(QWidget):
             nuke.message("Por favor guarda el script antes de ejecutar este script.")
             return
 
-        project_folder = project_path
-        for _ in range(self.project_folder_depth):
-            project_folder = os.path.dirname(project_folder)
-        self.project_folder = (
-            project_folder  # Guardo la variable para obtenerla desde cualquier lado
-        )
+        # La carpeta del shot y las carpetas a escanear las resuelve el
+        # WORKER, no esta funcion: resolver un comodin es un os.scandir por
+        # nivel y por rama, y contra un servidor eso cuelga Nuke entero.
 
         # El escaneo real se realizará en el worker
         scanner_worker = ScannerWorker(self)  # Solo pasamos la instancia de FileScanner
@@ -2170,7 +2292,7 @@ class FileScanner(QWidget):
             print("Deletion cancelled.")
 
     ##### Copia:
-    def copy_to(self, subdirectory):
+    def copy_to(self, location):
         selected_items = self.table.selectedItems()
         if selected_items:
             source_file_path = selected_items[0].text()
@@ -2206,17 +2328,32 @@ class FileScanner(QWidget):
                     )
                 )
 
-            level = self.project_folder_depth
-            project_path = nuke.root().name()
-            project_folder = project_path
-            for _ in range(level):
-                project_folder = os.path.dirname(project_folder)
-
-            # Determina la ruta de destino basada en la opcion seleccionada
-            dest_folder = os.path.join(project_folder, subdirectory)
-
-            if not os.path.exists(dest_folder):
-                os.makedirs(dest_folder)
+            # El destino sale de la ruta de la location, resuelta contra
+            # disco. Un comodin puede abrir cero o varias carpetas, y en los
+            # dos casos elegir por el usuario seria adivinar: con cero no hay
+            # que crear nada -"../*assets*" no es un nombre de carpeta- y con
+            # varias no hay forma de saber cual queria. La ventana de ajustes
+            # ya avisa antes de guardar; esto es la red de atras.
+            resultado = mm_paths.resolve(location.get("path", ""), self.nk_dir())
+            if len(resultado.folders) > 1:
+                QMessageBox.warning(
+                    self,
+                    "Copy Not Allowed",
+                    "\"%s\" matches %d folders, so there is no single "
+                    "destination:\n\n%s"
+                    % (location.get("name", ""), len(resultado.folders),
+                       "\n".join(resultado.folders[:8])),
+                )
+                return
+            if not resultado.folders:
+                QMessageBox.warning(
+                    self,
+                    "Copy Not Allowed",
+                    "\"%s\" does not match any existing folder."
+                    % (location.get("name") or location.get("path", "")),
+                )
+                return
+            dest_folder = resultado.folders[0]
 
             self.loading_window = LoadingWindow("Copying...", self)
             self.center_window(self.loading_window)

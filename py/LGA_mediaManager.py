@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.26 | Lega
+  LGA_mediaManager v2.27 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.

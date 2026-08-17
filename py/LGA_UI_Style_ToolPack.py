@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.11 | Lega
+  LGA_UI_Style_ToolPack v1.12 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,14 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.12: Los tokens del estado Outside del Media Manager. Son dos
+         estados con el mismo nombre y distinto significado -afuera
+         del shot, que es un error, y afuera de toda scan location,
+         que es un dato- asi que llevan dos colores y no uno.
+         Los cinco se derivan por tema: el bordo del ERROR_BG del
+         tema y el azul de una base fija, los dos mezclados contra
+         el fondo de ESE tema, asi ninguno hay que escribirlo seis
+         veces a mano.
   v1.11: La paleta pasa a ser un TEMA que cada tool elige, no
          constantes fijas del modulo. Seis temas en THEMES y un
          theme(id) que devuelve su paleta y sus hojas.
@@ -211,13 +219,43 @@ class Color(object):
     DOT_WARNING = "#D6AE4A"
     DOT_ERROR = "#D65C5C"
 
+    # --- el azul del Outside informativo ------------------------------------
+    # No cambia con el tema, igual que INFO o PATH_FIELD: lo que cambia es
+    # contra que fondo se mezcla, y de eso se encarga _derivados(). Si en
+    # algun tema queda flojo contra su fondo, el paso siguiente es subirlo a
+    # THEME_TOKENS, no hardcodearlo en la tool.
+    OUTSIDE_INFO_BASE = "#1B3A5C"  # para el fondo de la celda
+    DOT_OUTSIDE_INFO = "#5B8FD6"  # para el punto de 9 px, que va claro
+
     # --- fondo de estado en una fila SELECCIONADA ---------------------------
-    # Los escribe apply_theme() mezclando el fondo del estado con el gris de la
+    # Los escribe _derivados() mezclando el fondo del estado con el gris de la
     # seleccion. No se aclara el color: aclarar sube el brillo pero no desatura,
     # y la celda queda mas roja en vez de mas gris.
     OK_BG_SELECTED = "#2C4027"
     WARNING_BG_SELECTED = "#403723"
     ERROR_BG_SELECTED = "#402727"
+
+    # --- Outside: un nombre, dos significados, dos colores -------------------
+    # En el Media Manager "Outside" quiere decir una cosa distinta segun el
+    # shot folder este activo o no, asi que no puede ser un solo color:
+    #
+    #   shot folder ACTIVO  -> el archivo esta afuera del shot     -> BORDO
+    #   shot folder APAGADO -> afuera de toda scan location        -> AZUL
+    #
+    # El bordo sale del ERROR_BG del tema aclarado contra el fondo: queda en
+    # la familia del rojo pero mas apagado que Offline, para que no se
+    # confundan "esta afuera" con "no existe". El azul no es un error: sin
+    # shot folder no hay adentro ni afuera, es un dato.
+    # Los cuatro los escribe _derivados(), igual que los *_BG_SELECTED.
+    OUTSIDE_BG = "#421D1D"
+    OUTSIDE_BG_INFO = "#1D324A"
+    OUTSIDE_BG_SELECTED = "#3C2929"
+    OUTSIDE_BG_INFO_SELECTED = "#293440"
+
+    # El punto de la pastilla, en la misma relacion que los otros DOT_*: mas
+    # claro que el fondo del estado, porque es texto sobre el fondo oscuro de
+    # la ventana y no una superficie.
+    DOT_OUTSIDE = "#A04A4A"
 
     # Nombre propio de una entidad del pipeline destacado en un mensaje: una
     # task, un preset, un nodo. Hoy vale lo mismo que PATH_COMMON y se ve
@@ -296,7 +334,7 @@ class Metric(object):
 #                                   Temas
 # ---------------------------------------------------------------------------
 # Un tema es la paleta entera. Los seis definen EXACTAMENTE los mismos tokens:
-# si uno agrega o saca una clave, apply_theme() lo grita en vez de dejar un
+# si uno agrega o saca una clave, Theme() lo grita en vez de dejar un
 # color viejo pegado de la paleta anterior.
 #
 # Se referencian por "id" y NUNCA por indice, ni aca ni en el .ini de la tool:
@@ -595,12 +633,6 @@ THEMES = (
     },
 )
 
-# El juego de tokens que TIENE que traer cada tema, escrito una vez. Se declara
-# explicito y no se saca de THEMES[0]: sacarlo del primero es referenciar un
-# tema por indice, que es exactamente lo que este modulo dice no hacer.
-THEME_TOKENS = frozenset(THEMES[0]["colors"])
-
-
 # El tema BASE es el que reciben las tools que no piden ninguno, o sea las que
 # hacen `from ... import Style, Color`. Es "pack" y tiene que seguir siendolo:
 # son once ventanas ya migradas que nadie pidio cambiar, y cambiarlas desde
@@ -629,6 +661,15 @@ def get_theme(theme_id):
         if tema["id"] == BASE_THEME:
             return tema
     return THEMES[0]
+
+
+# El juego de tokens que TIENE que traer cada tema. Sale del tema BASE buscado
+# por id y no de THEMES[0]: sacarlo del primero de la lista es referenciar un
+# tema por indice, que es exactamente lo que este modulo dice no hacer, y
+# alcanzaba con agregar un tema arriba para cambiar en silencio contra que se
+# valida. (Este modulo ya se rompio asi una vez, cuando "lga" se agrego al
+# principio de la lista.)
+THEME_TOKENS = frozenset(get_theme(BASE_THEME)["colors"])
 
 
 # La tilde del checkbox viaja al lado de este modulo. QSS pide una ruta de
@@ -1172,10 +1213,25 @@ def _derivados(colores):
     desatura, y la celda queda mas roja en vez de mas gris.
     """
     sel = colores["SURFACE_SELECTED"]
+    fondo = colores["WINDOW"]
+    # Los dos Outside se mezclan contra el fondo de ESTE tema, no contra un
+    # gris fijo: es lo que hace que el mismo par de reglas sirva para los seis
+    # sin escribir doce hexes a mano.
+    outside = _mix(colores["ERROR_BG"], fondo, 0.42)
+    # Del dict del tema si algun dia se sube a THEME_TOKENS, y del modulo
+    # mientras no. Leerlo solo de Color dejaria el valor del tema ignorado en
+    # silencio el dia que alguien lo agregue.
+    azul = colores.get("OUTSIDE_INFO_BASE", Color.OUTSIDE_INFO_BASE)
+    outside_info = _mix(azul, fondo, 0.30)
     return {
         "OK_BG_SELECTED": _mix(colores["OK_BG"], sel),
         "WARNING_BG_SELECTED": _mix(colores["WARNING_BG"], sel),
         "ERROR_BG_SELECTED": _mix(colores["ERROR_BG"], sel),
+        "OUTSIDE_BG": outside,
+        "OUTSIDE_BG_INFO": outside_info,
+        "OUTSIDE_BG_SELECTED": _mix(outside, sel),
+        "OUTSIDE_BG_INFO_SELECTED": _mix(outside_info, sel),
+        "DOT_OUTSIDE": _mix(colores["DOT_ERROR"], fondo, 0.30),
     }
 
 

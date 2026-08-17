@@ -34,10 +34,10 @@
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.24 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.27 | Lega
 
 Para revisar y ordenar toda la media del proyecto de forma rápida.<br>
-Al ejecutarlo escanea toda la media de la carpeta del shot y todas las rutas de los nodos Read del script, mostrando el estado de cada archivo como OK, Offline, Outside o Unused para poder decidir si relinkear, copiar o borrar.<br><br>
+Al ejecutarlo escanea las carpetas configuradas como scan locations y todas las rutas de los nodos Read del script, mostrando el estado de cada archivo como OK, Offline, Outside o Unused para poder decidir si relinkear, copiar o borrar.<br><br>
 ![](Doc_Media/lga_mediamanager_v01.gif)
 
 
@@ -52,8 +52,9 @@ Al ejecutarlo escanea toda la media de la carpeta del shot y todas las rutas de 
 
 **Opciones disponibles en los Settings**
 
-- <strong>Shot folder depth:</strong> Determina cuántos niveles de carpetas se deben retroceder desde la carpeta donde está ubicado el script (proyecto) hasta la carpeta principal del shot. <br>Si por ejemplo el shot está en T:/Client/Film/Shot/Comp/Project/e101s005.nk entonces para retroceder hasta el Shot folder tenemos que retroceder 3 niveles desde Project (1), Comp (2), Shot (3).
-- <strong>Copy to:</strong> Determina las carpetas para el menú “Copy to”. El Name es el que aparecerá en el menú. Usando el signo & se agrega un shortcut para esa acción. La ruta se comienza a formar desde la carpeta del shot.
+- <strong>Shot folder:</strong> La carpeta principal del shot, escrita como una ruta relativa a la carpeta del script. Define qué está adentro del shot y qué está afuera, o sea de dónde sale el estado Outside, y es el ancla del coloreo de los paths. Por default es <code>../..</code>: si el script está en T:/Client/Film/Shot/Comp/Project/e101s005.nk, sube desde Project a Comp y de Comp a Shot. Se puede apagar, y ahí Outside pasa a medirse contra las scan locations.
+- <strong>Scan locations:</strong> Una fila por carpeta, con su nombre y su ruta relativa al script. La ruta acepta <code>*</code> como comodín, así que <code>../*assets*</code> encuentra 0_assets, _assets o my_assets sin tener que escribir el nombre exacto, y la columna <em>Resolves to</em> muestra a qué carpeta real llega cada una. Cada fila tiene dos casillas: <strong>Scan</strong> la incluye en el escaneo —si otra location ya la contiene queda tildada y deshabilitada, porque el escaneo es recursivo— y <strong>Copy to</strong> la ofrece en el menú de copia. El atajo va en su propio campo, una sola letra, y se dispara con Alt + esa letra.
+- <strong>Theme y Table font size:</strong> La paleta de las dos ventanas y el tamaño de letra de las tablas. Los dos se ven aplicados mientras se eligen, y Cancel los revierte.
 <br><br>
 
 ![](Doc_Media/image29.png)

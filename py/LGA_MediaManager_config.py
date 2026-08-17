@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_config v2.26 | Lega
+  LGA_MediaManager_config v2.27 | Lega
   Donde vive la configuracion del Media Manager, y que tiene adentro
 
   v2.26: Suma el esquema de la configuracion, que antes estaba
