@@ -1,7 +1,11 @@
 > **Regla de documentacion**: este archivo describe el estado actual del codigo. No es un historial de cambios, changelog ni bitacora temporal.
 > **Regla de documentacion**: este archivo debe incluir una seccion de referencias tecnicas con rutas completas a los archivos mas importantes relacionados, y para cada archivo nombrar las funciones, clases o metodos clave vinculados a este tema.
 
-# LGA_mediaManager v1.61
+# LGA_mediaManager
+
+La versión de la herramienta no se escribe acá: vive en el header de
+`py/LGA_mediaManager.py` y los siete módulos la comparten. La ventana de
+ajustes la muestra abajo a la izquierda, leyéndola de ese header.
 
 ## División de Responsabilidades
 
@@ -11,30 +15,77 @@
 - **Punto de entrada principal** del script
 - Contiene la función `main()` que inicializa la aplicación
 - Maneja los imports de todas las clases auxiliares
-- Funciones utilitarias compartidas: `configure_logger()`, `debug_print()`, `normalize_path_for_comparison()`
+- Es también el header canónico de la versión de la tool
 
 #### `LGA_MediaManager_FileScanner.py`
 - **Clase FileScanner**: Interfaz principal de usuario
 - Gestión de la tabla de archivos y su visualización
 - Funciones de escaneo, filtrado y manipulación de archivos
 - Operaciones de usuario: borrar, copiar, revelar archivos
-- Configuración de UI: botones, layouts, colores, fuentes
+- La barra de herramientas, las pastillas de estado, el buscador y el pie
+- `SortHeaderView`: cabecera dibujada a mano, con el icono de orden después
+  del texto y en color de acento en la columna ordenada
+- `StatusCellDelegate`: la celda de Status, con su fondo a alto completo
 
 #### `LGA_MediaManager_settings.py`
-- **Clase SettingsWindow**: Ventana de configuración 
-- Gestión de paths de copia dinámicos
-- Configuración de profundidad de carpetas del proyecto
-- Manejo del archivo .ini de configuración
+- **Clase SettingsWindow**: Ventana de configuración
+- Una sola tabla de *locations*: cada fila es una carpeta con sus casillas de
+  `Scan` y `Copy to`, su atajo y a qué carpeta real resuelve
+- La primera fila es la **carpeta del shot**, una ruta explícita. Reemplazó al
+  viejo `Folder scan depth`
+- Tema de color y tamaño de letra de las tablas
+
+#### `LGA_MediaManager_config.py`
+- Dónde vive el `.ini` del usuario y qué tiene adentro
+- Lectura, escritura atómica, valores de fábrica y migración del formato viejo
+- No sabe nada de Nuke ni de Qt: se puede probar sin abrir el host
+
+#### `LGA_MediaManager_paths.py`
+- Qué significa una ruta relativa al `.nk` y con comodines
+- Una mitad no toca disco —parsear, y decidir si una location incluye a otra—
+  y otra sí, que expande el comodín contra el filesystem
+
+#### `LGA_MediaManager_logging.py`
+- El logger a `logs/LGA_mediaManager.log`
 
 #### `LGA_MediaManager_utils.py`
 - **Clases auxiliares compartidas**:
   - `ScannerWorker`: Worker en hilo separado para escaneo de archivos
-  - `TransparentTextDelegate`: Delegado personalizado para la tabla
+  - `PathResolveWorker`: resuelve las rutas de la ventana de ajustes fuera del
+    hilo principal
+  - `PathDelegate`: dibuja el path coloreado de la tabla principal
+  - `ReadCellDelegate`: la celda de la columna `Read`
+  - `TransparentTextDelegate`: el resto de las celdas; respeta el color propio
+    de la columna Status cuando la fila está seleccionada
+  - `tinted_icon()`: los SVG de trazo teñidos, a la escala de la pantalla
   - `LoadingWindow`: Ventanas de progreso (Scanning, Copying, Deleting)
   - `StartupWindow`: Ventana de inicio con barra de progreso
   - `CopyThread`: Worker para operaciones de copia de archivos
   - `DeleteThread`: Worker para operaciones de borrado
   - `ScannerSignals`: Señales Qt para comunicación entre hilos
+
+### Los índices de columna viven en `utils`
+
+`COL_PATH`, `COL_READ`, `COL_STATUS`, `COL_FOLDER_DELETE`, `COL_SEQUENCE` y
+`COL_NUM` están en `LGA_MediaManager_utils.py`, no en el FileScanner: los
+delegados de ese módulo también los necesitan, y el FileScanner ya importa de
+ahí. Al revés sería circular.
+
+El `#` es la columna 5 y no la 0: se agrega al final y se mueve al primer lugar
+**visual** con `moveSection()`. En Qt el orden visual es independiente del
+lógico, así que se ve primera sin correr un solo índice.
+
+## Aspecto de las ventanas
+
+Todo lo visual sale de `py/LGA_UI_Style_ToolPack.py`; acá no se escribe ningún
+hex suelto. Dos cosas que hay que saber al tocar estas ventanas:
+
+- **La fuente hay que aplicarla**, no alcanza con que el pack la registre:
+  `UIStyle.apply_ui_font(ventana)` después de armarla.
+- **El peso 600 se pide con `UIStyle.semibold_css()`**, no con
+  `font-weight: 600`. La SemiBold de Inter vive en otra familia.
+
+El detalle está en `docs/Docu_UI_Style.md`.
 
 ## Flujo de Ejecución
 
@@ -138,10 +189,15 @@ Training_250715_215458.110000.png   →  Training_250715_215458.#.png [110000-15
 Training_250715_215458.110000.cat   →  Training_250715_215458.#.cat [110000-150000]
 ```
 
-## Ventajas de la Refactorización
+## Referencias técnicas
 
-- **Separación clara** de responsabilidades
-- **Código más mantenible** y organizado
-- **Reutilización** de clases auxiliares
-- **Facilita testing** y debugging
-- **Evita duplicación** de código
+| Archivo | Qué mirar ahí |
+|---|---|
+| `py/LGA_mediaManager.py` | `main()`, y el header con la versión de la tool |
+| `py/LGA_MediaManager_FileScanner.py` | `FileScanner.initUI()`, `apply_table_stylesheet()`, `update_minimum_width()`, `fit_footer_legend()`, `renumber_visible_rows()`, `adjust_window_size()`, `SortHeaderView`, `StatusCellDelegate` |
+| `py/LGA_MediaManager_settings.py` | `SettingsWindow._build()`, `LocationRow`, `_fit_table()`, `_persist_theme()`, `_editable_state()`, y las tuplas `COL_*` con los anchos de la tabla |
+| `py/LGA_MediaManager_config.py` | `load_settings()`, `format_ini()`, `save_settings()`, `get_write_path()`, `DEFAULT_*` |
+| `py/LGA_MediaManager_paths.py` | `parse_path()`, `resolve()`, `scanning_parent()` |
+| `py/LGA_MediaManager_utils.py` | `PathDelegate`, `ReadCellDelegate`, `TransparentTextDelegate`, `paint_row_separator()`, `tinted_icon()`, `ScannerWorker`, `PathResolveWorker`, los `COL_*` |
+| `py/LGA_UI_Style_ToolPack.py` | `theme()`, `apply_ui_font()`, `semibold_css()`, `THEMES` |
+| `docs/Docu_UI_Style.md` | Cómo se usa el módulo de estilo y las trampas de Qt ya pisadas |

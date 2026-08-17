@@ -1,9 +1,23 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.31 | Lega
+  LGA_MediaManager_settings v2.32 | Lega
   Ventana de ajustes del Media Manager
 
+  v2.32: La ventana se puede achicar. El minimo de ancho sale del
+         contenido y no del 1180 escrito a mano, que era mas ancho
+         que lo que la tabla necesita; el area de filas se puede
+         comprimir hasta dos filas en vez de tener el alto entero
+         del contenido como piso.
+         Las columnas se ajustan a lo que usan: nombre y ruta ceden
+         ancho -la ruta ademas deja de llevarse casi todo el
+         sobrante, estiraba 14 contra los 9 del nombre-, las dos
+         casillas se achican a lo que mide su encabezado y la del
+         atajo pierde la franja muerta que quedaba antes de la
+         papelera.
+         La tarjeta de "included by another scan path" pasa a tener
+         su propio ancho: con 360 el renglon mas largo se partia y
+         mostraba tres lineas donde el texto tiene dos.
   v2.31: El aire de la fila de apariencia va ENTRE los dos grupos
          y no despues: "Table font size" queda pegado a su stepper y
          separado de la tira de temas. `addStretch()` sin argumento
@@ -112,23 +126,46 @@ QThreadPool = QtCore.QThreadPool
 # lista: si no salieran del mismo lugar se desalinean en cuanto una cambia.
 # (ancho fijo o None, factor de estiramiento, ancho minimo)
 COL_GRIP = (34, 0, 34)
-COL_NAME = (None, 9, 150)
-COL_PATH = (None, 14, 200)
+COL_NAME = (None, 9, 130)
+# La ruta se lleva menos sobrante que antes (estiraba 14 contra los 9 del
+# nombre): con la ventana ancha era casi el doble que todo lo demas junto y la
+# tabla se leia desbalanceada. Sigue siendo la mas ancha, que es lo correcto
+# -es el contenido mas largo- pero ya no absorbe sola el crecimiento.
+COL_PATH = (None, 9, 190)
 COL_REAL = (None, 8, 120)
-COL_SCAN = (76, 0, 76)
-COL_COPY = (90, 0, 90)
-# 170 es el valor literal de la grilla del prototipo. El contenido -"Alt" +
-# "+" + la letra- ocupa poco mas de 100, asi que a la derecha del campo queda
-# una franja libre: esta tambien en el prototipo, es el disenio y no un
-# descuido. No acortarla a ojo.
-COL_KEY = (170, 0, 170)
-COL_TRASH = (50, 0, 50)
+# Las dos casillas iban en columnas mucho mas anchas que su contenido -un
+# checkbox de 19 px centrado en 76 y en 90- y entre una y otra quedaba una
+# franja vacia que no separaba nada. Se ajustan a lo que mide su encabezado,
+# que es lo mas ancho que tienen adentro.
+COL_SCAN = (58, 0, 58)
+COL_COPY = (74, 0, 74)
+# 170 era el valor literal de la grilla del prototipo, con una franja libre a
+# la derecha del campo. En la ventana real esa franja se sumaba a la de la
+# papelera y quedaban casi 100 px muertos entre el atajo y el tacho.
+COL_KEY = (118, 0, 118)
+COL_TRASH = (44, 0, 44)
 COLUMNS = (COL_GRIP, COL_NAME, COL_PATH, COL_REAL, COL_SCAN, COL_COPY,
            COL_KEY, COL_TRASH)
 
-WINDOW_MIN_WIDTH = 1180
-WINDOW_MIN_HEIGHT = 560
+# El minimo lo pone el CONTENIDO -la suma de los minimos de las columnas mas
+# los margenes- y no un numero escrito a mano. El 1180 de antes era mas ancho
+# que lo que la tabla necesita, asi que la ventana no se podia achicar hasta
+# donde el contenido lo permitia: sobraban casi 200 px que no se podian sacar.
+WINDOW_MIN_HEIGHT = 420
+
+# El ancho de las tarjetas de ayuda. El texto de cada una ya trae sus saltos
+# de linea escritos, asi que la tarjeta tiene que entrarle el renglon mas
+# largo: mas angosta lo parte y aparece un renglon de mas.
+CARD_WIDTH = 360
+# La del "included by another scan path" tiene el renglon mas largo de las dos
+# y con 360 se partia en tres. Al lado de "Add location" sobra lugar.
+CARD_WIDTH_WIDE = 470
 TABLE_MAX_HEIGHT = 420
+# Cuantas filas tiene que seguir mostrando la tabla cuando la ventana se
+# achica. Es el piso: de ahi para abajo no se comprime mas y la ventana
+# tampoco. Con la fila del shot y una location alcanza para saber donde se
+# esta parado; el resto se scrollea.
+TABLE_MIN_ROWS = 2
 
 # Los altos se DERIVAN del tamano de letra en vez de ser constantes: sin eso,
 # subir la letra la corta contra el borde de la fila.
@@ -976,7 +1013,10 @@ class SettingsWindow(QWidget):
         self.setWindowFlags(
             Qt.Window | Qt.WindowCloseButtonHint | Qt.WindowStaysOnTopHint
         )
-        self.setMinimumWidth(WINDOW_MIN_WIDTH)
+        # Sin minimo de ancho propio: el que vale es el que calcula el layout
+        # con los minimos de cada columna. Escrito a mano quedaba mas ancho que
+        # lo que el contenido necesita, o sea que la ventana no se podia
+        # achicar hasta donde la tabla lo permitia.
         self.setMinimumHeight(WINDOW_MIN_HEIGHT)
 
         self.nk_dir = nk_dir or ""
@@ -1134,7 +1174,8 @@ class SettingsWindow(QWidget):
         bajo.addWidget(self.add_button)
         self.card_included = self._info_card(
             "Locations included by another scan path remain checked but "
-            "disabled.\nDisable or remove the parent path to edit them."
+            "disabled.\nDisable or remove the parent path to edit them.",
+            ancho=CARD_WIDTH_WIDE,
         )
         bajo.addWidget(self.card_included)
         bajo.addStretch()
@@ -1234,7 +1275,15 @@ class SettingsWindow(QWidget):
         linea.setFixedHeight(1)
         return linea
 
-    def _info_card(self, texto):
+    def _info_card(self, texto, ancho=CARD_WIDTH):
+        """
+        Una tarjeta de ayuda: icono a la izquierda y dos renglones de texto.
+
+        El ancho es un parametro y no una constante para todas: el texto ya
+        trae sus propios saltos de linea, y una tarjeta mas angosta que su
+        renglon mas largo lo parte al medio y suma un tercer renglon que no
+        estaba escrito. Se le da a cada una el ancho que sus renglones piden.
+        """
         tarjeta = QWidget(self)
         layout = QHBoxLayout(tarjeta)
         layout.setContentsMargins(15, 13, 15, 13)
@@ -1246,7 +1295,7 @@ class SettingsWindow(QWidget):
         cuerpo.setWordWrap(True)
         layout.addWidget(icono, 0, Qt.AlignTop)
         layout.addWidget(cuerpo, 1)
-        tarjeta.setFixedWidth(360)
+        tarjeta.setFixedWidth(ancho)
         tarjeta.icono = icono
         tarjeta.cuerpo = cuerpo
         return tarjeta
@@ -1610,8 +1659,18 @@ class SettingsWindow(QWidget):
         filas = len(self.rows) + 1  # +1 por la del shot
         contenido = filas * alto_fila + 4
         alto = min(TABLE_MAX_HEIGHT, contenido)
-        self.scroll.setMinimumHeight(alto)
-        self.scroll.setMaximumHeight(TABLE_MAX_HEIGHT)
+        # El alto que la tabla PIDE es el de su contenido, y ese va de tope: si
+        # sobran filas se corta en TABLE_MAX_HEIGHT y aparece la barra, y si no
+        # sobran, agrandar la ventana no estira una tabla que ya no tiene mas
+        # que mostrar.
+        self.scroll.setMaximumHeight(alto)
+        # El piso es de unas pocas filas y no el alto entero del contenido.
+        # Puesto en el contenido, la tabla no se podia comprimir y con ella la
+        # ventana tampoco: no habia forma de achicarla aunque el usuario
+        # estuviera dispuesto a scrollear.
+        self.scroll.setMinimumHeight(
+            min(alto, TABLE_MIN_ROWS * alto_fila + 4)
+        )
         # El hueco del encabezado sigue a la barra: el area nunca pasa del
         # tope, asi que la barra aparece exactamente cuando el contenido lo
         # supera. Reservando el ancho siempre, las veces que NO hay barra el

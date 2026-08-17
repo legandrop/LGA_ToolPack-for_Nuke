@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.31 | Lega
+  LGA_mediaManager v2.32 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -20,6 +20,15 @@ _______________________________________________________________________
   LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
   mano en la interfaz.
 
+  v2.32: Las dos ventanas se pueden achicar. El minimo de la
+         principal lo fijaba la leyenda del pie, que es texto de
+         ayuda y era la fila mas ancha de todas; ahora las
+         explicaciones se esconden cuando no entran y el piso lo
+         pone la barra, que es lo unico que de verdad no se puede
+         comprimir. En los ajustes el minimo sale del contenido y no
+         de un numero escrito a mano, la tabla se puede comprimir
+         hasta dos filas, y las columnas se ajustan a lo que
+         realmente usan.
   v2.31: Cinco ajustes sobre la ventana ya portada. Vuelven las
          lineas horizontales entre filas, que se habian perdido al
          apagar la grilla de Qt: las dibuja cada delegado, porque la

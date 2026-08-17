@@ -1,10 +1,19 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.31 | Lega
+  LGA_MediaManager_FileScanner v2.32 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.32: El minimo de ancho de la ventana lo fija SOLO la barra de
+         herramientas. Antes mandaba la mas ancha entre la barra y
+         el pie, y el pie ganaba por varios cientos de pixeles: la
+         ventana no se podia achicar aunque la tabla entrara comoda,
+         porque el piso lo ponia una leyenda que es texto de ayuda.
+         Ahora las explicaciones de la leyenda se esconden cuando no
+         entran -el punto de color y el nombre del estado solos ya
+         dicen lo mismo- en vez de cortarse a la mitad de una
+         palabra.
   v2.31: Las lineas horizontales entre filas las dibuja cada
          delegado con paint_row_separator: se habian perdido al
          apagar la grilla de Qt, y la regla `QTableWidget::item`
@@ -1168,12 +1177,17 @@ class FileScanner(QWidget):
 
     def update_minimum_width(self):
         """
-        Que la ventana no pueda achicarse hasta cortar la barra ni la leyenda.
+        Lo mas angosta que puede quedar la ventana: lo que mide la barra.
 
-        Son dos filas de ancho fijo que no envuelven: con la ventana angosta el
-        ultimo boton -justamente el de los ajustes- se sale de la vista, y la
-        leyenda del pie se corta a la mitad de una palabra
-        ("File is outside the sho..."). Manda la mas ancha de las dos.
+        Manda SOLO la barra de herramientas. Es la unica fila que de verdad no
+        se puede achicar: son seis botones de ancho fijo que no envuelven, y si
+        no entran el ultimo -justamente el de los ajustes- se va de la vista.
+
+        El pie ya NO cuenta. Contaba, y era la fila mas ancha de las dos por
+        varios cientos de pixeles, asi que la ventana no bajaba de ahi aunque
+        la tabla entrara comoda: el minimo lo fijaba una leyenda que es texto
+        de ayuda. Ahora la leyenda se adapta -ver fit_footer_legend- y deja de
+        ser un piso.
         """
         if not getattr(self, "toolbar_buttons", None):
             return
@@ -1181,8 +1195,6 @@ class FileScanner(QWidget):
         # Los cinco espacios entre botones, mas el del separador.
         ancho += BUTTON_SPACING * (len(self.toolbar_buttons) + 1)
         ancho += 1  # el separador vertical
-
-        ancho = max(ancho, self.footer_minimum_width())
 
         margenes = self.layout.contentsMargins()
         ancho += margenes.left() + margenes.right()
@@ -1196,11 +1208,13 @@ class FileScanner(QWidget):
 
     def footer_minimum_width(self):
         """
-        El ancho que necesita el pie para que no se corte ningun texto.
+        El ancho que necesita el pie con las explicaciones puestas.
 
-        Se mide sobre los labels y no con el sizeHint del layout porque el pie
-        se arma antes de que la ventana tenga geometria y ahi el layout todavia
-        no sabe cuanto mide.
+        No es un minimo de la ventana: es el umbral a partir del cual la
+        leyenda tiene que dejar de mostrar las explicaciones. Se mide sobre los
+        labels y no con el sizeHint del layout porque el pie se arma antes de
+        que la ventana tenga geometria, y ahi el layout todavia no sabe cuanto
+        mide.
         """
         entradas = getattr(self, "legend_entries", None)
         if not entradas:
@@ -1217,6 +1231,38 @@ class FileScanner(QWidget):
         if getattr(self, "rescan_button", None) is not None:
             ancho += self.rescan_button.sizeHint().width()
         return ancho
+
+    def fit_footer_legend(self):
+        """
+        Esconde las explicaciones de la leyenda cuando no entran.
+
+        Con la ventana angosta la alternativa era cortar cada frase a la mitad
+        de una palabra ("File is outside the sho..."), que es peor que no
+        mostrarla: el punto de color y el nombre del estado solos ya dicen lo
+        mismo, y la explicacion es texto de ayuda que se lee una vez.
+
+        Es lo que le permite a la ventana achicarse: antes esta fila era la mas
+        ancha de todas y fijaba el minimo de la ventana entera.
+        """
+        # Alcanza con mirar la leyenda: se arma despues del layout raiz, asi
+        # que si hay entradas, self.layout ya es el QVBoxLayout y no el metodo
+        # layout() de QWidget, que es lo que devolveria un getattr temprano.
+        entradas = getattr(self, "legend_entries", None)
+        if not entradas:
+            return
+        margenes = self.layout.contentsMargins()
+        disponible = self.width() - margenes.left() - margenes.right()
+        # El umbral se mide con sizeHint(), que un label escondido sigue
+        # informando igual: asi no se mueve al esconderlo y no hay parpadeo
+        # entre mostrar y esconder alrededor del limite.
+        mostrar = disponible >= self.footer_minimum_width()
+        for entrada in entradas:
+            if entrada["texto"].isVisible() != mostrar:
+                entrada["texto"].setVisible(mostrar)
+
+    def resizeEvent(self, event):
+        super(FileScanner, self).resizeEvent(event)
+        self.fit_footer_legend()
 
     # ----------------------------------------------------------------------
     #                   Pastillas de estado y buscador

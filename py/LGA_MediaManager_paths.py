@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_paths v2.31 | Lega
+  LGA_MediaManager_paths v2.32 | Lega
   Como se interpretan las rutas relativas al .nk
 
   El shot folder y las locations se escriben como rutas RELATIVAS a la
