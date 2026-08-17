@@ -16,6 +16,10 @@ _______________________________________
          resuelto en el hilo principal cuelga la ventana.
          Suma tema y tamano de letra, que se aplican en vivo y se
          revierten con Cancel.
+         La tabla es una caja con borde y esquinas redondeadas, con
+         la cabecera en SURFACE_HEADER y un separador por fila; la
+         fila se ilumina al pasar por encima y el arrastre muestra
+         adonde cae en vez de solo aclarar el texto.
   v2.25: Cada destino ocupa una sola fila -nombre y ruta al lado,
          encabezado de columna una vez- con los campos alineados. El
          depth se maneja con un stepper de botones a los costados en
@@ -79,6 +83,10 @@ COL_PATH = (None, 14, 200)
 COL_REAL = (None, 8, 120)
 COL_SCAN = (76, 0, 76)
 COL_COPY = (90, 0, 90)
+# 170 es el valor literal de la grilla del prototipo. El contenido -"Alt" +
+# "+" + la letra- ocupa poco mas de 100, asi que a la derecha del campo queda
+# una franja libre: esta tambien en el prototipo, es el disenio y no un
+# descuido. No acortarla a ojo.
 COL_KEY = (170, 0, 170)
 COL_TRASH = (50, 0, 50)
 COLUMNS = (COL_GRIP, COL_NAME, COL_PATH, COL_REAL, COL_SCAN, COL_COPY,
@@ -92,6 +100,26 @@ TABLE_MAX_HEIGHT = 420
 # subir la letra la corta contra el borde de la fila.
 ROW_EXTRA = 31  # 44 con letra 13
 HEAD_EXTRA = 29  # 42 con letra 13
+HEAD_FONT_OFFSET = -1  # la cabecera va un punto mas chica que la fila
+HEAD_LETTER_SPACING = 0.4  # va por QFont: QSS no tiene letter-spacing
+
+# La pastilla "Alt" y el campo de la letra tienen alto propio: sin fijarlo, un
+# QLabel adentro de un QHBoxLayout se estira a todo el alto de la fila y la
+# pastilla deja de leerse como una tecla.
+KEY_HEIGHT = 28
+KEY_MIN_WIDTH = 34
+KEY_FONT = 12
+
+# Los botones de tema son mas chatos y con menos aire que los botones de
+# accion del pie: son una tira de seis y con el padding del boton normal la
+# fila no entraba.
+THEME_BUTTON_HEIGHT = 34
+THEME_BUTTON_PADDING = 14
+THEME_BUTTON_FONT = 12
+
+# La linea que marca donde cae la fila que se esta arrastrando.
+DROP_LINE_WIDTH = 2
+DRAG_OPACITY = 0.35
 
 # Las cinco letras que ya usan los botones de la barra principal. Si una
 # location toma una de estas, Qt no dispara NINGUNO de los dos y tira un
@@ -261,6 +289,36 @@ class GripLabel(QLabel):
             return event.globalY()
 
 
+class TrashButton(QPushButton):
+    """
+    La papelera de una fila.
+
+    El icono cambia de color al pasar por encima, y eso no se puede pedir por
+    QSS: el color de un QIcon no lo hereda el widget, hay que rearmar el SVG
+    con el hex nuevo. Por eso el hover se atiende aca y no en la hoja.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__("", parent)
+        self._icono = None
+        self._icono_hover = None
+
+    def set_icons(self, normal, hover):
+        self._icono = normal
+        self._icono_hover = hover
+        self.setIcon(normal)
+
+    def enterEvent(self, event):
+        if self._icono_hover is not None:
+            self.setIcon(self._icono_hover)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if self._icono is not None:
+            self.setIcon(self._icono)
+        super().leaveEvent(event)
+
+
 class ShortcutField(QLineEdit):
     """Un solo caracter, en mayuscula, y solo letra o numero."""
 
@@ -268,7 +326,10 @@ class ShortcutField(QLineEdit):
         super().__init__(letra or "", parent)
         self.setMaxLength(1)
         self.setAlignment(Qt.AlignCenter)
-        self.setFixedWidth(34)
+        # Alto propio, igual que la pastilla "Alt" de al lado: sin fijarlo el
+        # campo se estira a todo el alto de la fila y los dos dejan de leerse
+        # como un par de teclas.
+        self.setFixedSize(KEY_MIN_WIDTH, KEY_HEIGHT)
         self.textChanged.connect(self._limpiar)
 
     def _limpiar(self, texto):
@@ -279,9 +340,13 @@ class ShortcutField(QLineEdit):
             self.blockSignals(False)
 
 
-class LocationRow(QWidget):
+class LocationRow(QFrame):
     """
     Una fila de la tabla: nombre, ruta, a que resuelve, Scan, Copy to, atajo.
+
+    Es un QFrame y no un QWidget pelado a proposito: la fila tiene fondo,
+    separador y linea de destino propios, y un QWidget comun ignora el
+    background y el border del QSS salvo que se le escriba un paintEvent.
 
     La fila del shot folder es la misma clase en modo `shot`: comparte grilla,
     alto y fondo con las demas para que se lean como lo mismo, y se diferencia
@@ -303,12 +368,30 @@ class LocationRow(QWidget):
 
     def __init__(self, data, shot=False, parent=None):
         super().__init__(parent)
+        # El fondo, el separador y la linea de destino se pintan por QSS con
+        # este id: el selector tiene que ganarle al QWidget generico que la
+        # caja de la tabla usa para dejar transparentes a todos sus hijos.
+        self.setObjectName("lgaRow")
+        # Sin esto el QSS NO pinta ni fondo ni borde. Qt solo dibuja el fondo
+        # de la hoja cuando el widget tiene WA_StyledBackground, y a una
+        # subclase propia no se lo pone solo: el separador entre filas y el
+        # hover quedaban escritos en la hoja y sin dibujarse nunca.
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        # El marco lo dibuja el QSS, no el estilo nativo.
+        self.setFrameShape(QFrame.NoFrame)
         LocationRow._next_uid += 1
         self.uid = LocationRow._next_uid
         self.shot = shot
         self.data = dict(data)
         self._resolution = None
         self._small_css = ""
+        # El tema con el que se pinto la fila, para poder repintar el fondo
+        # y el separador sin volver a pasar por apply_theme entera.
+        self._UI = None
+        # La ultima fila no lleva separador: abajo ya esta el borde de la caja.
+        self._is_last = False
+        # La fila sobre la que va a caer la que se esta arrastrando.
+        self._drop_target = False
         # Los campos con un problema de validacion, para pintarlos de rojo.
         self.field_errors = set()
 
@@ -434,15 +517,21 @@ class LocationRow(QWidget):
         else:
             self.alt_label = QLabel("Alt")
             self.alt_label.setProperty("lgaKey", True)
+            # Alto y ancho minimo propios: un QLabel adentro de un QHBoxLayout
+            # se estira a todo el alto de la fila, y la pastilla quedaba de 44
+            # px de alto en vez de 28, o sea una columna violeta y no una tecla.
+            self.alt_label.setFixedHeight(KEY_HEIGHT)
+            self.alt_label.setMinimumWidth(KEY_MIN_WIDTH)
+            self.alt_label.setAlignment(Qt.AlignCenter)
             self.plus_label = QLabel("+")
             self.key_edit = ShortcutField(self.data.get("shortcut", ""))
             self.key_edit.setToolTip(TOOLTIPS["shortcut"])
             self.key_edit.textChanged.connect(lambda _t: self.changed.emit())
             self.dash_label = QLabel("—")
-            key_layout.addWidget(self.alt_label)
-            key_layout.addWidget(self.plus_label)
-            key_layout.addWidget(self.key_edit)
-            key_layout.addWidget(self.dash_label)
+            key_layout.addWidget(self.alt_label, 0, Qt.AlignVCenter)
+            key_layout.addWidget(self.plus_label, 0, Qt.AlignVCenter)
+            key_layout.addWidget(self.key_edit, 0, Qt.AlignVCenter)
+            key_layout.addWidget(self.dash_label, 0, Qt.AlignVCenter)
             key_layout.addStretch()
         _add_column(layout, key_caja, COL_KEY)
 
@@ -454,7 +543,7 @@ class LocationRow(QWidget):
             self.trash_button = None
             trash_layout.addWidget(QLabel(""))
         else:
-            self.trash_button = QPushButton("")
+            self.trash_button = TrashButton(self)
             self.trash_button.setFixedSize(30, 30)
             self.trash_button.setToolTip(TOOLTIPS["remove"])
             self.trash_button.setFocusPolicy(Qt.NoFocus)
@@ -526,11 +615,26 @@ class LocationRow(QWidget):
 
     def set_resolution(self, resolution, UI):
         self._resolution = resolution
-        self.real_label.setText(real_text(resolution))
+        # La flecha va SIEMPRE y apagada: es lo que hace leer la celda como
+        # "esta ruta llega aca" y no como una segunda columna de texto suelto.
+        # El nombre cambia de color segun el resultado: normal si resuelve a
+        # una, fuerte si resuelve a varias -es un dato que hay que mirar- y
+        # rojo si no resuelve a ninguna o la ruta es invalida.
+        if real_is_problem(resolution):
+            color = UI.Color.DOT_ERROR
+        elif resolution is not None and len(resolution.folders) > 1:
+            color = UI.Color.TEXT_STRONG
+        else:
+            color = UI.Color.TEXT
+        self.real_label.setText(
+            '<span style="color:%s;">&rarr;</span>&nbsp;'
+            '<span style="color:%s;">%s</span>'
+            % (UI.Color.TEXT_DIM, color,
+               real_text(resolution).replace("&", "&amp;").replace("<", "&lt;"))
+        )
         self.real_label.setToolTip(real_tooltip(resolution))
-        color = UI.Color.ERROR_TEXT if real_is_problem(resolution) else UI.Color.TEXT_DIM
         self.real_label.setStyleSheet(
-            "color: %s; background: transparent; %s" % (color, self._small_css)
+            "background: transparent; %s" % self._small_css
         )
 
     def resolution(self):
@@ -543,6 +647,85 @@ class LocationRow(QWidget):
             return
         self.field_errors = campos
         self.apply_theme(UI, font_size)
+
+    # ------------------------------------------------------- estado visual ---
+    def set_last(self, es_ultima):
+        """La ultima fila no lleva separador: abajo ya esta el borde de la caja."""
+        if es_ultima == self._is_last:
+            return
+        self._is_last = es_ultima
+        self._apply_row_sheet()
+
+    def set_drop_target(self, es_destino):
+        """
+        Marca el borde por el que va a entrar la fila que se arrastra.
+
+        La linea se dibuja abajo de la fila de ARRIBA del hueco y no arriba de
+        la que se mueve, que es donde la pone el prototipo: la que se mueve va
+        atenuada al 35% y sobre ella la linea de acento tambien se atenuaba y
+        no se veia. Son los mismos pixeles, en el mismo borde.
+        """
+        if es_destino == self._drop_target:
+            return
+        self._drop_target = es_destino
+        self._apply_row_sheet()
+
+    def set_dragging(self, arrastrando):
+        """Atenua la fila mientras se la arrastra."""
+        if not arrastrando:
+            self.setGraphicsEffect(None)
+            return
+        efecto = QtWidgets.QGraphicsOpacityEffect(self)
+        efecto.setOpacity(DRAG_OPACITY)
+        self.setGraphicsEffect(efecto)
+
+    def _apply_row_sheet(self):
+        """La hoja de la fila: fondo, hover, separador y linea de destino."""
+        UI = self._UI
+        if UI is None:
+            return
+        if self._drop_target:
+            borde = "border-bottom: %dpx solid %s;" % (
+                DROP_LINE_WIDTH, UI.Color.ACCENT_HOVER
+            )
+        elif self._is_last:
+            borde = "border-bottom: none;"
+        else:
+            borde = "border-bottom: 1px solid %s;" % UI.Color.BORDER
+        # El campo inline va sin caja hasta que se lo toca: en reposo es texto
+        # sobre la fila, y la caja aparece al hover y al foco. Con la hoja
+        # generica de formulario cada fila mostraba cinco cajas grises.
+        self.setStyleSheet(
+            (
+                "#lgaRow { background-color: transparent; border: none; %(borde)s }"
+                "#lgaRow:hover { background-color: %(hover)s; }"
+                "QWidget { background-color: transparent; }"
+                "QLabel { background: transparent; color: %(text)s; }"
+                "QLineEdit {"
+                " background: transparent; border: 1px solid transparent;"
+                " border-radius: %(radius)dpx; padding: 6px 8px;"
+                " color: %(text_strong)s;"
+                " selection-background-color: %(accent)s; }"
+                "QLineEdit:hover {"
+                " border-color: %(border_strong)s; background-color: %(field)s; }"
+                "QLineEdit:focus {"
+                " border-color: %(accent_hover)s; background-color: %(field)s; }"
+                "QLineEdit:disabled { color: %(text_dim)s; }"
+                % {
+                    "borde": borde,
+                    "hover": UI.Color.ROW_LINE,
+                    "text": UI.Color.TEXT,
+                    "text_strong": UI.Color.TEXT_STRONG,
+                    "text_dim": UI.Color.TEXT_DIM,
+                    "border_strong": UI.Color.BORDER_STRONG,
+                    "accent": UI.Color.ACCENT,
+                    "accent_hover": UI.Color.ACCENT_HOVER,
+                    "field": UI.Color.FIELD_BG,
+                    "radius": UIStyle.Metric.RADIUS_FIELD,
+                }
+            )
+            + UI.Style.CHECKBOX
+        )
 
     # -------------------------------------------------------------- datos ---
     def path(self):
@@ -567,9 +750,10 @@ class LocationRow(QWidget):
 
     # -------------------------------------------------------------- estilo ---
     def apply_theme(self, UI, font_size):
+        self._UI = UI
         alto = font_size + ROW_EXTRA
         self.setFixedHeight(alto)
-        self.setStyleSheet(UI.Style.FORM + UI.Style.CHECKBOX)
+        self._apply_row_sheet()
 
         # El path va un punto mas grande que el resto de la tabla, y con menos
         # padding vertical: la mono ya trae una caja de linea mas alta.
@@ -585,28 +769,48 @@ class LocationRow(QWidget):
         if self.name_edit is not None:
             self.name_edit.setStyleSheet("QLineEdit { %s }" % chico)
         if self.name_label is not None:
+            # El mismo padding que el campo de nombre de las filas de abajo,
+            # para que "Shot folder" arranque en la misma vertical.
             self.name_label.setStyleSheet(
-                "color: %s; font-weight: 600; %s" % (UI.Color.TEXT_STRONG, chico)
+                "color: %s; font-weight: 600; padding-left: 8px; %s"
+                % (UI.Color.TEXT_STRONG, chico)
             )
         if self.grip is not None:
+            # El grip va en el gris de borde y no en el del texto: es un
+            # agarre, no contenido de la fila.
             self.grip.setPixmap(
-                tinted_icon("grip-vertical", UI.Color.TEXT_DIM, 18).pixmap(18, 18)
+                tinted_icon("grip-vertical", UI.Color.BORDER_HOVER, 18).pixmap(18, 18)
             )
         if self.ranura is not None and not self.shot:
             self.ranura.setPixmap(
                 tinted_icon("folder", UI.Color.TEXT_DIM, 17).pixmap(17, 17)
             )
         if self.trash_button is not None:
-            self.trash_button.setIcon(tinted_icon("trash-2", UI.Color.TEXT_DIM, 17))
-            self.trash_button.setStyleSheet(UI.Style.BTN_ICON)
+            # En reposo el icono va apagado; al pasar por encima se enciende
+            # en rojo sobre su propio fondo. El color del icono no lo puede
+            # dar el QSS, asi que van los dos armados de antemano.
+            self.trash_button.set_icons(
+                tinted_icon("trash-2", UI.Color.TEXT_DIM, 17),
+                tinted_icon("trash-2", UI.Color.DANGER_ICON_HOVER, 17),
+            )
+            # Sin caja hasta el hover: con el boton de icono comun, cada fila
+            # mostraba un recuadro gris apoyado sobre el fondo de la tabla.
+            self.trash_button.setStyleSheet(
+                "QPushButton { background-color: transparent;"
+                " border: 1px solid transparent; border-radius: %dpx; }"
+                "QPushButton:hover { background-color: %s; }"
+                % (UIStyle.Metric.RADIUS_FIELD, UI.Color.DANGER_BG_HOVER)
+            )
         if self.alt_label is not None:
             self.alt_label.setStyleSheet(
                 "background-color: %s; border: 1px solid %s; border-radius: %dpx;"
-                " padding: 0 9px; color: %s; font-weight: 600;"
+                " padding: 0 9px; color: %s; font-weight: 600; font-size: %dpx;"
                 % (UI.Color.SURFACE_RAISED, UI.Color.BORDER_STRONG,
-                   UIStyle.Metric.RADIUS, UI.Color.TEXT)
+                   UIStyle.Metric.RADIUS_FIELD, UI.Color.TEXT_STRONG, KEY_FONT)
             )
-            self.plus_label.setStyleSheet("color: %s;" % UI.Color.TEXT_DIM)
+            self.plus_label.setStyleSheet(
+                "color: %s; font-size: %dpx;" % (UI.Color.TEXT_DIM, KEY_FONT)
+            )
             self.dash_label.setStyleSheet(
                 "color: %s; padding-left: 12px;" % UI.Color.TEXT_DIM
             )
@@ -616,10 +820,13 @@ class LocationRow(QWidget):
             # sea editable.
             self.key_edit.setStyleSheet(
                 "QLineEdit { border: 1px solid %s; border-radius: %dpx;"
-                " background-color: %s; color: %s; }"
+                " background-color: %s; color: %s; padding: 0px;"
+                " font-size: %dpx; font-weight: 600; }"
+                "QLineEdit:hover { border-color: %s; }"
                 "QLineEdit:focus { background-color: %s; }"
-                % (UI.Color.ACCENT_HOVER, UIStyle.Metric.RADIUS,
-                   UI.Color.SURFACE, UI.Color.TEXT_STRONG, UI.Color.ACCENT)
+                % (UI.Color.ACCENT_HOVER, UIStyle.Metric.RADIUS_FIELD,
+                   UI.Color.SURFACE_RAISED, UI.Color.TEXT_STRONG, KEY_FONT,
+                   UI.Color.ACCENT_HOVER, UI.Color.ACCENT)
             )
 
         # El rojo va al final para que le gane a la hoja del campo, que ya
@@ -782,8 +989,30 @@ class SettingsWindow(QWidget):
         raiz.addLayout(cabeza)
         raiz.addSpacing(20)
 
+        # --- la caja de la tabla ----------------------------------------------
+        # La tabla es UN bloque: borde, esquinas redondeadas y la cabecera
+        # adentro. Son QFrame y no QWidget porque un QWidget pelado ignora el
+        # background y el border del QSS salvo que se le escriba un paintEvent.
+        self.table_box = QFrame(self)
+        self.table_box.setObjectName("lgaTableBox")
+        # Qt solo dibuja el fondo y el borde de la hoja cuando el widget tiene
+        # WA_StyledBackground. Sin el atributo, la regla #lgaTableBox se aplica
+        # igual -y hasta gana en especificidad- pero no se pinta nunca: la
+        # tabla quedaba sin caja, sin esquinas y con la cabecera del color del
+        # cuerpo. El frame va en NoFrame para que el borde lo dibuje el QSS y
+        # no el estilo nativo del host.
+        self.table_box.setAttribute(Qt.WA_StyledBackground, True)
+        self.table_box.setFrameShape(QFrame.NoFrame)
+        caja = QVBoxLayout(self.table_box)
+        # 1 px por lado para no taparle el borde a la caja con los hijos.
+        caja.setContentsMargins(1, 1, 1, 1)
+        caja.setSpacing(0)
+
         # --- encabezado de la tabla ------------------------------------------
-        self.head_row = QWidget(self)
+        self.head_row = QFrame(self.table_box)
+        self.head_row.setObjectName("lgaTableHead")
+        self.head_row.setAttribute(Qt.WA_StyledBackground, True)
+        self.head_row.setFrameShape(QFrame.NoFrame)
         head = QHBoxLayout(self.head_row)
         head.setContentsMargins(0, 0, 0, 0)
         head.setSpacing(9)
@@ -800,11 +1029,13 @@ class SettingsWindow(QWidget):
             self.head_labels.append(etiqueta)
         # El encabezado vive AFUERA del area scrolleable, asi que cuando
         # aparece la barra vertical las columnas elasticas de las filas se
-        # corren respecto de el. Se le reserva ese ancho siempre.
-        hueco_scroll = QLabel("")
-        hueco_scroll.setFixedWidth(UIStyle.Metric.SCROLLBAR_WIDTH)
-        head.addWidget(hueco_scroll)
-        raiz.addWidget(self.head_row)
+        # corren respecto de el. El hueco reserva ese ancho, pero SOLO cuando
+        # la barra esta: reservarlo siempre desalinea al reves las veces que
+        # no hay barra, que con las cinco filas de fabrica son todas.
+        self.scroll_spacer = QLabel("")
+        self.scroll_spacer.setFixedWidth(0)
+        head.addWidget(self.scroll_spacer)
+        caja.addWidget(self.head_row)
 
         # --- filas -------------------------------------------------------------
         self.rows_host = QWidget(self)
@@ -819,11 +1050,13 @@ class SettingsWindow(QWidget):
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setMaximumHeight(TABLE_MAX_HEIGHT)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # Siempre visible, aunque sobre lugar: el encabezado esta afuera del
-        # area y le reserva ese ancho fijo, asi que una barra que aparece y
-        # desaparece corre las columnas de las filas contra las del titulo.
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        raiz.addWidget(self.scroll)
+        # Solo cuando hace falta: con las filas de fabrica entran todas y una
+        # barra vacia al costado de la tabla no existe en el disenio. La
+        # alineacion la mantiene el hueco del encabezado, que se prende y se
+        # apaga junto con la barra en _fit_table.
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        caja.addWidget(self.scroll)
+        raiz.addWidget(self.table_box)
 
         # --- agregar + tarjeta ---------------------------------------------------
         bajo = QHBoxLayout()
@@ -859,7 +1092,9 @@ class SettingsWindow(QWidget):
         for theme_id in UIStyle.theme_ids():
             spec = UIStyle.get_theme(theme_id)
             boton = QPushButton(spec["label"])
-            boton.setFixedHeight(UIStyle.Metric.BUTTON_HEIGHT)
+            # Mas chato y con menos aire que un boton de accion: son seis en
+            # fila y con el padding del boton normal la tira no entraba.
+            boton.setFixedHeight(THEME_BUTTON_HEIGHT)
             boton.setToolTip(TOOLTIPS["theme"])
             boton.setFocusPolicy(Qt.NoFocus)
             boton.clicked.connect(lambda _c=False, t=theme_id: self._pick_theme(t))
@@ -967,9 +1202,10 @@ class SettingsWindow(QWidget):
         fila = self._add_row(
             {"name": "", "path": "", "scan": True, "copy_to": False, "shortcut": ""}
         )
-        fila.apply_theme(self.UI, self.font_size())
+        # La tabla entera y no solo la fila nueva: agregar una cambia cual es
+        # la ultima, y la que lo era se queda con su separador de mas.
+        self.apply_appearance()
         fila.name_edit.setFocus()
-        self._fit_table()
         self.refresh()
 
     def _remove_row(self, fila):
@@ -987,14 +1223,18 @@ class SettingsWindow(QWidget):
         self.rows_layout.removeWidget(fila)
         fila.setParent(None)
         fila.deleteLater()
-        self._fit_table()
+        # Igual que al agregar: borrar cambia cual es la ultima fila.
+        self.apply_appearance()
         self.refresh()
 
     # -------------------------------------------------------------- arrastre --
     def _drag_started(self, fila):
         self._dragging = fila
-        fila.setStyleSheet(fila.styleSheet() + "QWidget { color: %s; }"
-                           % self.UI.Color.TEXT_DIM)
+        # La que se mueve va atenuada, y una linea de acento marca el borde
+        # por el que va a entrar. Antes solo se le aclaraba el texto, que no
+        # decia nada de adonde caia.
+        fila.set_dragging(True)
+        self._update_drop_indicator(fila)
 
     def _drag_moved(self, fila, global_y):
         if self._dragging is not fila or len(self.rows) < 2:
@@ -1007,16 +1247,36 @@ class SettingsWindow(QWidget):
                 continue
             if global_y > otra.mapToGlobal(otra.rect().center()).y():
                 destino += 1
-        if destino == actual:
-            return
-        self.rows.pop(actual)
-        self.rows.insert(destino, fila)
-        self.rows_layout.removeWidget(fila)
-        # +1 porque la fila del shot va siempre primera y no esta en self.rows.
-        self.rows_layout.insertWidget(destino + 1, fila)
+        if destino != actual:
+            self.rows.pop(actual)
+            self.rows.insert(destino, fila)
+            self.rows_layout.removeWidget(fila)
+            # +1 porque la fila del shot va siempre primera y no esta en
+            # self.rows.
+            self.rows_layout.insertWidget(destino + 1, fila)
+            self._update_row_flags()
+        self._update_drop_indicator(fila)
+
+    def _update_drop_indicator(self, fila):
+        """
+        Pinta la linea de acento en el borde por el que entra la fila.
+
+        Va abajo de la fila de ARRIBA del hueco y no arriba de la que se
+        arrastra: esa esta atenuada al 35% y la linea se atenuaba con ella.
+        Es el mismo borde, asi que se ve en el mismo lugar. Arriba siempre hay
+        una fila, porque la del shot va primera y no se mueve.
+        """
+        arriba = None
+        if fila is not None and fila in self.rows:
+            indice = self.rows.index(fila)
+            arriba = self.rows[indice - 1] if indice > 0 else self.shot_row
+        for otra in [self.shot_row] + self.rows:
+            otra.set_drop_target(otra is arriba)
 
     def _drag_finished(self, fila):
         self._dragging = None
+        fila.set_dragging(False)
+        self._update_drop_indicator(None)
         fila.apply_theme(self.UI, self.font_size())
         self.refresh()
 
@@ -1041,6 +1301,14 @@ class SettingsWindow(QWidget):
         UI = self.UI
         fs = self.font_size()
         self.appearance["table_font_size"] = fs
+        # Los dos altos se derivan del tamano de letra, asi que un .ini con
+        # otro numero baja la tabla entera sin que se note de donde viene.
+        # Queda logueado para poder medirlo en vez de estimarlo contra una
+        # captura.
+        debug_print(
+            "Apariencia: letra %d, fila %d, cabecera %d"
+            % (fs, fs + ROW_EXTRA, fs + HEAD_EXTRA)
+        )
 
         self.setStyleSheet(
             UI.Style.WINDOW + UI.Style.FORM + UI.Style.TOOLTIP + UI.Style.SCROLLBAR
@@ -1051,12 +1319,60 @@ class SettingsWindow(QWidget):
         self.subtitle_label.setStyleSheet(
             "color: %s; font-size: 13px;" % UI.Color.TEXT
         )
-        cabecera = (
-            "color: %s; background-color: %s; font-size: 12px; font-weight: 600;"
-            % (UI.Color.TEXT_HEADER, UI.Color.SURFACE_HEADER)
-        )
+        # La tabla es un bloque: borde, esquinas redondeadas y la cabecera con
+        # fondo propio adentro. El fondo lo pinta la CAJA y todo lo que tiene
+        # adentro va transparente, si no cada contenedor intermedio se lleva
+        # el gris de ventana y la caja no se ve.
+        radio_interno = max(0, UIStyle.Metric.RADIUS_CARD - 1)
         self.head_row.setFixedHeight(fs + HEAD_EXTRA)
-        self.head_row.setStyleSheet("QLabel { %s }" % cabecera)
+        self.table_box.setStyleSheet(
+            (
+                "#lgaTableBox { background-color: %(surface)s;"
+                " border: 1px solid %(border)s;"
+                " border-radius: %(radio)dpx; }"
+                "#lgaTableHead { background-color: %(header)s; border: none;"
+                " border-bottom: 1px solid %(border)s;"
+                " border-top-left-radius: %(radio_int)dpx;"
+                " border-top-right-radius: %(radio_int)dpx; }"
+                "#lgaTableHead QLabel { background: transparent; color: %(text)s;"
+                " font-size: %(head_fs)dpx; font-weight: 600; }"
+                "QScrollArea { background: transparent; border: none; }"
+                "QWidget { background-color: transparent; }"
+                % {
+                    "surface": UI.Color.SURFACE,
+                    "border": UI.Color.BORDER,
+                    "header": UI.Color.SURFACE_HEADER,
+                    "text": UI.Color.TEXT_HEADER,
+                    "radio": UIStyle.Metric.RADIUS_CARD,
+                    "radio_int": radio_interno,
+                    "head_fs": max(9, fs + HEAD_FONT_OFFSET),
+                }
+            )
+            # Va al final para que le gane al QWidget transparente de arriba,
+            # que tiene la misma especificidad.
+            + UI.Style.SCROLLBAR
+            # El riel de la barra va transparente: la hoja comun lo pinta del
+            # gris de VENTANA, que adentro de la caja de la tabla dibujaba una
+            # franja oscura al costado de todas las filas.
+            + "QScrollBar:vertical { background: transparent; }"
+        )
+        # El letter-spacing de la cabecera no existe como propiedad de QSS:
+        # se setea sobre el QFont del label. Va despues de la hoja porque el
+        # tamano de letra sale de ahi y el QFont hay que leerlo ya resuelto.
+        # El enum va por el camino plano en Qt5 y por el anidado en Qt6. Se
+        # resuelve una vez y no en cada vuelta del bucle, y si no estuviera en
+        # ninguno de los dos lados la cabecera se dibuja sin el espaciado en
+        # vez de voltear la ventana entera por medio pixel de aire.
+        espaciado = getattr(QtGui.QFont, "AbsoluteSpacing", None)
+        if espaciado is None:
+            espaciado = getattr(
+                getattr(QtGui.QFont, "SpacingType", None), "AbsoluteSpacing", None
+            )
+        if espaciado is not None:
+            for etiqueta in self.head_labels:
+                fuente = etiqueta.font()
+                fuente.setLetterSpacing(espaciado, HEAD_LETTER_SPACING)
+                etiqueta.setFont(fuente)
 
         for tarjeta in (self.card_wildcard, self.card_included):
             tarjeta.setStyleSheet(
@@ -1074,8 +1390,32 @@ class SettingsWindow(QWidget):
         self.add_button.setIcon(tinted_icon("plus", UI.Color.TEXT, 17))
         self.cancel_button.setStyleSheet(UI.Style.BTN_SECONDARY)
         self.save_button.setStyleSheet(UI.Style.BTN_PRIMARY)
-        self.font_minus.setStyleSheet(UI.Style.BTN_ICON)
-        self.font_plus.setStyleSheet(UI.Style.BTN_ICON)
+        # Los botones y el campo del stepper llevan el radio del campo inline,
+        # no el de los botones de accion: son la misma pieza de tres partes y
+        # con dos radios distintos el campo del medio no cierra con los lados.
+        stepper = (
+            "QPushButton { background-color: %(raised)s;"
+            " border: 1px solid %(borde)s; border-radius: %(radius)dpx;"
+            " color: %(fuerte)s; }"
+            "QPushButton:hover { background-color: %(hover)s;"
+            " border-color: %(borde_hover)s; }"
+            % {
+                "raised": UI.Color.SURFACE_RAISED,
+                "borde": UI.Color.BORDER_STRONG,
+                "borde_hover": UI.Color.BORDER_HOVER,
+                "hover": UI.Color.SURFACE_HOVER,
+                "fuerte": UI.Color.TEXT_STRONG,
+                "radius": UIStyle.Metric.RADIUS_FIELD,
+            }
+        )
+        self.font_minus.setStyleSheet(stepper)
+        self.font_plus.setStyleSheet(stepper)
+        self.font_field.setStyleSheet(
+            "QLineEdit { background-color: %s; border: 1px solid %s;"
+            " border-radius: %dpx; color: %s; font-weight: 600; }"
+            % (UI.Color.SURFACE, UI.Color.BORDER_STRONG,
+               UIStyle.Metric.RADIUS_FIELD, UI.Color.TEXT_STRONG)
+        )
         self.version_label.setStyleSheet(
             "color: %s; font-size: 12px;" % UI.Color.TEXT_DIM
         )
@@ -1086,14 +1426,48 @@ class SettingsWindow(QWidget):
 
         elegido = self.appearance.get("theme")
         for theme_id, boton in self.theme_buttons.items():
-            boton.setStyleSheet(
-                UI.Style.BTN_PRIMARY if theme_id == elegido else UI.Style.BTN_SECONDARY
-            )
+            boton.setStyleSheet(self._theme_button_css(theme_id == elegido))
 
+        # El separador de la ultima fila se saca ANTES de pintar: abajo ya
+        # esta el borde de la caja y quedaban dos lineas pegadas.
+        self._update_row_flags()
         self.shot_row.apply_theme(UI, fs)
         for fila in self.rows:
             fila.apply_theme(UI, fs)
         self._fit_table()
+
+    def _theme_button_css(self, elegido):
+        """
+        El boton de un tema.
+
+        No usa BTN_PRIMARY/BTN_SECONDARY: esos son botones de accion, con 18
+        px de padding y negrita, y una tira de seis quedaba el doble de gorda
+        que la del disenio. El elegido se marca con el borde de acento, no
+        pintandolo entero de violeta.
+        """
+        UI = self.UI
+        return (
+            "QPushButton { background-color: %(fondo)s;"
+            " border: 1px solid %(borde)s; border-radius: %(radius)dpx;"
+            " color: %(texto)s; padding: 0 %(pad)dpx; font-size: %(fs)dpx; }"
+            "QPushButton:hover { background-color: %(raised)s; color: %(fuerte)s; }"
+            % {
+                "fondo": UI.Color.SURFACE_RAISED if elegido else UI.Color.SURFACE,
+                "borde": UI.Color.ACCENT_HOVER if elegido else UI.Color.BORDER_STRONG,
+                "texto": UI.Color.TEXT_STRONG if elegido else UI.Color.TEXT,
+                "raised": UI.Color.SURFACE_RAISED,
+                "fuerte": UI.Color.TEXT_STRONG,
+                "radius": UIStyle.Metric.RADIUS,
+                "pad": THEME_BUTTON_PADDING,
+                "fs": THEME_BUTTON_FONT,
+            }
+        )
+
+    def _update_row_flags(self):
+        """Marca cual es la ultima fila, que es la que no lleva separador."""
+        ultima = self.rows[-1] if self.rows else self.shot_row
+        for fila in [self.shot_row] + self.rows:
+            fila.set_last(fila is ultima)
 
     def _fit_table(self):
         """
@@ -1105,9 +1479,17 @@ class SettingsWindow(QWidget):
         """
         alto_fila = self.font_size() + ROW_EXTRA
         filas = len(self.rows) + 1  # +1 por la del shot
-        alto = min(TABLE_MAX_HEIGHT, filas * alto_fila + 4)
+        contenido = filas * alto_fila + 4
+        alto = min(TABLE_MAX_HEIGHT, contenido)
         self.scroll.setMinimumHeight(alto)
         self.scroll.setMaximumHeight(TABLE_MAX_HEIGHT)
+        # El hueco del encabezado sigue a la barra: el area nunca pasa del
+        # tope, asi que la barra aparece exactamente cuando el contenido lo
+        # supera. Reservando el ancho siempre, las veces que NO hay barra el
+        # encabezado quedaba corrido 10 px contra las filas.
+        self.scroll_spacer.setFixedWidth(
+            UIStyle.Metric.SCROLLBAR_WIDTH if contenido > TABLE_MAX_HEIGHT else 0
+        )
 
     # ------------------------------------------------------------- resolucion --
     def _path_edited(self, _fila):

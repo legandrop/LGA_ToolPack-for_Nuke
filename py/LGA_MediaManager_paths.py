@@ -332,4 +332,133 @@ def shot_segments(shot, nk_dir=""):
     if not shot or not shot.get("enabled"):
         return []
     parsed = parse_path(shot.get("path", ""), nk_dir)
-    return parsed.segments if parsed.usable else []
+    if not parsed.usable:
+        return []
+    return root_segments(parsed.root) + parsed.segments
+
+
+def root_segments(root):
+    """
+    Lo que la raiz aporta al path DIBUJADO, como segmentos.
+
+    parse_path deja la unidad o el servidor en `root` y fuera de `segments`,
+    pero el path que se muestra en la tabla los trae partidos como un
+    segmento mas: "C:/a" se dibuja ["C:", "a"]. Sin devolverlos, la
+    comparacion contra la carpeta del shot queda corrida un lugar y el
+    coloreo alterna colores sin sentido.
+    """
+    texto = (root or "").strip()
+    if texto.startswith("//"):
+        # //server/share es la raiz: los dos van como segmentos dibujados.
+        return [p for p in texto[2:].split("/") if p]
+    if re.match(r"^[A-Za-z]:", texto):
+        return [texto[:2]]
+    return []
+
+
+# ---------------------------------------------------------------------------
+#                       Coloreo del path de la tabla
+# ---------------------------------------------------------------------------
+# Vive aca y no en el modulo de estilo porque lo que decide el color es la
+# comparacion contra la carpeta del shot, que es logica de rutas. El modulo de
+# estilo pone los colores; este decide a que segmento va cada uno.
+
+def _escape(texto):
+    return (texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def path_runs(path, shot_segs=(), common="", palette=(), filename="", separator=""):
+    """
+    El path partido en tramos (texto, color), listo para pintar.
+
+    Las reglas son las del rediseno:
+      - el segmento que coincide con el de la carpeta del shot va en `common`,
+        que es lo que hace que de un vistazo se vea donde deja de ser este
+        shot y empieza el resto de la ruta;
+      - el resto cicla la paleta POR POSICION del segmento, no por posicion
+        relativa al shot: asi los segmentos de despues del shot conservan su
+        color prendas o apagues el shot folder, y lo unico que cambia es el
+        prefijo;
+      - el ultimo segmento es el nombre del archivo y va aparte: es lo que se
+        lee primero y competia con los colores de las carpetas;
+      - las barras van del color del texto fuerte, no grises.
+    """
+    texto = (path or "").replace("\\", "/")
+    partes = texto.split("/")
+    # El primer segmento vacio de un path unix se descarta: en "/projects/x"
+    # el segmento 0 es "projects", no "". Sin esto toda la comparacion contra
+    # el shot queda corrida un lugar.
+    arranque = ""
+    # El len > 1 importa: sin el, un path vacio se leia como la raiz "/" y la
+    # celda mostraba una barra suelta en vez de nada.
+    while len(partes) > 1 and partes[0] == "":
+        partes = partes[1:]
+        arranque += "/"
+
+    runs = []
+    if arranque:
+        runs.append((arranque, separator))
+    ultimo = len(partes) - 1
+    for i, parte in enumerate(partes):
+        if i == ultimo:
+            color = filename
+        elif i < len(shot_segs) and parte.lower() == shot_segs[i].lower():
+            color = common
+        elif palette:
+            color = palette[i % len(palette)]
+        else:
+            color = filename
+        runs.append((parte, color))
+        if i != ultimo:
+            runs.append(("/", separator))
+    return runs
+
+
+def path_html(path, shot_segs=(), common="", palette=(), filename="",
+              separator="", query="", mark_bg=""):
+    """
+    El path como HTML coloreado, con lo buscado resaltado.
+
+    Los tramos que coinciden con la busqueda se calculan sobre el path ENTERO
+    y despues se cortan contra los tramos de color: lo que uno escribe casi
+    siempre cruza una barra -"mar/img_93"- y midiendo segmento por segmento no
+    se resaltaba nada justo en ese caso.
+    """
+    runs = path_runs(path, shot_segs, common, palette, filename, separator)
+
+    # Los rangos que coinciden, en posiciones del texto completo.
+    plano = "".join(t for t, _c in runs)
+    marcas = []
+    buscado = (query or "").strip().lower()
+    if buscado:
+        bajo = plano.lower()
+        desde = bajo.find(buscado)
+        while desde != -1:
+            marcas.append((desde, desde + len(buscado)))
+            desde = bajo.find(buscado, desde + len(buscado))
+
+    partes = []
+    pos = 0
+    for texto, color in runs:
+        fin = pos + len(texto)
+        cortes = [pos, fin]
+        for a, b in marcas:
+            for corte in (a, b):
+                if pos < corte < fin:
+                    cortes.append(corte)
+        cortes = sorted(set(cortes))
+        for a, b in zip(cortes, cortes[1:]):
+            trozo = _escape(plano[a:b])
+            resaltado = any(m0 <= a and b <= m1 for m0, m1 in marcas)
+            if resaltado and mark_bg:
+                # Sin padding a proposito: el resaltado puede caer partido en
+                # varios tramos y cada uno sumaria su propio aire, separando
+                # visualmente "mar" de "/img".
+                partes.append(
+                    '<span style="color:%s;background-color:%s;">%s</span>'
+                    % (color, mark_bg, trozo)
+                )
+            else:
+                partes.append('<span style="color:%s;">%s</span>' % (color, trozo))
+        pos = fin
+    return "".join(partes)

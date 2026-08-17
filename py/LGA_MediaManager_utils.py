@@ -54,6 +54,10 @@ QMovie = QtGui.QMovie
 QScreen = QtGui.QScreen
 QIcon = QtGui.QIcon
 QPixmap = QtGui.QPixmap
+QFont = QtGui.QFont
+QTextDocument = QtGui.QTextDocument
+QTextOption = QtGui.QTextOption
+QStyledItemDelegate = QtWidgets.QStyledItemDelegate
 QByteArray = QtCore.QByteArray
 Qt = QtCore.Qt
 QTimer = QtCore.QTimer
@@ -74,7 +78,7 @@ import logging
 QThreadPool = QtCore.QThreadPool
 
 from LGA_MediaManager_logging import configure_logger, debug_print, get_log_prefix
-from LGA_UI_Style_ToolPack import Color
+from LGA_UI_Style_ToolPack import Color, PATH_PALETTE
 
 
 def resolve_relative_path(file_path, project_folder):
@@ -166,6 +170,95 @@ def tinted_icon(name, color, size=24):
 
     _icon_cache[clave] = icono
     return icono
+
+
+class PathDelegate(QStyledItemDelegate):
+    """
+    Dibuja el path coloreado de la columna 0, sin un QLabel por celda.
+
+    Antes cada path era un QLabel puesto con setCellWidget(), y eso se rompia
+    solo: la tabla ordena por la columna 0, asi que el setItem() de esa misma
+    columna movia la fila en el acto y el setCellWidget() de despues le
+    colgaba el label a OTRA fila. Quedaban filas con dos labels encima y
+    filas sin ninguno, y una fila sin label mostraba el path invisible,
+    porque el texto del item se pinta transparente a proposito.
+
+    Dibujandolo al pintar, el color y el resaltado de la busqueda se
+    recalculan solos y dejan de depender de que un widget siga en su lugar.
+    De paso el filtro en vivo sale barato: solo se repinta lo visible.
+    """
+
+    def __init__(self, table, ui, font_size=13, parent=None):
+        super().__init__(parent or table)
+        self.table = table
+        self.UI = ui
+        self.font_size = font_size
+        self.shot_segs = []
+        self.query = ""
+        self._doc = QTextDocument()
+        self._doc.setDocumentMargin(0)
+
+    def set_theme(self, ui, font_size):
+        self.UI = ui
+        self.font_size = font_size
+
+    def set_shot_segments(self, segmentos):
+        """Los segmentos de la carpeta del shot: el ancla del coloreo."""
+        self.shot_segs = list(segmentos or [])
+
+    def set_query(self, texto):
+        """Lo que se esta buscando, para resaltarlo."""
+        self.query = texto or ""
+
+    def _html(self, path):
+        import LGA_MediaManager_paths as mm_paths
+
+        UI = self.UI
+        return mm_paths.path_html(
+            path,
+            self.shot_segs,
+            common=UI.Color.PATH_COMMON,
+            palette=tuple(PATH_PALETTE),
+            filename=UI.Color.TEXT_STRONG,
+            # Las barras van del color del texto fuerte y no grises: en la
+            # tabla separan tramos de colores y en gris se pierden.
+            separator=UI.Color.TEXT_STRONG,
+            query=self.query,
+            mark_bg=UI.Color.MARK_BG,
+        )
+
+    def paint(self, painter, option, index):
+        path = index.data() or ""
+        painter.save()
+
+        seleccionada = bool(option.state & QStyle.State_Selected)
+        if seleccionada:
+            painter.fillRect(option.rect, QColor(self.UI.Color.SURFACE_SELECTED))
+
+        # El path va un punto mas grande que el resto de la tabla: se lee
+        # caracter por caracter -un 8 contra un 3, un _v02 contra un _v03- y a
+        # la misma medida que el resto es lo primero que cuesta.
+        fuente = QFont(option.font)
+        fuente.setPixelSize(self.font_size + 1)
+        self._doc.setDefaultFont(fuente)
+        self._doc.setHtml(self._html(path))
+        # Sin wrap: es una linea, y lo que no entra se recorta contra el
+        # ancho de la columna.
+        opciones = QTextOption()
+        opciones.setWrapMode(QTextOption.NoWrap)
+        self._doc.setDefaultTextOption(opciones)
+        self._doc.setTextWidth(-1)
+
+        alto = self._doc.size().height()
+        painter.translate(
+            option.rect.left() + 6,
+            option.rect.top() + max(0, (option.rect.height() - alto) / 2.0),
+        )
+        painter.setClipRect(
+            0, 0, max(0, option.rect.width() - 8), option.rect.height()
+        )
+        self._doc.drawContents(painter)
+        painter.restore()
 
 
 class PathResolveSignals(QObject):
@@ -536,35 +629,72 @@ SELECTION_LIGHTEN = 165
 
 
 class TransparentTextDelegate(QItemDelegate):
-    # Clase para crear la interfaz de usuario
+    """
+    El color propio de una celda sobrevive a la seleccion de la fila.
+
+    La columna Status pinta su fondo con el color del estado, y ese color ES
+    la informacion: taparlo con el gris de seleccion escondia justo el estado
+    de la fila que el usuario acababa de elegir para relinkearla.
+
+    Antes se resolvia aclarando el color con lighter(). Aclarar sube el brillo
+    pero NO desatura, asi que la celda quedaba mas roja en vez de mas gris. Lo
+    correcto es mezclarla contra el gris de seleccion, y esa mezcla ya esta
+    resuelta por tema en el modulo de estilo: cada fondo de estado tiene su
+    version _SELECTED derivada.
+    """
+
+    def __init__(self, table, ui=None, parent=None):
+        super(TransparentTextDelegate, self).__init__(parent or table)
+        self.UI = ui
+        self._mezclas = {}
+        self.set_theme(ui)
+
+    def set_theme(self, ui):
+        """Rearma la tabla de equivalencias fondo -> fondo seleccionado."""
+        self.UI = ui
+        if ui is None:
+            self._mezclas = {}
+            return
+        C = ui.Color
+        # La clave es el hex del fondo normal, en minuscula, porque es lo
+        # unico que la celda trae puesto.
+        self._mezclas = {
+            C.OK_BG.lower(): C.OK_BG_SELECTED,
+            C.WARNING_BG.lower(): C.WARNING_BG_SELECTED,
+            C.ERROR_BG.lower(): C.ERROR_BG_SELECTED,
+            C.OUTSIDE_BG.lower(): C.OUTSIDE_BG_SELECTED,
+            C.OUTSIDE_BG_INFO.lower(): C.OUTSIDE_BG_INFO_SELECTED,
+        }
+
+    def _selected_color(self, background):
+        """El fondo que le toca a esa celda cuando la fila esta seleccionada."""
+        gris = QColor((self.UI.Color if self.UI else Color).SURFACE_SELECTED)
+        if background is None:
+            return gris
+        propio = background.color()
+        mezcla = self._mezclas.get(propio.name().lower())
+        if mezcla:
+            return QColor(mezcla)
+        # Un color que no esta en la tabla -no deberia pasar- se aclara, que
+        # es lo que se hacia antes: peor que la mezcla, pero legible.
+        return propio.lighter(SELECTION_LIGHTEN)
+
     def paint(self, painter, option, index):
-        # Modificar el color del texto para todos los estados
-        if index.column() == 0:  # Aplicar solo en la columna 'Footage'
-            # Configurar el color del texto como transparente para esconderlo y que no se pise con el del QLabel
+        C = self.UI.Color if self.UI else Color
+        if index.column() == 0:
+            # El path lo dibuja PathDelegate, asi que el texto del item va
+            # transparente para que no se pise con el.
             option.palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0, 0))
             option.palette.setColor(QPalette.Text, QColor(0, 0, 0, 0))
-            # Configurar el color de fondo de la seleccion
+            if option.state & QStyle.State_Selected:
+                option.palette.setColor(QPalette.Highlight, QColor(C.SURFACE_SELECTED))
+        else:
             if option.state & QStyle.State_Selected:
                 option.palette.setColor(
-                    QPalette.Highlight, QColor(Color.SURFACE_SELECTED)
+                    QPalette.Highlight,
+                    self._selected_color(index.data(Qt.BackgroundRole)),
                 )
-
-        else:  # Para otras columnas, establece el color del texto para el estado seleccionado
-            if option.state & QStyle.State_Selected:
-                # Si la celda tiene color propio -la columna Status- ese color ES la
-                # informacion y no se puede tapar: se aclara en vez de reemplazarlo,
-                # asi la celda sigue verde o roja pero se ve que la fila esta elegida.
-                # Sin esto, seleccionar una fila para relinkearla escondia su estado.
-                background = index.data(Qt.BackgroundRole)
-                highlight = (
-                    background.color().lighter(SELECTION_LIGHTEN)
-                    if background is not None
-                    else QColor(Color.SURFACE_SELECTED)
-                )
-                option.palette.setColor(QPalette.Highlight, highlight)
-                option.palette.setColor(
-                    QPalette.HighlightedText, QColor(Color.TEXT_STRONG)
-                )
+                option.palette.setColor(QPalette.HighlightedText, QColor(C.TEXT_STRONG))
 
         super(TransparentTextDelegate, self).paint(painter, option, index)
 

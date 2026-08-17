@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.12 | Lega
+  LGA_UI_Style_ToolPack v1.15 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,14 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.15: Metric.RADIUS_FIELD y el hover de la accion destructiva,
+         que el rediseno del Media Manager necesitaba y estaban
+         resueltos con el token mas cercano.
+  v1.14: Color.DANGER_ICON, el rojo del icono de una accion
+         destructiva en una barra de herramientas.
+  v1.13: Metric.RADIUS_CONTROL y RADIUS_CARD, las dos esquinas del
+         rediseno del Media Manager. Van como tokens nuevos y no
+         tocando RADIUS, que lo usan las once ventanas ya migradas.
   v1.12: Los tokens del estado Outside del Media Manager. Son dos
          estados con el mismo nombre y distinto significado -afuera
          del shot, que es un error, y afuera de toda scan location,
@@ -215,6 +223,16 @@ class Color(object):
     # --- punto de color de un estado ----------------------------------------
     # Van mas claros que OK/WARNING/ERROR: esos estan calibrados para pintar
     # una barra o un fondo, y un punto de 9 px con esos valores no se ve.
+    # El icono de una accion destructiva en una barra de herramientas. Va mas
+    # claro que ERROR: ahi el rojo es un mensaje sobre el fondo de la ventana,
+    # y aca es un trazo de 17 px que a esa intensidad se apaga contra el boton.
+    DANGER_ICON = "#C97A7A"
+    # El hover de esa misma accion: el icono sube de intensidad y aparece una
+    # caja apenas rojiza. Sin la caja, el unico cambio al pasar por encima es
+    # el color del trazo, que en 17 px no se registra.
+    DANGER_ICON_HOVER = "#E08585"
+    DANGER_BG_HOVER = "#332727"
+
     DOT_OK = "#5CB85C"
     DOT_WARNING = "#D6AE4A"
     DOT_ERROR = "#D65C5C"
@@ -303,6 +321,12 @@ class Metric(object):
 
     RADIUS = 5  # esquinas de botones y cajas
     RADIUS_SMALL = 3  # esquinas de controles chicos
+    # Los dos del rediseno del Media Manager. Se SUMAN en vez de cambiar
+    # RADIUS: ese valor lo usan las once ventanas ya migradas y subirlo les
+    # cambiaria el aspecto a todas sin que nadie lo hubiera pedido.
+    RADIUS_CONTROL = 8  # boton y campo de una ventana rediseniada
+    RADIUS_FIELD = 6  # campo inline y pastilla de atajo
+    RADIUS_CARD = 10  # caja de una tabla o de una tarjeta informativa
 
     ROW_HEIGHT = 24  # alto de fila de tabla
     # Alto de un boton de una fila de acciones. Va fijo en los dos roles porque

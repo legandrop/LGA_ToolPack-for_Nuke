@@ -5,7 +5,39 @@ _______________________________________________________________________
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
-  v2.27: Deja de leer el .ini a mano y de derivar la carpeta del
+  v2.27: La ventana principal pasa al disenio nuevo. Aparece la columna
+         '#', un id estable que no cambia al ordenar ni al filtrar: va
+         ultima en indice logico y primera en pantalla, asi ninguna
+         columna se corre. La celda de Status se dibuja con su punto de
+         color a alto completo, la cabecera lleva el icono de orden -con
+         el color de acento en la columna ordenada- y el ancho minimo de
+         la ventana pasa a contemplar el pie, que se cortaba a la mitad
+         de una palabra. El menu de Copy to deja de colgarse con
+         setMenu(): la bandera HasMenu le reservaba a Qt el lugar de la
+         flecha y el texto del boton terminaba encima del icono.
+         Los paths dejan de
+         ser un QLabel por celda y los dibuja PathDelegate: la tabla
+         ordena por la columna 0, asi que el setItem de esa columna
+         movia la fila y el setCellWidget de despues le colgaba el
+         label a otra, que es por lo que los paths se veian sin color.
+         Aparecen la fila de pastillas -Total, Offline, Unused,
+         Outside, Online- que filtra por estado, el buscador con
+         debounce que filtra por coincidencia parcial del path, y el
+         pie con la leyenda y Rescan. El estado OK pasa a llamarse
+         Online, Outside tiene dos colores segun el shot folder este
+         activo o no, y los diez hexes de estado salen del modulo de
+         estilo. Status se ordena por rango y no alfabeticamente, y
+         Read numerico con las filas sin Read al final.
+         La barra de herramientas pasa al disenio nuevo: icono, texto y
+         el atajo escrito al lado, un separador antes de Delete y
+         Settings con texto en vez del engranaje pelado. Explorer se
+         llama Reveal y su atajo pasa a Alt+R. Los cuatro handlers que
+         miraban solo la primera fila -Go to Read, Reveal, Relink y
+         Copy to- trabajan con todas las filas seleccionadas, con las
+         busquedas y las copias encadenadas de a una. Los botones se
+         prenden segun lo que este elegido, y Relink deja de exigir
+         Offline: se puede reapuntar un Read online a otro archivo.
+         Deja de leer el .ini a mano y de derivar la carpeta del
          shot subiendo N niveles: la configuracion la normaliza
          LGA_MediaManager_config y el shot es una ruta explicita.
          Lo que se escanea son las scan locations resueltas contra
@@ -39,7 +71,7 @@ _______________________________________________________________________
 
 """
 
-from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
+from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore, horizontal_advance
 
 QApplication = QtWidgets.QApplication
 QTableWidget = QtWidgets.QTableWidget
@@ -55,6 +87,7 @@ QStyle = QtWidgets.QStyle
 QMessageBox = QtWidgets.QMessageBox
 QLabel = QtWidgets.QLabel
 QHBoxLayout = QtWidgets.QHBoxLayout
+QFrame = QtWidgets.QFrame
 QMenu = QtWidgets.QMenu
 try:
     QAction = QtGui.QAction
@@ -64,11 +97,19 @@ QProgressBar = QtWidgets.QProgressBar
 QLineEdit = QtWidgets.QLineEdit
 QBrush = QtGui.QBrush
 QColor = QtGui.QColor
+QFont = QtGui.QFont
+QFontMetrics = QtGui.QFontMetrics
+QPainter = QtGui.QPainter
 QPalette = QtGui.QPalette
 QMovie = QtGui.QMovie
 QScreen = QtGui.QScreen
 QIcon = QtGui.QIcon
+QHeaderView = QtWidgets.QHeaderView
+QStyledItemDelegate = QtWidgets.QStyledItemDelegate
 Qt = QtCore.Qt
+QRect = QtCore.QRect
+QPoint = QtCore.QPoint
+QSize = QtCore.QSize
 QTimer = QtCore.QTimer
 QThread = QtCore.QThread
 Signal = QtCore.Signal
@@ -119,18 +160,141 @@ except ImportError:
 # Los tooltips van en castellano y salen de aca, no hardcodeados en el widget,
 # para que la migracion a bilingue sea un cambio de datos.
 TOOLTIPS = {
-    "go_to_read": "Selecciona en el Node Graph el Read que usa esta media",
-    "explorer": "Abre la carpeta de la media en el explorador de archivos",
-    "relink": "Vuelve a apuntar el Read offline al archivo, buscandolo en la carpeta que elijas",
-    "delete": "Manda a la papelera los archivos seleccionados",
-    "copy_to": "Copia lo seleccionado a una carpeta del shot y reapunta el Read",
-    "settings": "Abre los ajustes del Media Manager",
+    "go_to_read": "Selecciona el Read de este archivo en el Node Graph",
+    "reveal": "Abre la carpeta en el explorador del sistema",
+    "relink": "Busca el archivo y reapunta el Read",
+    "copy_to": "Copia a una de las locations con Copy to",
+    "delete": "Manda el archivo a la papelera",
+    "settings": "Ajustes del Media Manager",
+    # La ✕ del buscador.
+    "search_clear": "Limpiar",
+    "rescan": "Vuelve a escanear el proyecto desde cero",
+    "search": "Filtra por coincidencia parcial del path",
+    "pill_all": "Muestra todos los archivos, sin filtrar por estado",
+    "pill_offline": "Solo los archivos que un Read referencia y no existen",
+    "pill_unused": "Solo los archivos que existen y ningun Read usa",
+    "pill_outside": "Solo los archivos que estan afuera",
+    "pill_online": "Solo los archivos disponibles y usados por un Read",
 }
+
+# Los dos extremos donde va una accion adentro de un QLineEdit. Se resuelven
+# aca porque en Qt6 los enums quedaron scopeados y el nombre pelado puede no
+# existir segun la version de PySide con la que arranque Nuke.
+try:
+    LINEEDIT_LEADING = QLineEdit.LeadingPosition
+    LINEEDIT_TRAILING = QLineEdit.TrailingPosition
+except AttributeError:  # pragma: no cover - depende del binding
+    LINEEDIT_LEADING = QLineEdit.ActionPosition.LeadingPosition
+    LINEEDIT_TRAILING = QLineEdit.ActionPosition.TrailingPosition
+
+# Textos VISIBLES de la leyenda del pie: en ingles, como toda la UI.
+LEGEND_TEXTS = {
+    "Offline": "Referenced by a Read but file is not available",
+    "Unused": "File exists in a scan location but not used by any Read",
+    "Outside": "File is outside the shot folder",
+    "Online": "File is available and used by a Read",
+}
+# Con el shot folder apagado, Outside deja de significar "afuera del shot":
+# si cambia lo que la palabra quiere decir, tiene que cambiar lo que dice.
+LEGEND_OUTSIDE_INFO = "File is outside every scan location"
+
+# ---------------------------------------------------------------------------
+#                          Columnas de la tabla
+# ---------------------------------------------------------------------------
+# Los INDICES LOGICOS no cambian nunca: son los que usan los cinco archivos del
+# Media Manager, incluidos el worker del escaneo y el hilo de borrado, que leen
+# item(row, 0) para el path e item(row, 3) para el flag de carpeta borrable.
+#
+# La columna '#' del disenio nuevo se agrega al FINAL (indice 5) y despues se
+# mueve al PRIMER lugar VISUAL con moveSection(). Es a proposito: en Qt el
+# orden visual de las columnas es independiente del logico, asi que se ve
+# primera sin correr un solo indice. Insertarla como columna 0 habria corrido
+# los cinco indices en este archivo y ademas en LGA_MediaManager_utils, que
+# lee las suyas por numero.
+COL_PATH = 0
+COL_READ = 1
+COL_STATUS = 2
+COL_FOLDER_DELETE = 3
+COL_SEQUENCE = 4
+COL_NUM = 5
+
+# Anchos del disenio: `52 | 1fr (min 300) | 96 | 118`. El del path no se fija:
+# es la que se estira.
+COL_NUM_WIDTH = 52
+COL_READ_WIDTH = 96
+COL_STATUS_WIDTH = 118
+COL_PATH_MIN_WIDTH = 300
+
+# Cabecera: alto derivado del tamano de letra (fs + 25), el icono de orden a
+# 13 px y su separacion del texto.
+HEADER_HEIGHT_OFFSET = 25
+HEADER_PADDING = 10
+HEADER_ICON_SIZE = 13
+HEADER_ICON_GAP = 6
+# El icono va apagado salvo en la columna por la que se esta ordenando.
+HEADER_ICON_OPACITY = 0.45
+
+# Celda de Status: `padding 0 12`, `gap 8` y el punto de 9 px, a alto completo.
+STATUS_CELL_PADDING = 12
+STATUS_CELL_GAP = 8
+STATUS_DOT_SIZE = 9
+
+# El orden de la columna Status NO es alfabetico. Por texto quedaria
+# Offline < Online < Unused, que no es el orden en que se leen los estados:
+# primero lo que esta roto. La clave va en Qt.UserRole y la lee SortKeyItem.
+STATUS_RANK = {"Offline": 0, "Unused": 1, "Outside": 2, "Online": 3}
+# El mismo orden manda en las pastillas y en la leyenda del pie.
+STATUS_ORDER = ("Offline", "Unused", "Outside", "Online")
 
 # Separacion en pixeles entre los botones de la fila de herramientas. Vive aca
 # y no en Metric del modulo de estilo porque es un valor a tunear a ojo: cuando
 # quede firme conviene subirlo al modulo, que es donde van las medidas.
-BUTTON_SPACING = 12
+BUTTON_SPACING = 10
+
+# Medidas de la barra de herramientas. Las tres estan fuera de Metric a
+# proposito: el modulo tiene BUTTON_HEIGHT = 30 y RADIUS = 5, y subirlas ahi le
+# cambiaria el look a las nueve tools ya migradas. Cuando Metric se versione con
+# los valores del rediseño (ver §10 de las notas del port) estas se van.
+TOOLBAR_BUTTON_HEIGHT = 42
+TOOLBAR_ICON_SIZE = 17
+# Aire a izquierda y derecha del contenido del boton, y separacion entre el
+# icono y el texto.
+TOOLBAR_PADDING = 16
+TOOLBAR_ICON_GAP = 9
+# El separador vertical que va antes de Delete.
+TOOLBAR_SEPARATOR_HEIGHT = 26
+# El disenio pide 13.5 y 11.5 px; Qt redondea los decimales en la hoja de
+# estilo, asi que van enteros.
+TOOLBAR_FONT_SIZE = 13
+TOOLBAR_SHORTCUT_FONT_SIZE = 12
+
+# Medidas de la fila de pastillas y del buscador. Mismo criterio que las de la
+# barra: quedan aca hasta que Metric se versione con los valores del rediseño.
+PILL_HEIGHT = 32
+PILL_PADDING = 13
+PILL_RADIUS = 16
+PILL_GAP = 8
+PILL_DOT_SIZE = 9
+PILL_ICON_SIZE = 14
+PILL_FONT_SIZE = 13
+SEARCH_WIDTH = 300
+SEARCH_HEIGHT = 34
+SEARCH_ICON_SIZE = 15
+SEARCH_FONT_SIZE = 13
+# Sin debounce se rehace el filtro de cada fila por tecla apretada, y con
+# miles de archivos eso se siente en el tipeo.
+SEARCH_DEBOUNCE_MS = 150
+# El cartel de "no hay coincidencias".
+EMPTY_FONT_SIZE = 13
+EMPTY_PADDING = 44
+
+# Pie: leyenda de estados y Rescan.
+FOOTER_GAP = 22
+FOOTER_LEGEND_FONT_SIZE = 12
+RESCAN_HEIGHT = 34
+RESCAN_PADDING = 15
+RESCAN_ICON_SIZE = 15
+RESCAN_FONT_SIZE = 13
 
 # Tamano de letra de la tabla, en PIXELES. Iba en pt, que Qt convierte con el
 # DPI logico del sistema: 72 en macOS y 96 en Windows, o sea que el mismo
@@ -161,6 +325,8 @@ import send2trash
 
 # Importar clases auxiliares desde utils
 from LGA_MediaManager_utils import (
+    tinted_icon,
+    PathDelegate,
     RelinkSearchWorker,
     ScannerWorker,
     TransparentTextDelegate,
@@ -171,6 +337,247 @@ from LGA_MediaManager_utils import (
 
 # Importar SettingsWindow desde settings
 from LGA_MediaManager_settings import SettingsWindow
+
+
+def read_sort_key(texto):
+    """
+    La clave de orden de la columna Read.
+
+    Se ordena NUMERICO -Read2 antes que Read12- y las filas sin Read van al
+    final. Por texto, "Read12" caia antes que "Read2" y las filas sin Read se
+    mezclaban en el medio con las que si tienen.
+    """
+    nombres = [n.strip() for n in (texto or "").split(",") if n.strip()]
+    nombres = [n for n in nombres if n != "-"]
+    if not nombres:
+        # El 1 de adelante los manda al final sin importar el resto.
+        return (1, 0, "")
+    primero = nombres[0]
+    numero = re.search(r"(\d+)\s*$", primero)
+    return (0, int(numero.group(1)) if numero else 0, primero.lower())
+
+
+class SortKeyItem(QTableWidgetItem):
+    """
+    Una celda que se ordena por la clave de Qt.UserRole y no por su texto.
+
+    Qt ordena los QTableWidgetItem comparando el texto que muestran, que no
+    sirve ni para Status -el orden es Offline < Unused < Outside < Online, no
+    el alfabetico- ni para Read, que va numerico.
+    """
+
+    def __lt__(self, otro):
+        mia = self.data(Qt.UserRole)
+        suya = otro.data(Qt.UserRole) if isinstance(otro, QTableWidgetItem) else None
+        if mia is None or suya is None:
+            return super(SortKeyItem, self).__lt__(otro)
+        try:
+            return mia < suya
+        except TypeError:
+            # Claves de tipos distintos: no puede pasar, pero no vale colgar
+            # el orden de la tabla entera por una celda mal cargada.
+            return str(mia) < str(suya)
+
+
+class StatusCellDelegate(QStyledItemDelegate):
+    """
+    La celda de Status: fondo a alto completo, punto de color y texto.
+
+    No alcanzaba con el item pelado. El fondo del estado ES la informacion, y
+    el disenio lo pide a alto completo con el punto de 9 px adelante y el texto
+    a la izquierda, tres cosas que un QTableWidgetItem no sabe dibujar: el item
+    solo pinta el rectangulo de fondo y centra el texto.
+
+    Los colores salen de la ventana -status_bg(), status_bg_selected() y
+    status_dot()- y no de una tabla propia, porque el color de Outside depende
+    del shot folder y cambia sin que la tabla se toque.
+    """
+
+    def __init__(self, tabla, ventana, parent=None):
+        super(StatusCellDelegate, self).__init__(parent or tabla)
+        self.ventana = ventana
+
+    def paint(self, painter, option, index):
+        estado = index.data() or ""
+        ventana = self.ventana
+        Paleta = (getattr(ventana, "UI", None) or UIStyle.theme(None)).Color
+
+        seleccionada = bool(option.state & QStyle.State_Selected)
+        if not estado:
+            # Celda sin estado -pasa mientras se puebla la fila-: sin esto
+            # caia en el fondo por default, que es el verde de Online.
+            painter.fillRect(
+                option.rect,
+                QColor(Paleta.SURFACE_SELECTED if seleccionada else Paleta.SURFACE),
+            )
+            return
+        fondo = (
+            ventana.status_bg_selected(estado)
+            if seleccionada
+            else ventana.status_bg(estado)
+        )
+
+        painter.save()
+        painter.fillRect(option.rect, QColor(fondo))
+
+        # El punto, centrado verticalmente en la fila.
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(ventana.status_dot(estado)))
+        x = option.rect.left() + STATUS_CELL_PADDING
+        y = option.rect.top() + (option.rect.height() - STATUS_DOT_SIZE) // 2
+        painter.drawEllipse(x, y, STATUS_DOT_SIZE, STATUS_DOT_SIZE)
+
+        # El texto arranca despues del punto y su separacion.
+        painter.setPen(QColor(Paleta.TEXT_STRONG))
+        painter.setFont(option.font)
+        izquierda = STATUS_CELL_PADDING + STATUS_DOT_SIZE + STATUS_CELL_GAP
+        painter.drawText(
+            option.rect.adjusted(izquierda, 0, -STATUS_CELL_PADDING, 0),
+            Qt.AlignVCenter | Qt.AlignLeft,
+            estado,
+        )
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        base = super(StatusCellDelegate, self).sizeHint(option, index)
+        metrica = QFontMetrics(option.font)
+        ancho = (
+            STATUS_CELL_PADDING * 2
+            + STATUS_DOT_SIZE
+            + STATUS_CELL_GAP
+            + horizontal_advance(metrica, index.data() or "")
+        )
+        return QSize(ancho, base.height())
+
+
+class SortHeaderView(QHeaderView):
+    """
+    La cabecera de la tabla, con el icono de orden al lado de cada titulo.
+
+    Se dibuja entera a mano en vez de dejarle la seccion al estilo nativo: el
+    disenio pide el icono `chevrons-up-down` DESPUES del texto -Qt solo sabe
+    poner el icono de un item antes-, apagado al 45% salvo en la columna por la
+    que se esta ordenando, donde va con el color de acento. La flecha nativa de
+    orden no se dibuja porque no se llama a la implementacion de la clase base;
+    el orden en si lo sigue manejando Qt, que es quien recibe el click.
+    """
+
+    def __init__(self, tabla, ventana):
+        super(SortHeaderView, self).__init__(Qt.Horizontal, tabla)
+        self.ventana = ventana
+        self.font_size = DEFAULT_FONT_SIZE
+        self.setSectionsClickable(True)
+        # Sin esto Qt hunde la seccion clickeada con el color del estilo del
+        # host, que no es ninguno de los del tema.
+        self.setHighlightSections(False)
+        self.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.set_font_size(DEFAULT_FONT_SIZE)
+
+    def set_font_size(self, tamano):
+        """El alto de la cabecera se DERIVA del tamano de letra: fs + 25."""
+        self.font_size = tamano
+        self.setFixedHeight(tamano + HEADER_HEIGHT_OFFSET)
+        self.viewport().update()
+
+    def _fuente(self):
+        fuente = QFont(self.font())
+        # El disenio pide 12.5 px; Qt no dibuja medios pixeles.
+        fuente.setPixelSize(max(1, self.font_size - 1))
+        try:
+            # En Qt6 el enum quedo scopeado y el nombre pelado puede no existir
+            # segun la version de PySide con la que arranque Nuke.
+            fuente.setWeight(QFont.DemiBold)
+        except (AttributeError, TypeError):  # pragma: no cover - depende del binding
+            fuente.setBold(True)
+        return fuente
+
+    def paintSection(self, painter, rect, logicalIndex):
+        Paleta = (getattr(self.ventana, "UI", None) or UIStyle.theme(None)).Color
+        modelo = self.model()
+        texto = ""
+        if modelo is not None:
+            texto = modelo.headerData(logicalIndex, Qt.Horizontal) or ""
+        ordenada = self.sortIndicatorSection() == logicalIndex
+
+        painter.save()
+        painter.fillRect(rect, QColor(Paleta.SURFACE_HEADER))
+        painter.fillRect(
+            QRect(rect.left(), rect.bottom(), rect.width(), 1),
+            QColor(Paleta.BORDER),
+        )
+
+        fuente = self._fuente()
+        painter.setFont(fuente)
+        painter.setPen(
+            QColor(Paleta.TEXT_STRONG if ordenada else Paleta.TEXT_HEADER)
+        )
+
+        if logicalIndex == COL_NUM:
+            # El '#' va centrado y sin icono: es un id, no un dato por el que
+            # uno ordene mirando la flecha.
+            painter.drawText(rect, Qt.AlignCenter, texto)
+            painter.restore()
+            return
+
+        ancho_texto = horizontal_advance(QFontMetrics(fuente), texto)
+
+        x = rect.left() + HEADER_PADDING
+        painter.drawText(
+            QRect(x, rect.top(), ancho_texto, rect.height()),
+            Qt.AlignVCenter | Qt.AlignLeft,
+            texto,
+        )
+
+        icono = tinted_icon(
+            "chevrons-up-down",
+            Paleta.ACCENT_HOVER if ordenada else Paleta.TEXT_HEADER,
+            HEADER_ICON_SIZE,
+        )
+        painter.setOpacity(1.0 if ordenada else HEADER_ICON_OPACITY)
+        painter.drawPixmap(
+            x + ancho_texto + HEADER_ICON_GAP,
+            rect.top() + (rect.height() - HEADER_ICON_SIZE) // 2,
+            icono.pixmap(HEADER_ICON_SIZE, HEADER_ICON_SIZE),
+        )
+        painter.restore()
+
+    def sectionSizeFromContents(self, logicalIndex):
+        """El ancho pedido tiene que incluir el icono, que Qt no ve."""
+        base = super(SortHeaderView, self).sectionSizeFromContents(logicalIndex)
+        if logicalIndex == COL_NUM:
+            return base
+        return QSize(
+            base.width() + HEADER_PADDING * 2 + HEADER_ICON_GAP + HEADER_ICON_SIZE,
+            base.height(),
+        )
+
+
+class CopyStepWindow(LoadingWindow):
+    """
+    La ventanita de "Copying..." de un paso de la tanda de copias.
+
+    Avisa cuando el paso termino para poder encadenar el siguiente. El aviso
+    cuelga del cierre de la ventanita y no de las senales del CopyThread
+    porque la copia termina por cinco caminos distintos -fin, fin de archivo
+    unico, cancelado, cancelado unico y error-, algunos de los cuales se
+    emiten dos veces para el mismo archivo. Lo unico que hacen todos, siempre,
+    es cerrar esta ventana.
+    """
+
+    def __init__(self, mensaje, parent, al_terminar):
+        super(CopyStepWindow, self).__init__(mensaje, parent)
+        self._al_terminar = al_terminar
+        self._avisado = False
+
+    def stop(self):
+        super(CopyStepWindow, self).stop()
+        if self._avisado:
+            return
+        self._avisado = True
+        # Diferido: el callback abre la ventanita del paso siguiente, y
+        # crearla adentro del cierre de esta las deja a las dos vivas.
+        QTimer.singleShot(0, self._al_terminar)
 
 
 class FileScanner(QWidget):
@@ -199,6 +606,24 @@ class FileScanner(QWidget):
         # Van aparte de self.loading_window, que la comparten copia y borrado.
         self.relink_worker = None
         self.relink_loading_window = None
+        # La tanda de relink: las rutas que faltan buscar, la carpeta elegida
+        # una sola vez para todas, y lo que no aparecio, que se avisa junto al
+        # final en vez de un cartel por archivo.
+        self.relink_queue = []
+        self.relink_directory = ""
+        self.relink_missing = []
+        # La tanda de copias, encadenada por la misma razon: una por vez.
+        self.copy_queue = []
+        self.copy_dest_folder = ""
+        # Filtro de estado y busqueda. Se combinan con AND: la pastilla dice
+        # que estados se ven y el buscador que paths, y una fila se muestra
+        # solo si pasa los dos.
+        self.status_filter = "all"
+        self.search_query = ""
+        self.status_pills = []
+        # Un escaneo por vez: dos ScannerWorker escribiendo sobre la misma
+        # tabla se pisan las filas.
+        self._scan_running = False
         self.load_settings()  # Cargar settings del archivo .ini
         # El tema y el tamano de letra salen del .ini, asi que se resuelven
         # ANTES de armar la UI: la hoja de la tabla los usa al construirse.
@@ -247,160 +672,120 @@ class FileScanner(QWidget):
         # self.status_label = QLabel("")
         # self.layout.addWidget(self.status_label)
 
-        # Crear layout para botones a la izquierda
-        left_buttons_layout = QHBoxLayout()
-        left_buttons_layout.setSpacing(BUTTON_SPACING)
+        # ------------------------------------------------------------------
+        #                      Barra de herramientas
+        # ------------------------------------------------------------------
+        # Cinco botones con icono + texto + el atajo escrito al lado, un
+        # separador antes de Delete, y Settings a la derecha con texto y el
+        # mismo estilo que los demas: antes era un engranaje pelado de 24x24
+        # con la hoja puesta en 'border: none', que no se leia como boton.
+        main_buttons_layout = QHBoxLayout()
+        main_buttons_layout.setSpacing(BUTTON_SPACING)
+        main_buttons_layout.setContentsMargins(0, 9, 0, 9)
 
         apply_tooltip_stylesheet(self)
 
-        # Crear botones Reveal, Delete, y Go to Read y agregarlos despues del checkbox
-        # Ninguno es el boton de accion de la ventana -son una fila de herramientas,
-        # cualquiera es valido segun lo que este seleccionado- asi que van todos
-        # secundarios y no hay violeta: marcar uno seria decir que Enter lo ejecuta.
-        self.go_to_read_button = QPushButton("&Go to Read")
-        self.go_to_read_button.setToolTip(TOOLTIPS["go_to_read"])
-        self.reveal_button = QPushButton("&Explorer")
-        self.reveal_button.setToolTip(TOOLTIPS["explorer"])
-        self.delete_button = QPushButton("&Delete")
-        self.delete_button.setToolTip(TOOLTIPS["delete"])
-        self.relink_button = QPushButton("Re&link")
-        self.relink_button.setToolTip(TOOLTIPS["relink"])
+        # Los botones se guardan para poder repintarlos cuando cambia el tema
+        # sin tener que reabrir la ventana.
+        self.toolbar_buttons = []
 
-        for button in (
-            self.go_to_read_button,
-            self.reveal_button,
-            self.delete_button,
-            self.relink_button,
-        ):
-            button.setStyleSheet(Style.BTN_SECONDARY)
-            button.setFixedHeight(Metric.BUTTON_HEIGHT)
+        # Ninguno es el boton de accion de la ventana -son una fila de
+        # herramientas, cualquiera es valido segun lo que este seleccionado-
+        # asi que van todos secundarios y no hay violeta: marcar uno seria
+        # decir que Enter lo ejecuta.
+        self.go_to_read_button = self._make_toolbar_button(
+            "&Go to Read", "scan", "Alt + G", TOOLTIPS["go_to_read"]
+        )
+        # Antes se llamaba Explorer, con atajo Alt+E. El nombre nuevo dice lo
+        # que hace y la letra acompania: Alt+R.
+        self.reveal_button = self._make_toolbar_button(
+            "&Reveal", "folder-open", "Alt + R", TOOLTIPS["reveal"]
+        )
+        self.relink_button = self._make_toolbar_button(
+            "Re&link", "link-2", "Alt + L", TOOLTIPS["relink"]
+        )
+        self.copy_button = self._make_toolbar_button(
+            "&Copy to…", "folder-input", "Alt + C", TOOLTIPS["copy_to"]
+        )
+        self.delete_button = self._make_toolbar_button(
+            "&Delete", "trash-2", "Alt + D", TOOLTIPS["delete"], peligro=True
+        )
+        self.settings_button = self._make_toolbar_button(
+            "Settings", "settings", "", TOOLTIPS["settings"]
+        )
 
-        self.relink_button.clicked.connect(self.relink)
-        self.reveal_button.clicked.connect(self.reveal_selected)
-        self.delete_button.clicked.connect(self.delete_selected)
-        self.go_to_read_button.clicked.connect(self.go_to_read)
-
-        # Crear el boton 'Copy to...'
-        self.copy_button = QToolButton(self)
-        self.copy_button.setText("&Copy to")
-        self.copy_button.setPopupMode(QToolButton.InstantPopup)
+        # El menu de Copy to cuelga del boton: se abre al clickearlo o con
+        # Alt+C, y el Alt+letra de cada location copia directo sin abrirlo.
+        # Es un QPushButton y no el QToolButton de antes para que las seis
+        # cajas de la barra sean el mismo widget y compartan hoja de estilo.
         self.copy_menu = QMenu(self)
-        self.copy_button.setToolTip(TOOLTIPS["copy_to"])
-        # Mismo look que los otros botones de la fila. El estilo se deriva del
-        # secundario en vez de escribir uno propio: BTN_SECONDARY apunta a
-        # QPushButton y este es un QToolButton, que no lo recibiria.
-        self.copy_button.setStyleSheet(
-            Style.BTN_SECONDARY.replace("QPushButton", "QToolButton")
-            + "QToolButton::menu-indicator { image: none; }"
-        )
-
         self.populate_copy_menu()
-        self.copy_button.setMenu(self.copy_menu)
-
-        # Todos los botones de la fila miden lo mismo, y esa medida sale del texto
-        # mas largo: con un ancho fijo a ojo, el padding del estilo se comia la
-        # primera letra de "Go to Read".
-        self.copy_button.setFixedHeight(Metric.BUTTON_HEIGHT)
-        self.copy_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        row_buttons = (
-            self.go_to_read_button,
-            self.reveal_button,
-            self.relink_button,
-            self.delete_button,
-            self.copy_button,
-        )
-        button_width = max(100, max(b.sizeHint().width() for b in row_buttons))
-        for button in row_buttons:
-            button.setFixedWidth(button_width)
-
-        # Agregar botones al layout de botones
-        left_buttons_layout.addWidget(self.go_to_read_button)
-        left_buttons_layout.addWidget(self.reveal_button)
-        left_buttons_layout.addWidget(self.relink_button)
-        left_buttons_layout.addWidget(self.delete_button)
-        left_buttons_layout.insertWidget(4, self.copy_button)
-
-        # Configura el margen interno vertical del layout de botones izquierdo
-        left_buttons_layout.setContentsMargins(
-            0, 9, 0, 9
-        )  # Anade un margen superior e inferior de 9 pixeles
-
-        # Crear el layout principal que incluye todos los layouts de botones
-        main_buttons_layout = QHBoxLayout()
-        main_buttons_layout.addLayout(left_buttons_layout)
-
-        # Espacio flexible que empuja el engranaje y la version hacia la derecha
-        main_buttons_layout.addStretch(1)
-
-        # Obtener la ruta del directorio del script actual
-        script_dir = os.path.dirname(__file__)
-
-        # Crear el boton 'Settings' con imagenes
-        settings_off_path = os.path.join(script_dir, "icons", "settings_off.png")
-        settings_on_path = os.path.join(script_dir, "icons", "settings_on.png")
-
-        # Verificar si los archivos existen
-        if not os.path.exists(settings_off_path):
-            debug_print(f"settings_off.png no encontrado en {settings_off_path}")
-        else:
-            debug_print(f"settings_off.png encontrado en {settings_off_path}")
-
-        if not os.path.exists(settings_on_path):
-            debug_print(f"settings_on.png no encontrado en {settings_on_path}")
-        else:
-            debug_print(f"settings_on.png encontrado en {settings_on_path}")
-
-        self.settings_button = QPushButton()
-        self.settings_button.setToolTip(TOOLTIPS["settings"])
-        self.settings_button.setFixedWidth(24)  # Ajusta el tamano al de la imagen
-        self.settings_button.setFixedHeight(24)  # Ajusta el tamano al de la imagen
-        self.settings_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-
-        # Cargar imagenes y establecer iconos
-        settings_off_icon = QIcon(settings_off_path)
-        settings_on_icon = QIcon(settings_on_path)
-        self.settings_button.setIcon(settings_off_icon)
-
-        # Remover el estilo del boton para que solo se vea la imagen y evitar cambios al recibir el foco
-        self.settings_button.setStyleSheet(
-            """
-            QPushButton { 
-                border: none; 
-                background-color: transparent;
-            }
-            QPushButton:focus {
-                outline: none;
-            }
-        """
+        # El menu NO se cuelga con setMenu(). Con menu puesto, Qt le marca al
+        # boton la bandera HasMenu y le reserva el lugar de la flecha por
+        # dentro, sin avisarle a la hoja de estilo: el padding-left que reserva
+        # el icono dejaba de valer y el texto se dibujaba ENCIMA del icono, que
+        # es lo que pasaba solo en este boton de los seis. Abriendolo a mano el
+        # boton queda igual que los otros cinco, y de paso el menu se posiciona
+        # donde lo quiere el disenio: alineado al borde izquierdo, 6 px abajo.
+        self.copy_button.clicked.connect(self.show_copy_menu)
+        # Con el menu abierto el boton queda hundido, que es lo que hacia solo
+        # cuando el menu colgaba de el.
+        self.copy_menu.aboutToHide.connect(
+            lambda: self.copy_button.setDown(False)
         )
 
-        # Cambiar la imagen al hacer clic y quitar el foco del boton
-        self.settings_button.pressed.connect(
-            lambda: self.settings_button.setIcon(settings_on_icon)
-        )
-        self.settings_button.released.connect(
-            lambda: [
-                self.settings_button.setIcon(settings_off_icon),
-                self.settings_button.clearFocus(),
-            ]
-        )
-
+        self.go_to_read_button.clicked.connect(self.go_to_read)
+        self.reveal_button.clicked.connect(self.reveal_selected)
+        self.relink_button.clicked.connect(self.relink)
+        self.delete_button.clicked.connect(self.delete_selected)
         self.settings_button.clicked.connect(self.show_settings_window)
+
+        main_buttons_layout.addWidget(self.go_to_read_button)
+        main_buttons_layout.addWidget(self.reveal_button)
+        main_buttons_layout.addWidget(self.relink_button)
+        main_buttons_layout.addWidget(self.copy_button)
+
+        # Delete va del otro lado de un separador: es el unico de la fila que
+        # toca archivos en disco.
+        self.toolbar_separator = QFrame(self)
+        self.toolbar_separator.setFixedSize(1, TOOLBAR_SEPARATOR_HEIGHT)
+        main_buttons_layout.addWidget(self.toolbar_separator)
+        main_buttons_layout.addWidget(self.delete_button)
+
+        # Espacio flexible que empuja Settings hacia la derecha
+        main_buttons_layout.addStretch(1)
 
         # La version ya no vive en la barra: estaba escrita a mano y se
         # desincronizaba del header. Ahora la muestra la ventana de ajustes,
         # leyendola del header del script principal.
         main_buttons_layout.addWidget(self.settings_button)
 
+        self.apply_toolbar_stylesheet()
+
         # Agregar layout de botones al layout principal
         self.layout.addLayout(main_buttons_layout)
 
+        # ------------------------------------------------------------------
+        #                  Pastillas de estado y buscador
+        # ------------------------------------------------------------------
+        self.layout.addLayout(self.build_status_bar())
+
         # Crear la tabla
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
+        self.table.setColumnCount(6)
+        # El '#' va ultimo en la lista porque su indice LOGICO es el 5. Lo que
+        # lo pone primero en pantalla es el moveSection de mas abajo.
         self.table.setHorizontalHeaderLabels(
-            ["File Path", "Read", "Status", "Folder_Delete", "Sequence"]
+            ["File Path", "Read", "Status", "Folder_Delete", "Sequence", "#"]
         )
+        # Cabecera propia: la nativa no sabe poner el icono de orden despues
+        # del texto ni pintarlo con el color de acento en la columna ordenada.
+        self.header = SortHeaderView(self.table, self)
+        self.table.setHorizontalHeader(self.header)
+        self.header.set_font_size(self.font_size)
+        # El '#' se corre al primer lugar VISUAL. Los indices logicos siguen
+        # siendo los de siempre, asi que ningun callsite se entera.
+        self.header.moveSection(self.header.visualIndex(COL_NUM), 0)
         # self.table.setColumnHidden(1, True)
         # self.table.setColumnHidden(2, True)
         # self.table.horizontalHeader().setStretchLastSection(True) # Estira la ultima columna hasta la derecha de la ventana
@@ -412,6 +797,13 @@ class FileScanner(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.ExtendedSelection)
         self.table.setSortingEnabled(True)
+        # La barra depende de lo que este seleccionado, no de que haya filas:
+        # cada boton pide una condicion distinta sobre el estado y el Read de
+        # las filas elegidas.
+        self.table.itemSelectionChanged.connect(self.update_button_states)
+        # Con la ventana recien abierta no hay nada seleccionado, asi que la
+        # barra arranca apagada salvo Settings.
+        self.update_button_states()
         self.layout.addWidget(self.table)
 
         # Cambiar el color de fondo de la tabla y el tamano de la fuente.
@@ -423,13 +815,993 @@ class FileScanner(QWidget):
         self.apply_table_stylesheet()
 
         # Aplicar el delegado a cada columna
-        delegate = TransparentTextDelegate(self.table)
+        self.status_delegate = TransparentTextDelegate(self.table, self.UI)
+        delegate = self.status_delegate
         for column in range(self.table.columnCount()):
             self.table.setItemDelegateForColumn(column, delegate)
+
+        # La columna del path la dibuja PathDelegate, no un QLabel por celda:
+        # el color y el resaltado de la busqueda se recalculan al pintar y
+        # dejan de depender de que un widget siga colgado de su fila.
+        self.path_delegate = PathDelegate(self.table, self.UI, self.font_size)
+        self.table.setItemDelegateForColumn(COL_PATH, self.path_delegate)
+        self.refresh_path_delegate()
+
+        # La celda de Status la dibuja su propio delegado: fondo a alto
+        # completo, punto de color y texto a la izquierda, que es lo que el
+        # item pelado no sabe hacer.
+        self.status_cell_delegate = StatusCellDelegate(self.table, self)
+        self.table.setItemDelegateForColumn(COL_STATUS, self.status_cell_delegate)
+
+        # El cartel de "no hay coincidencias" vive adentro del viewport de la
+        # tabla, que es el espacio que tiene que ocupar cuando el filtro no
+        # deja nada. Arranca escondido.
+        self.empty_label = QLabel("", self.table.viewport())
+        self.empty_label.setAlignment(Qt.AlignCenter)
+        self.empty_label.hide()
+        # Para reubicarlo cuando la tabla cambia de tamano.
+        self.table.viewport().installEventFilter(self)
+
+        # ------------------------------------------------------------------
+        #                                 Pie
+        # ------------------------------------------------------------------
+        self.layout.addLayout(self.build_footer())
+        self.apply_status_bar_stylesheet()
+        self.apply_footer_stylesheet()
 
         self.setLayout(self.layout)
         self.scan_project()
         self.adjust_window_size()
+
+    # ----------------------------------------------------------------------
+    #                       Barra de herramientas
+    # ----------------------------------------------------------------------
+    def _make_toolbar_button(self, texto, icono, atajo, tooltip, peligro=False):
+        """
+        Un boton de la barra: icono + texto + el atajo escrito al costado.
+
+        El cartel del atajo NO sale del mnemonico. En Qt el '&' subraya la
+        letra dentro del texto pero no imprime "Alt + G" al costado, asi que el
+        atajo va en un QLabel gris adentro del layout del boton; el '&' se
+        sigue declarando en el texto para que Alt+letra dispare.
+
+        El icono tambien va en un QLabel y no con setIcon(): asi la separacion
+        entre el icono y el texto es la del disenio y no la que Qt elige, que
+        no se puede tocar por hoja de estilo.
+        """
+        boton = QPushButton(texto, self)
+        boton.setToolTip(tooltip)
+        boton.setFixedHeight(TOOLBAR_BUTTON_HEIGHT)
+        boton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # Sin foco no queda el rectangulo punteado encima del icono. El
+        # mnemonico funciona igual: lo resuelve el atajo del boton, no el foco.
+        boton.setFocusPolicy(Qt.NoFocus)
+
+        icono_label = QLabel(boton)
+        # Sin esto los labels se comen el click y el boton no dispara.
+        icono_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        icono_label.setFixedSize(TOOLBAR_ICON_SIZE, TOOLBAR_ICON_SIZE)
+
+        atajo_label = None
+        if atajo:
+            atajo_label = QLabel(atajo, boton)
+            atajo_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+        fila = QHBoxLayout(boton)
+        fila.setContentsMargins(TOOLBAR_PADDING, 0, TOOLBAR_PADDING, 0)
+        fila.setSpacing(0)
+        fila.addWidget(icono_label, 0, Qt.AlignVCenter)
+        fila.addStretch(1)
+        if atajo_label is not None:
+            fila.addWidget(atajo_label, 0, Qt.AlignVCenter)
+
+        self.toolbar_buttons.append(
+            {
+                "boton": boton,
+                "icono": icono,
+                "icono_label": icono_label,
+                "atajo_label": atajo_label,
+                "peligro": peligro,
+            }
+        )
+        return boton
+
+    def apply_toolbar_stylesheet(self):
+        """
+        La hoja de los botones de la barra, con los colores del tema activo.
+
+        Sale a un metodo propio porque el tema se cambia desde los ajustes con
+        la ventana abierta: si quedara escrita en el armado, la unica forma de
+        aplicar un tema nuevo seria reabrir la herramienta.
+        """
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        Paleta = UI.Color
+
+        for datos in self.toolbar_buttons:
+            boton = datos["boton"]
+            atajo_label = datos["atajo_label"]
+
+            if atajo_label is not None:
+                atajo_label.setStyleSheet(
+                    "QLabel { color: %s; font-size: %dpx; font-weight: 600;"
+                    " background: transparent; border: none; }"
+                    % (Paleta.TEXT_DIM, TOOLBAR_SHORTCUT_FONT_SIZE)
+                )
+            datos["icono_label"].setStyleSheet(
+                "QLabel { background: transparent; border: none; }"
+            )
+
+            # El texto arranca despues del icono y termina antes del cartel del
+            # atajo: los dos son labels flotando adentro del boton, y sin
+            # reservarles el lugar por padding el texto les pasaria por encima.
+            izquierda = TOOLBAR_PADDING + TOOLBAR_ICON_SIZE + TOOLBAR_ICON_GAP
+            derecha = TOOLBAR_PADDING
+            if atajo_label is not None:
+                derecha += atajo_label.sizeHint().width() + TOOLBAR_ICON_GAP
+
+            boton.setStyleSheet(
+                "QPushButton {"
+                " background-color: %(fondo)s;"
+                " border: 1px solid %(borde)s;"
+                " border-radius: %(radio)dpx;"
+                " color: %(texto)s;"
+                " font-size: %(letra)dpx;"
+                " font-weight: 600;"
+                " text-align: left;"
+                " padding-left: %(izq)dpx;"
+                " padding-right: %(der)dpx;"
+                " }"
+                "QPushButton:hover:!disabled {"
+                " background-color: %(hover)s; border-color: %(borde_hover)s; }"
+                # Con el menu abierto el boton queda hundido: es el unico
+                # estado que Qt expone para eso en un QPushButton con menu.
+                "QPushButton:pressed {"
+                " background-color: %(hover)s; border-color: %(acento)s; }"
+                "QPushButton:disabled { color: %(apagado)s; }"
+                # La flecha del menu no va: el disenio no la tiene y ademas
+                # descentraria el texto de Copy to contra los demas botones.
+                "QPushButton::menu-indicator { image: none; width: 0px; }"
+                % {
+                    "fondo": Paleta.SURFACE_RAISED,
+                    "borde": Paleta.BORDER_STRONG,
+                    "radio": Metric.RADIUS_CONTROL,
+                    "texto": Paleta.TEXT_STRONG,
+                    "letra": TOOLBAR_FONT_SIZE,
+                    "izq": izquierda,
+                    "der": derecha,
+                    "hover": Paleta.SURFACE_HOVER,
+                    "borde_hover": Paleta.BORDER_HOVER,
+                    "acento": Paleta.ACCENT_HOVER,
+                    "apagado": Paleta.TEXT_DIM,
+                }
+            )
+            # El ancho sale del texto y de los dos paddings, que ya reservan el
+            # icono y el atajo: con un ancho fijo a ojo, el padding se comia la
+            # primera letra de "Go to Read".
+            boton.setFixedWidth(boton.sizeHint().width())
+
+        if getattr(self, "toolbar_separator", None) is not None:
+            self.toolbar_separator.setStyleSheet(
+                "QFrame { background-color: %s; border: none; }" % Paleta.BORDER
+            )
+
+        self.refresh_toolbar_icons()
+        # El ancho minimo depende del ancho de los botones, que acaba de
+        # recalcularse: si se fija antes, el numero es el del tema anterior.
+        self.update_minimum_width()
+
+    def refresh_toolbar_icons(self):
+        """
+        Repinta los iconos segun el tema y segun si el boton esta habilitado.
+
+        Los SVG de trazo se tienen que volver a generar para cambiarles el
+        color: Qt no atenua un QLabel deshabilitado como si atenua un QIcon.
+        """
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        Paleta = UI.Color
+        for datos in self.toolbar_buttons:
+            if not datos["boton"].isEnabled():
+                color = Paleta.TEXT_DIM
+            elif datos["peligro"]:
+                # El unico icono con color propio: Delete es el que no se
+                # puede deshacer.
+                color = Paleta.ERROR
+            else:
+                color = Paleta.TEXT
+            datos["icono_label"].setPixmap(
+                tinted_icon(datos["icono"], color, TOOLBAR_ICON_SIZE).pixmap(
+                    TOOLBAR_ICON_SIZE, TOOLBAR_ICON_SIZE
+                )
+            )
+            # El cartel del atajo se queda en TEXT_DIM en los dos estados: ya
+            # es el texto mas apagado del boton y bajarlo mas lo borra.
+
+    def update_minimum_width(self):
+        """
+        Que la ventana no pueda achicarse hasta cortar la barra ni la leyenda.
+
+        Son dos filas de ancho fijo que no envuelven: con la ventana angosta el
+        ultimo boton -justamente el de los ajustes- se sale de la vista, y la
+        leyenda del pie se corta a la mitad de una palabra
+        ("File is outside the sho..."). Manda la mas ancha de las dos.
+        """
+        if not getattr(self, "toolbar_buttons", None):
+            return
+        ancho = sum(datos["boton"].width() for datos in self.toolbar_buttons)
+        # Los cinco espacios entre botones, mas el del separador.
+        ancho += BUTTON_SPACING * (len(self.toolbar_buttons) + 1)
+        ancho += 1  # el separador vertical
+
+        ancho = max(ancho, self.footer_minimum_width())
+
+        margenes = self.layout.contentsMargins()
+        ancho += margenes.left() + margenes.right()
+
+        # Un minimo mas ancho que la pantalla deja la ventana sin poder
+        # moverse. Si no entra, que se corte: es preferible a eso.
+        pantalla = QApplication.primaryScreen()
+        if pantalla is not None:
+            ancho = min(ancho, int(pantalla.availableGeometry().width() * 0.95))
+        self.setMinimumWidth(ancho)
+
+    def footer_minimum_width(self):
+        """
+        El ancho que necesita el pie para que no se corte ningun texto.
+
+        Se mide sobre los labels y no con el sizeHint del layout porque el pie
+        se arma antes de que la ventana tenga geometria y ahi el layout todavia
+        no sabe cuanto mide.
+        """
+        entradas = getattr(self, "legend_entries", None)
+        if not entradas:
+            return 0
+        ancho = 0
+        for entrada in entradas:
+            # El punto, el nombre del estado y su explicacion, con la
+            # separacion de adentro de cada entrada.
+            ancho += PILL_DOT_SIZE + PILL_GAP * 2
+            ancho += entrada["nombre"].sizeHint().width()
+            ancho += entrada["texto"].sizeHint().width()
+        # La separacion entre entradas y la que las despega del Rescan.
+        ancho += FOOTER_GAP * len(entradas)
+        if getattr(self, "rescan_button", None) is not None:
+            ancho += self.rescan_button.sizeHint().width()
+        return ancho
+
+    # ----------------------------------------------------------------------
+    #                   Pastillas de estado y buscador
+    # ----------------------------------------------------------------------
+    def build_status_bar(self):
+        """
+        La fila de pastillas y el buscador, que reemplaza a los controles
+        viejos.
+
+        Las pastillas filtran por estado y el buscador por coincidencia
+        parcial del path; los dos se combinan con AND.
+        """
+        fila = QHBoxLayout()
+        fila.setSpacing(PILL_GAP)
+        fila.setContentsMargins(0, 0, 0, 6)
+
+        # Total va con el icono de archivo y no con un punto: no es un estado,
+        # es la ausencia de filtro.
+        fila.addWidget(
+            self._make_status_pill("all", "Total", TOOLTIPS["pill_all"], icono="file")
+        )
+        for estado in STATUS_ORDER:
+            fila.addWidget(
+                self._make_status_pill(
+                    estado, estado, TOOLTIPS["pill_%s" % estado.lower()]
+                )
+            )
+
+        fila.addStretch(1)
+
+        # El buscador no lleva boton de filtro: filtra al tipear.
+        self.search_field = QLineEdit(self)
+        self.search_field.setPlaceholderText("Filter paths…")
+        self.search_field.setToolTip(TOOLTIPS["search"])
+        self.search_field.setFixedSize(SEARCH_WIDTH, SEARCH_HEIGHT)
+        self.search_field.setClearButtonEnabled(False)
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        self.search_field.addAction(
+            tinted_icon("search", UI.Color.TEXT_DIM, SEARCH_ICON_SIZE),
+            LINEEDIT_LEADING,
+        )
+        # La ✕ existe solo cuando hay texto: sin texto no hay nada que limpiar
+        # y un boton que no hace nada es peor que ninguno.
+        self.search_clear_action = self.search_field.addAction(
+            tinted_icon("x", UI.Color.TEXT_DIM, SEARCH_ICON_SIZE),
+            LINEEDIT_TRAILING,
+        )
+        self.search_clear_action.setToolTip(TOOLTIPS["search_clear"])
+        self.search_clear_action.setVisible(False)
+        self.search_clear_action.triggered.connect(self.clear_search)
+
+        # El filtro NO corre en cada tecla: sin debounce se recorre la tabla
+        # entera por caracter tipeado.
+        self.search_timer = QTimer(self)
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(SEARCH_DEBOUNCE_MS)
+        self.search_timer.timeout.connect(self.apply_search)
+        self.search_field.textChanged.connect(self.on_search_text_changed)
+        # Escape adentro del campo limpia la busqueda en vez de cerrar la
+        # ventana, que es lo que hace el Escape de la ventana.
+        self.search_field.installEventFilter(self)
+
+        fila.addWidget(self.search_field)
+        return fila
+
+    def _make_status_pill(self, clave, etiqueta, tooltip, icono=""):
+        """
+        Una pastilla: punto de color -o icono-, nombre del estado y contador.
+
+        El contador va en un QLabel aparte y no adentro del texto del boton
+        porque tiene su propio color: un QPushButton pinta todo su texto de un
+        solo color.
+        """
+        boton = QPushButton(etiqueta, self)
+        boton.setToolTip(tooltip)
+        boton.setFixedHeight(PILL_HEIGHT)
+        boton.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        boton.setFocusPolicy(Qt.NoFocus)
+        boton.setCursor(Qt.PointingHandCursor)
+
+        punto = QLabel(boton)
+        punto.setAttribute(Qt.WA_TransparentForMouseEvents)
+        if icono:
+            punto.setFixedSize(PILL_ICON_SIZE, PILL_ICON_SIZE)
+        else:
+            punto.setFixedSize(PILL_DOT_SIZE, PILL_DOT_SIZE)
+
+        contador = QLabel("0", boton)
+        contador.setAttribute(Qt.WA_TransparentForMouseEvents)
+
+        caja = QHBoxLayout(boton)
+        caja.setContentsMargins(PILL_PADDING, 0, PILL_PADDING, 0)
+        caja.setSpacing(0)
+        caja.addWidget(punto, 0, Qt.AlignVCenter)
+        caja.addStretch(1)
+        caja.addWidget(contador, 0, Qt.AlignVCenter)
+
+        datos = {
+            "clave": clave,
+            "boton": boton,
+            "punto": punto,
+            "contador": contador,
+            "icono": icono,
+        }
+        self.status_pills.append(datos)
+        boton.clicked.connect(lambda checked=False, c=clave: self.on_pill_clicked(c))
+        return boton
+
+    def apply_status_bar_stylesheet(self):
+        """La hoja de las pastillas y del buscador, con el tema activo."""
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        Paleta = UI.Color
+
+        for datos in self.status_pills:
+            clave = datos["clave"]
+            activa = clave != "all" and clave == self.status_filter
+
+            if datos["icono"]:
+                datos["punto"].setPixmap(
+                    tinted_icon(
+                        datos["icono"], Paleta.TEXT, PILL_ICON_SIZE
+                    ).pixmap(PILL_ICON_SIZE, PILL_ICON_SIZE)
+                )
+                datos["punto"].setStyleSheet(
+                    "QLabel { background: transparent; border: none; }"
+                )
+            else:
+                datos["punto"].setStyleSheet(
+                    "QLabel { background-color: %s; border: none;"
+                    " border-radius: %dpx; }"
+                    % (self.status_dot(clave), PILL_DOT_SIZE // 2)
+                )
+
+            datos["contador"].setStyleSheet(
+                "QLabel { color: %s; font-size: %dpx; font-weight: 600;"
+                " background: transparent; border: none; }"
+                % (Paleta.TEXT_STRONG, PILL_FONT_SIZE)
+            )
+
+            # Igual que en la barra: el punto y el contador flotan adentro del
+            # boton, asi que hay que reservarles el lugar por padding para que
+            # el texto no les pase por encima.
+            ancho_punto = datos["punto"].width()
+            izquierda = PILL_PADDING + ancho_punto + PILL_GAP
+            derecha = (
+                PILL_PADDING + datos["contador"].sizeHint().width() + PILL_GAP
+            )
+
+            datos["boton"].setStyleSheet(
+                "QPushButton {"
+                " background-color: %(fondo)s;"
+                " border: 1px solid %(borde)s;"
+                " border-radius: %(radio)dpx;"
+                " color: %(texto)s;"
+                " font-size: %(letra)dpx;"
+                " text-align: left;"
+                " padding-left: %(izq)dpx;"
+                " padding-right: %(der)dpx;"
+                " }"
+                "QPushButton:hover { background-color: %(hover)s; }"
+                % {
+                    # La pastilla activa se distingue por fondo y borde; Total
+                    # NUNCA se marca: es el estado sin filtro, no una opcion
+                    # elegida, y marcado parecia decir algo que no decia.
+                    "fondo": Paleta.SURFACE_RAISED if activa else "transparent",
+                    "borde": Paleta.BORDER_HOVER if activa else "transparent",
+                    "radio": PILL_RADIUS,
+                    "texto": Paleta.TEXT_STRONG if activa else Paleta.TEXT,
+                    "letra": PILL_FONT_SIZE,
+                    "izq": izquierda,
+                    "der": derecha,
+                    "hover": Paleta.SURFACE_HOVER,
+                }
+            )
+            datos["boton"].setFixedWidth(datos["boton"].sizeHint().width())
+
+        if getattr(self, "search_field", None) is not None:
+            self.search_field.setStyleSheet(
+                "QLineEdit {"
+                " background-color: %(fondo)s;"
+                " border: 1px solid %(borde)s;"
+                " border-radius: %(radio)dpx;"
+                " color: %(texto)s;"
+                " font-size: %(letra)dpx;"
+                " padding: 0 6px;"
+                " }"
+                "QLineEdit:focus { border-color: %(foco)s; }"
+                % {
+                    "fondo": Paleta.SURFACE,
+                    "borde": Paleta.BORDER_STRONG,
+                    "radio": Metric.RADIUS_CONTROL,
+                    "texto": Paleta.TEXT_STRONG,
+                    "letra": SEARCH_FONT_SIZE,
+                    "foco": Paleta.ACCENT_HOVER,
+                }
+            )
+
+        if getattr(self, "empty_label", None) is not None:
+            self.empty_label.setStyleSheet(
+                "QLabel { color: %s; font-size: %dpx; background: transparent;"
+                " padding: %dpx 0; }"
+                % (Paleta.TEXT_DIM, EMPTY_FONT_SIZE, EMPTY_PADDING)
+            )
+
+    def status_dot(self, estado):
+        """El color del punto de un estado, para las pastillas y la leyenda."""
+        Paleta = (getattr(self, "UI", None) or UIStyle.theme(None)).Color
+        if estado == "Offline":
+            return Paleta.DOT_ERROR
+        if estado == "Unused":
+            return Paleta.DOT_WARNING
+        if estado == "Outside":
+            # Dos significados, dos colores: con shot folder activo estar
+            # afuera es un error, y sin el es apenas un dato.
+            return (
+                Paleta.DOT_OUTSIDE
+                if self.shot_folder_enabled()
+                else Paleta.DOT_OUTSIDE_INFO
+            )
+        if estado == "Online":
+            return Paleta.DOT_OK
+        return Paleta.TEXT_DIM
+
+    def status_bg(self, estado):
+        """El fondo de la celda de Status. Sale del tema, no de un hex suelto."""
+        Paleta = (getattr(self, "UI", None) or UIStyle.theme(None)).Color
+        if estado == "Offline":
+            return Paleta.ERROR_BG
+        if estado == "Unused":
+            return Paleta.WARNING_BG
+        if estado == "Outside":
+            return (
+                Paleta.OUTSIDE_BG
+                if self.shot_folder_enabled()
+                else Paleta.OUTSIDE_BG_INFO
+            )
+        return Paleta.OK_BG
+
+    def status_bg_selected(self, estado):
+        """
+        El fondo de la celda de Status cuando la fila esta elegida.
+
+        Es el mismo color mezclado al 50% contra el gris de la seleccion: sin
+        esto la barra de seleccion quedaba cortada justo en la ultima columna.
+        La mezcla ya viene derivada por tema en el modulo de estilo.
+        """
+        Paleta = (getattr(self, "UI", None) or UIStyle.theme(None)).Color
+        if estado == "Offline":
+            return Paleta.ERROR_BG_SELECTED
+        if estado == "Unused":
+            return Paleta.WARNING_BG_SELECTED
+        if estado == "Outside":
+            return (
+                Paleta.OUTSIDE_BG_SELECTED
+                if self.shot_folder_enabled()
+                else Paleta.OUTSIDE_BG_INFO_SELECTED
+            )
+        return Paleta.OK_BG_SELECTED
+
+    def shot_folder_enabled(self):
+        """Si el shot folder esta activo, que es lo que define que es Outside."""
+        return bool((getattr(self, "shot", None) or {}).get("enabled", True))
+
+    def set_row_status(self, row, estado):
+        """
+        Escribe el estado de una fila: texto, color de fondo y clave de orden.
+
+        Sale a un metodo propio porque el estado se escribe desde cinco
+        lugares -el escaneo, el relink y las tres variantes de la copia- y
+        antes cada uno repetia el texto y su hex a mano.
+        """
+        item = self.table.item(row, COL_STATUS)
+        if item is None:
+            item = SortKeyItem(estado)
+            # A la izquierda y no centrado: el punto de color va adelante del
+            # texto, y con el texto centrado los dos quedaban separados.
+            item.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+            self.table.setItem(row, COL_STATUS, item)
+        else:
+            item.setText(estado)
+        item.setData(Qt.UserRole, STATUS_RANK.get(estado, len(STATUS_RANK)))
+        item.setBackground(QColor(self.status_bg(estado)))
+        return item
+
+    def repaint_status_column(self):
+        """
+        Repinta los fondos de Status con el tema y el shot folder actuales.
+
+        Hace falta cuando cambia el tema y cuando se prende o se apaga el shot
+        folder: los dos cambian el color de Outside sin tocar la tabla.
+        """
+        if getattr(self, "table", None) is None:
+            return
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, COL_STATUS)
+            if item is not None:
+                item.setBackground(QColor(self.status_bg(item.text())))
+
+    def assign_row_ids(self):
+        """
+        Numera la columna '#'.
+
+        El numero es un ID ESTABLE y no la posicion visual: se asigna con la
+        tabla en el orden en que se cargo -o sea con el orden apagado, antes
+        del primer sortByColumn- y despues no se vuelve a tocar, asi que
+        ordenar o filtrar no lo cambia. Por eso ordenar por '#' devuelve la
+        tabla al orden de carga.
+        """
+        if getattr(self, "table", None) is None:
+            return
+        Paleta = (getattr(self, "UI", None) or UIStyle.theme(None)).Color
+        for row in range(self.table.rowCount()):
+            numero = row + 1
+            item = self.table.item(row, COL_NUM)
+            if item is None:
+                # SortKeyItem para que ordene por el numero y no por el texto:
+                # por texto, "10" caia antes que "9".
+                item = SortKeyItem("")
+                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                self.table.setItem(row, COL_NUM, item)
+            item.setText(str(numero))
+            item.setData(Qt.UserRole, numero)
+            item.setTextAlignment(Qt.AlignCenter)
+            item.setForeground(QBrush(QColor(Paleta.TEXT_DIM)))
+
+    def repaint_row_numbers(self):
+        """
+        Repinta el '#' con el tema actual, SIN volver a numerar.
+
+        Renumerar aca cambiaria los ids cada vez que se cambia el tema, porque
+        para entonces la tabla ya no esta en el orden en que se cargo.
+        """
+        if getattr(self, "table", None) is None:
+            return
+        Paleta = (getattr(self, "UI", None) or UIStyle.theme(None)).Color
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, COL_NUM)
+            if item is not None:
+                item.setForeground(QBrush(QColor(Paleta.TEXT_DIM)))
+
+    def update_status_counts(self):
+        """
+        Los contadores de las pastillas, sobre el TOTAL.
+
+        No los afecta el buscador: son cuantos archivos hay de cada estado, no
+        cuantos se ven. Total es siempre la cantidad de filas cargadas.
+        """
+        if not getattr(self, "status_pills", None):
+            return
+        cuentas = {estado: 0 for estado in STATUS_ORDER}
+        total = self.table.rowCount()
+        for row in range(total):
+            estado = self.row_status(row)
+            if estado in cuentas:
+                cuentas[estado] += 1
+        for datos in self.status_pills:
+            clave = datos["clave"]
+            datos["contador"].setText(
+                str(total if clave == "all" else cuentas.get(clave, 0))
+            )
+        self.apply_status_bar_stylesheet()
+
+    def on_pill_clicked(self, clave):
+        """Cambia el filtro de estado. Total apaga el filtro."""
+        self.status_filter = clave
+        self.apply_status_bar_stylesheet()
+        self.apply_filters()
+
+    def on_search_text_changed(self, texto):
+        """Solo agenda el filtro: quien filtra es apply_search, con debounce."""
+        self.search_clear_action.setVisible(bool(texto))
+        self.search_timer.start()
+
+    def clear_search(self):
+        """Limpia el buscador y filtra en el acto, sin esperar el debounce."""
+        self.search_field.clear()
+        self.search_timer.stop()
+        self.apply_search()
+        self.search_field.setFocus()
+
+    def apply_search(self):
+        """
+        Toma lo escrito y refiltra.
+
+        El strip() es previo a propósito: un espacio suelto no es una busqueda
+        y no tiene que vaciar la tabla.
+        """
+        self.search_query = self.search_field.text().strip()
+        if getattr(self, "path_delegate", None) is not None:
+            # El delegado resalta lo buscado adentro del path coloreado.
+            self.path_delegate.set_query(self.search_query)
+            self.table.viewport().update()
+        self.apply_filters()
+
+    def apply_filters(self):
+        """
+        Muestra y esconde filas segun el estado elegido y lo buscado.
+
+        Los dos filtros se combinan con AND. La busqueda es coincidencia
+        parcial sobre el path completo, sin distinguir mayusculas.
+        """
+        if getattr(self, "table", None) is None:
+            return
+        buscado = (self.search_query or "").lower()
+        visibles = 0
+        for row in range(self.table.rowCount()):
+            pasa_estado = (
+                self.status_filter == "all"
+                or self.row_status(row) == self.status_filter
+            )
+            pasa_texto = not buscado or buscado in self.row_path(row).lower()
+            visible = pasa_estado and pasa_texto
+            self.table.setRowHidden(row, not visible)
+            if visible:
+                visibles += 1
+
+        # Las filas escondidas SIGUEN seleccionadas y selectedItems() las
+        # devuelve: sin limpiar la seleccion, Delete borraria archivos que el
+        # usuario no tiene a la vista.
+        self.table.clearSelection()
+        self.update_button_states()
+        self.update_empty_label(visibles)
+
+    def select_first_visible_row(self):
+        """Deja elegida la primera fila que se ve, si hay alguna."""
+        for row in range(self.table.rowCount()):
+            if not self.table.isRowHidden(row):
+                self.table.selectRow(row)
+                return
+
+    def update_empty_label(self, visibles):
+        """El cartel de "no hay coincidencias", solo cuando hay algo buscado."""
+        if getattr(self, "empty_label", None) is None:
+            return
+        if visibles == 0 and self.search_query:
+            self.empty_label.setText('No paths match "%s"' % self.search_query)
+            self.position_empty_label()
+            self.empty_label.show()
+        else:
+            self.empty_label.hide()
+
+    def position_empty_label(self):
+        """Lo estira sobre el viewport de la tabla para que quede centrado."""
+        if getattr(self, "empty_label", None) is None:
+            return
+        self.empty_label.setGeometry(self.table.viewport().rect())
+
+    def eventFilter(self, obj, event):
+        """
+        Dos cosas puntuales que no salen de una senal.
+
+        Escape adentro del buscador limpia la busqueda -y no cierra la
+        ventana, que es lo que hace el Escape de afuera-, y el cartel de
+        "no hay coincidencias" se reubica cuando la tabla cambia de tamano.
+        """
+        if obj is getattr(self, "search_field", None):
+            if event.type() == QtCore.QEvent.KeyPress and (
+                event.key() == Qt.Key_Escape
+            ):
+                self.clear_search()
+                return True
+        elif getattr(self, "table", None) is not None and (
+            obj is self.table.viewport()
+        ):
+            if event.type() == QtCore.QEvent.Resize:
+                self.position_empty_label()
+        return super(FileScanner, self).eventFilter(obj, event)
+
+    def refresh_path_delegate(self):
+        """
+        Le pasa al delegado el ancla del coloreo y el tema.
+
+        El ancla son los segmentos de la carpeta del shot: lo que coincide con
+        ella va en violeta y el resto cicla la paleta, que es lo que hace ver
+        de un vistazo donde deja de ser este shot.
+        """
+        # El de la columna Status va junto: su tabla de fondos seleccionados
+        # sale del tema, asi que si cambia el tema hay que rearmarla.
+        if getattr(self, "status_delegate", None) is not None:
+            self.status_delegate.set_theme(self.UI)
+        if getattr(self, "path_delegate", None) is None:
+            return
+        self.path_delegate.set_theme(self.UI, self.font_size)
+        try:
+            self.path_delegate.set_shot_segments(
+                mm_paths.shot_segments(self.shot, self.nk_dir())
+            )
+        except Exception as problema:
+            debug_print("No se pudo resolver el ancla del shot: %s" % problema)
+            self.path_delegate.set_shot_segments([])
+        self.table.viewport().update()
+
+    # ----------------------------------------------------------------------
+    #                                 Pie
+    # ----------------------------------------------------------------------
+    def build_footer(self):
+        """
+        La leyenda de los estados y el boton Rescan.
+
+        "Last scan: ..." no va: la hora del ultimo escaneo no cambia ninguna
+        decision del usuario.
+        """
+        fila = QHBoxLayout()
+        fila.setSpacing(FOOTER_GAP)
+        fila.setContentsMargins(0, 6, 0, 0)
+
+        self.legend_entries = []
+        for estado in STATUS_ORDER:
+            caja = QHBoxLayout()
+            caja.setSpacing(PILL_GAP)
+            caja.setContentsMargins(0, 0, 0, 0)
+
+            punto = QLabel(self)
+            punto.setFixedSize(PILL_DOT_SIZE, PILL_DOT_SIZE)
+            nombre = QLabel(estado, self)
+            texto = QLabel(LEGEND_TEXTS[estado], self)
+
+            caja.addWidget(punto, 0, Qt.AlignVCenter)
+            caja.addWidget(nombre, 0, Qt.AlignVCenter)
+            caja.addWidget(texto, 0, Qt.AlignVCenter)
+            fila.addLayout(caja)
+
+            self.legend_entries.append(
+                {"estado": estado, "punto": punto, "nombre": nombre, "texto": texto}
+            )
+
+        fila.addStretch(1)
+
+        self.rescan_button = QPushButton("Rescan", self)
+        self.rescan_button.setToolTip(TOOLTIPS["rescan"])
+        self.rescan_button.setFixedHeight(RESCAN_HEIGHT)
+        self.rescan_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.rescan_button.setFocusPolicy(Qt.NoFocus)
+        self.rescan_icon = QLabel(self.rescan_button)
+        self.rescan_icon.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.rescan_icon.setFixedSize(RESCAN_ICON_SIZE, RESCAN_ICON_SIZE)
+        caja_rescan = QHBoxLayout(self.rescan_button)
+        caja_rescan.setContentsMargins(RESCAN_PADDING, 0, RESCAN_PADDING, 0)
+        caja_rescan.setSpacing(0)
+        caja_rescan.addWidget(self.rescan_icon, 0, Qt.AlignVCenter)
+        caja_rescan.addStretch(1)
+        self.rescan_button.clicked.connect(self.rescan)
+        fila.addWidget(self.rescan_button)
+
+        return fila
+
+    def apply_footer_stylesheet(self):
+        """La hoja del pie, con los colores del tema activo."""
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        Paleta = UI.Color
+
+        for entrada in getattr(self, "legend_entries", []):
+            entrada["punto"].setStyleSheet(
+                "QLabel { background-color: %s; border: none;"
+                " border-radius: %dpx; }"
+                % (self.status_dot(entrada["estado"]), PILL_DOT_SIZE // 2)
+            )
+            entrada["nombre"].setStyleSheet(
+                "QLabel { color: %s; font-size: %dpx; font-weight: 600;"
+                " background: transparent; }"
+                % (Paleta.TEXT_STRONG, PILL_FONT_SIZE)
+            )
+            entrada["texto"].setStyleSheet(
+                "QLabel { color: %s; font-size: %dpx; background: transparent; }"
+                % (Paleta.TEXT_DIM, FOOTER_LEGEND_FONT_SIZE)
+            )
+        self.update_legend_texts()
+
+        if getattr(self, "rescan_button", None) is not None:
+            izquierda = RESCAN_PADDING + RESCAN_ICON_SIZE + PILL_GAP
+            self.rescan_button.setStyleSheet(
+                "QPushButton {"
+                " background-color: %(fondo)s;"
+                " border: 1px solid %(borde)s;"
+                " border-radius: %(radio)dpx;"
+                " color: %(texto)s;"
+                " font-size: %(letra)dpx;"
+                " font-weight: 600;"
+                " text-align: left;"
+                " padding-left: %(izq)dpx;"
+                " padding-right: %(der)dpx;"
+                " }"
+                "QPushButton:hover:!disabled {"
+                " background-color: %(hover)s; border-color: %(borde_hover)s; }"
+                "QPushButton:disabled { color: %(apagado)s; }"
+                % {
+                    "fondo": Paleta.SURFACE_RAISED,
+                    "borde": Paleta.BORDER_STRONG,
+                    "radio": Metric.RADIUS_CONTROL,
+                    "texto": Paleta.TEXT_STRONG,
+                    "letra": RESCAN_FONT_SIZE,
+                    "izq": izquierda,
+                    "der": RESCAN_PADDING,
+                    "hover": Paleta.SURFACE_HOVER,
+                    "borde_hover": Paleta.BORDER_HOVER,
+                    "apagado": Paleta.TEXT_DIM,
+                }
+            )
+            color_icono = (
+                Paleta.TEXT if self.rescan_button.isEnabled() else Paleta.TEXT_DIM
+            )
+            self.rescan_icon.setStyleSheet(
+                "QLabel { background: transparent; border: none; }"
+            )
+            self.rescan_icon.setPixmap(
+                tinted_icon("refresh-cw", color_icono, RESCAN_ICON_SIZE).pixmap(
+                    RESCAN_ICON_SIZE, RESCAN_ICON_SIZE
+                )
+            )
+            self.rescan_button.setFixedWidth(self.rescan_button.sizeHint().width())
+
+        # El pie puede ser mas ancho que la barra, asi que el minimo de la
+        # ventana se recalcula aca tambien: cuando la barra lo fijo, el pie
+        # todavia no existia.
+        self.update_minimum_width()
+
+    def update_legend_texts(self):
+        """
+        El texto de Outside acompania al toggle del shot folder.
+
+        Con el shot apagado la palabra deja de querer decir "afuera del shot",
+        asi que decirlo igual seria mentir.
+        """
+        for entrada in getattr(self, "legend_entries", []):
+            if entrada["estado"] != "Outside":
+                continue
+            entrada["texto"].setText(
+                LEGEND_TEXTS["Outside"]
+                if self.shot_folder_enabled()
+                else LEGEND_OUTSIDE_INFO
+            )
+
+    def rescan(self):
+        """
+        Vuelve a escanear desde cero.
+
+        No alcanza con volver a llamar a scan_project(): esa funcion no limpia
+        nada, add_file_to_table agrega a partir de rowCount(), y
+        _processed_files_session vive toda la sesion, asi que un segundo
+        escaneo no agregaba ni una fila nueva.
+        """
+        if self._scan_running:
+            debug_print("Ya hay un escaneo corriendo: se ignora el Rescan")
+            return
+
+        self.table.setSortingEnabled(False)
+        self.table.setRowCount(0)
+        self.matched_reads = []
+        # Sin esto, un archivo recien copiado a una scan location no aparece:
+        # el dedup de la sesion lo sigue dando por procesado.
+        self._processed_files_session = set()
+        self.update_status_counts()
+        self.scan_project()
+
+    # ----------------------------------------------------------------------
+    #                     Lectura de la seleccion
+    # ----------------------------------------------------------------------
+    def selected_rows(self):
+        """
+        Las filas seleccionadas, sin repetir y en orden.
+
+        La seleccion es por fila pero selectedItems() devuelve una celda por
+        columna visible, asi que leer selected_items[0], [1] y [2] no daba
+        "las tres celdas de la fila" sino las tres primeras celdas de la
+        PRIMERA fila, y todo lo demas seleccionado se ignoraba en silencio.
+        """
+        # Por el modelo y no por selectedItems(): ese devuelve una celda por
+        # columna, o sea cinco objetos por fila, y esto se llama en cada
+        # cambio de seleccion sobre una tabla que puede tener miles de filas.
+        modelo = self.table.selectionModel()
+        if modelo is not None:
+            return sorted(indice.row() for indice in modelo.selectedRows())
+        filas = set()
+        for item in self.table.selectedItems():
+            filas.add(self.table.row(item))
+        return sorted(filas)
+
+    def row_path(self, row):
+        """La ruta de una fila, o cadena vacia si la celda no existe."""
+        item = self.table.item(row, COL_PATH)
+        return item.text() if item is not None else ""
+
+    def row_read(self, row):
+        """El o los nodos Read de una fila. '-' cuando no hay ninguno."""
+        item = self.table.item(row, COL_READ)
+        return item.text() if item is not None else "-"
+
+    def row_status(self, row):
+        """El estado de una fila: Offline, Outside, Unused u Online."""
+        item = self.table.item(row, COL_STATUS)
+        return item.text() if item is not None else ""
+
+    def row_read_names(self, row):
+        """Los nombres de nodo de una fila, ya separados y sin el '-'."""
+        texto = self.row_read(row)
+        if not texto or texto == "-":
+            return []
+        return [nombre.strip() for nombre in texto.split(",") if nombre.strip()]
+
+    def update_button_states(self):
+        """
+        Prende y apaga la barra segun lo que este seleccionado.
+
+        Cada boton pide una condicion propia; no alcanza con "hay seleccion".
+        Los guards de adentro de cada handler se quedan igual como red de
+        seguridad, porque el atajo Alt+letra dispara aunque el boton este
+        apagado en algunas versiones de Qt.
+        """
+        # Se llama tambien desde on_settings_saved, que puede correr antes de
+        # que la barra o la tabla existan.
+        if not getattr(self, "toolbar_buttons", None):
+            return
+        if getattr(self, "table", None) is None:
+            return
+
+        filas = self.selected_rows()
+        estados = [self.row_status(fila) for fila in filas]
+        hay_seleccion = bool(filas)
+        ninguno_offline = hay_seleccion and "Offline" not in estados
+        algun_read = any(self.row_read_names(fila) for fila in filas)
+        todos_outside = hay_seleccion and all(
+            estado == "Outside" for estado in estados
+        )
+        hay_destinos = bool(getattr(self, "copy_options", None))
+
+        self.go_to_read_button.setEnabled(algun_read)
+        self.reveal_button.setEnabled(ninguno_offline)
+        # Relink va siempre que haya seleccion: se puede querer reapuntar un
+        # Read online a otro archivo con el mismo nombre, no solo arreglar uno
+        # offline.
+        self.relink_button.setEnabled(hay_seleccion)
+        self.copy_button.setEnabled(todos_outside and hay_destinos)
+        self.delete_button.setEnabled(ninguno_offline)
+
+        self.refresh_toolbar_icons()
 
     def apply_table_stylesheet(self):
         """
@@ -461,12 +1833,12 @@ class FileScanner(QWidget):
         self.font_size = tamano
         self.apply_table_stylesheet()
         self.table.verticalHeader().setDefaultSectionSize(tamano + 22)
-        # Los paths se dibujan en un QLabel por celda con su propio font-size,
-        # asi que la hoja de la tabla no los alcanza: hay que rehacerlos.
-        try:
-            self.change_footage_text_color(True)
-        except Exception as problema:
-            debug_print("No se pudo repintar los paths: %s" % problema)
+        # El alto de la cabecera tambien se deriva del tamano: fs + 25.
+        if getattr(self, "header", None) is not None:
+            self.header.set_font_size(tamano)
+        # El path lo dibuja el delegado con su propia fuente -un punto mas
+        # grande que el resto de la tabla-, asi que la hoja no lo alcanza.
+        self.refresh_path_delegate()
 
     def populate_copy_menu(self):
         """
@@ -491,11 +1863,33 @@ class FileScanner(QWidget):
                 lambda checked=False, loc=location: self.copy_to(loc)
             )
             self.copy_menu.addAction(action)
+        # Las acciones tambien se cuelgan de la ventana: el menu esta oculto
+        # hasta que se lo abre, y un QAction que solo vive en un menu oculto no
+        # siempre tiene el atajo activo. Colgarlas de un widget visible no
+        # duplica el atajo -es del QAction, no del widget- pero garantiza que
+        # Alt+letra copie sin abrir el menu.
+        for action in getattr(self, "_copy_actions", []):
+            self.removeAction(action)
+        self._copy_actions = list(self.copy_menu.actions())
+        for action in self._copy_actions:
+            self.addAction(action)
+
+    def show_copy_menu(self):
+        """Abre el menu de Copy to pegado al boton, como pide el disenio."""
+        if self.copy_menu.isEmpty():
+            return
+        self.copy_button.setDown(True)
+        self.copy_menu.popup(
+            self.copy_button.mapToGlobal(QPoint(0, self.copy_button.height() + 6))
+        )
 
     def on_settings_saved(self):
         """Relee el .ini y refleja lo guardado sin tener que reabrir la tool."""
         self.load_settings()
         self.populate_copy_menu()
+        # Sin destinos con Copy to el boton no tiene a donde copiar: si el
+        # usuario los saco en los ajustes, se apaga sin reabrir la ventana.
+        self.update_button_states()
         # El shot y las carpetas a escanear pueden haber cambiado: sin
         # recalcularlos, el coloreo de paths y los estados OK/Outside se
         # siguen midiendo contra la carpeta vieja hasta el proximo escaneo.
@@ -513,6 +1907,21 @@ class FileScanner(QWidget):
         """
         self.appearance = dict(appearance or {})
         self.UI = UIStyle.theme(self.appearance.get("theme"))
+        # La barra tambien sale del tema: sin esto los botones se quedaban con
+        # los colores del tema anterior hasta reabrir la ventana.
+        if getattr(self, "toolbar_buttons", None):
+            self.apply_toolbar_stylesheet()
+        # Las pastillas, el pie y los fondos de la columna Status salen todos
+        # del tema: sin repintarlos, el cambio de tema deja media ventana con
+        # los colores viejos.
+        if getattr(self, "status_pills", None):
+            self.apply_status_bar_stylesheet()
+        if getattr(self, "legend_entries", None):
+            self.apply_footer_stylesheet()
+        self.repaint_status_column()
+        # El '#' se repinta SIN renumerar: para cuando se cambia el tema la
+        # tabla ya no esta en el orden en que se cargo.
+        self.repaint_row_numbers()
         tamano = self.appearance.get(
             "table_font_size", UIStyle.Metric.TABLE_FONT_SIZE
         )
@@ -647,6 +2056,10 @@ class FileScanner(QWidget):
 
         # Ajustar las columnas al contenido
         self.table.resizeColumnsToContents()
+        # Y despues los anchos del disenio, que no salen del contenido:
+        # `52 | 1fr (min 300) | 96 | 118`. Van DESPUES del ajuste al contenido
+        # porque ese los pisaria.
+        self.apply_column_widths()
 
         # Calcular el ancho de la ventana basado en el ancho de las columnas
         width = (
@@ -695,14 +2108,22 @@ class FileScanner(QWidget):
             f"[Altura] Alto realmente sumado por scroll horizontal: {reserved_horizontal_scrollbar_height}"
         )
 
-        # Agregar el alto del layout de botones al tamano de la ventana
-        top_layout_height = self.layout.itemAt(0).sizeHint().height()
+        # Agregar el alto de TODO lo que no es la tabla: la barra de botones,
+        # la fila de pastillas y el pie. Sumar solo el primero dejaba la
+        # ventana corta justo por el alto de las dos filas nuevas.
+        top_layout_height = 0
+        for i in range(self.layout.count()):
+            item = self.layout.itemAt(i)
+            if item.widget() is self.table:
+                continue
+            top_layout_height += item.sizeHint().height()
         height += top_layout_height
-        self.logger.debug(f"[Altura] Alto layout superior: {top_layout_height}")
+        self.logger.debug(f"[Altura] Alto de las filas fuera de la tabla: {top_layout_height}")
 
         layout_margins = self.layout.contentsMargins()
         margins_height = layout_margins.top() + layout_margins.bottom()
-        spacing_total = self.layout.spacing()
+        # Un espacio por cada junta entre items del layout, no uno solo.
+        spacing_total = self.layout.spacing() * max(0, self.layout.count() - 1)
         height += margins_height
         height += spacing_total
         self.logger.debug(
@@ -727,7 +2148,15 @@ class FileScanner(QWidget):
         self.logger.debug(f"[Altura] El limite maximo recorto el alto: {height > max_height}")
 
         # Reactivar el estiramiento de la ultima columna
-        self.table.horizontalHeader().setStretchLastSection(True)
+        # La que se estira es File Path y NO la ultima. Con la ultima, el
+        # bloque de color de Status crecia hasta el borde de la ventana y el
+        # path -que es lo largo y lo que se lee- quedaba cortado con el resto
+        # vacio al lado. El diseno fija 52 | 1fr | 96 | 118.
+        encabezado = self.table.horizontalHeader()
+        encabezado.setStretchLastSection(False)
+        encabezado.setSectionResizeMode(COL_PATH, QHeaderView.Stretch)
+        for columna in (COL_NUM, COL_READ, COL_STATUS):
+            encabezado.setSectionResizeMode(columna, QHeaderView.Fixed)
 
         # Ajustar el tamano de la ventana
         self.resize(width, final_height)
@@ -807,117 +2236,30 @@ class FileScanner(QWidget):
         )
         self.logger.debug("[Altura] ===============================================")
 
+    def apply_column_widths(self):
+        """
+        Los anchos fijos del disenio. El path no lleva: es el que se estira.
+
+        El minimo del path no es un lujo: sin el, con paths cortos la columna
+        se achica hasta que el resto de la ventana no tiene de donde agarrarse.
+        """
+        if getattr(self, "table", None) is None:
+            return
+        self.table.setColumnWidth(COL_NUM, COL_NUM_WIDTH)
+        self.table.setColumnWidth(COL_READ, COL_READ_WIDTH)
+        self.table.setColumnWidth(COL_STATUS, COL_STATUS_WIDTH)
+        if self.table.columnWidth(COL_PATH) < COL_PATH_MIN_WIDTH:
+            self.table.setColumnWidth(COL_PATH, COL_PATH_MIN_WIDTH)
+
     def toggle_columns(self, state):
 
         is_visible = bool(state)
-        self.table.setColumnHidden(3, not is_visible)  # Columna Folder_Delete
-        self.table.setColumnHidden(4, not is_visible)  # Columna Sequence
+        self.table.setColumnHidden(COL_FOLDER_DELETE, not is_visible)
+        self.table.setColumnHidden(COL_SEQUENCE, not is_visible)
         self.adjust_window_size()
 
     def reorder_by_status(self):
-        status_column_index = (
-            2  # Asegurate de que este es el indice correcto para la columna de Estado
-        )
-        self.table.sortByColumn(status_column_index, Qt.AscendingOrder)
-
-    def get_color_for_level(self, level):
-        # Define los colores por nivel aqui
-        colors = {
-            0: "#ffff66",  # Amarillo           T
-            1: "#28b5b5",  # Verde Cian         Proye
-            2: "#ff9a8a",  # Naranja pastel     Grupo
-            3: "#0088ff",  # Rojo coral         Shot
-            4: "#ffd369",  # Amarillo mostaza
-            5: "#28b5b5",  # Verde Cian
-            6: "#ff9a8a",  # Naranja pastel
-            7: "#6bc9ff",  # Celeste
-            8: "#ffd369",  # Amarillo mostaza
-            9: "#28b5b5",  # Verde Cian
-            10: "#ff9a8a",  # Naranja pastel
-            11: "#6bc9ff",  # Celeste
-            # Anade mas colores si hay mas niveles
-        }
-        return colors.get(
-            level, "#000000"
-        )  # Color por defecto en caso de no encontrar el nivel
-
-    def change_footage_text_color(self, state):
-        # Cambia el color de los textos
-        for row in range(self.table.rowCount()):
-            label = self.table.cellWidget(row, 0)  # Obtener el QLabel
-            if label:
-                # Extraemos el texto sin etiquetas HTML para evitar duplicados
-                original_text = re.sub(r"<[^>]*>", "", label.text())
-                parts = (
-                    original_text.lower().replace("\\", "/").split("/")
-                )  # Normaliza a minusculas y reemplaza las barras
-
-                if state:
-                    project_folder_parts = (
-                        self.project_folder.lower().replace("\\", "/").split("/")
-                    )
-                    colored_parts = []
-
-                    # Aplica los colores a cada parte de la ruta si coincide
-                    for i, part in enumerate(parts[:-1]):
-                        if (
-                            i < len(project_folder_parts)
-                            and part == project_folder_parts[i]
-                        ):
-                            background_color = ""
-                            text_color = "#c56cf0"  # Color personalizado
-                        else:
-                            background_color = ""
-                            text_color = self.get_color_for_level(i)
-
-                        colored_parts.append(
-                            f"<span style='{background_color} color: {text_color};'>{part}</span>"
-                        )
-
-                    # El nombre del archivo permanece en blanco y negrita
-                    file_name = f"<b style='color: rgb(200, 200, 200);'>{parts[-1]}</b>"
-                    colored_parts.append(file_name)
-
-                    colored_text = '<span style="color: white;">/</span>'.join(
-                        colored_parts
-                    )
-                    label.setText(colored_text)
-                else:
-                    # Si el checkbox esta desmarcado, se muestra solo el nombre del archivo en negrita y blanco
-                    file_name = f"<b style='color: white;'>{parts[-1]}</b>"
-                    label.setText("/".join(parts[:-1]) + "/" + file_name)
-
-                label.setTextFormat(
-                    Qt.RichText
-                )  # Habilitar texto enriquecido para mostrar colores
-
-    def apply_color_to_label(self, label, project_folder, full_path):
-        # Metodo para aplicar los colores solo a una fila (despues del copy)
-        if label:
-            parts = full_path.lower().replace("\\", "/").split("/")
-            project_folder_parts = project_folder.lower().replace("\\", "/").split("/")
-            colored_parts = []
-
-            # Aplica los colores a cada parte de la ruta si coincide
-            for i, part in enumerate(parts[:-1]):
-                text_color = (
-                    self.get_color_for_level(i)
-                    if i >= len(project_folder_parts) or part != project_folder_parts[i]
-                    else "#c56cf0"
-                )
-                colored_parts.append(
-                    f"<span style='color: {text_color};'>{part}</span>"
-                )
-
-            # El nombre del archivo permanece en blanco y negrita
-            file_name = f"<b style='color: rgb(200, 200, 200);'>{parts[-1]}</b>"
-            colored_parts.append(file_name)
-
-            colored_text = '<span style="color: white;">/</span>'.join(colored_parts)
-            label.setText(colored_text)
-            label.setTextFormat(
-                Qt.RichText
-            )  # Habilitar texto enriquecido para mostrar colores
+        self.table.sortByColumn(COL_STATUS, Qt.AscendingOrder)
 
     def center_window(self, child_window):
         # Tamano de la ventana principal
@@ -937,63 +2279,129 @@ class FileScanner(QWidget):
 
     ##### Botones de la izq:
     def go_to_read(self):
-        selected_items = self.table.selectedItems()
-        if selected_items:
-            read_node_names = (
-                selected_items[1].text().split(",")
-            )  # Divide los nombres de los nodos Read
-            read_node_names = [name.strip() for name in read_node_names]
+        """
+        Selecciona en el Node Graph los Reads de TODO lo seleccionado.
 
-            # Obtener los nodos Read y CopyCat actualmente seleccionados en Nuke
-            selected_reads = [
-                node.name()
-                for node in nuke.selectedNodes()
-                if node.Class()
-                in ["Read", "CopyCat", "AudioRead", "ReadGeo", "DeepRead"]
-            ]
+        Con una sola fila se cicla entre sus Reads, que es el comportamiento de
+        siempre: una media puede estar usada por varios nodos y apretar de
+        nuevo lleva al siguiente. Con varias filas no hay ciclo posible -no
+        habria a que "siguiente" ir- asi que se seleccionan todos juntos.
+        """
+        filas = self.selected_rows()
+        if not filas:
+            return
 
-            # Encuentra el indice del nodo Read seleccionado que esta en la lista, si existe
-            selected_index = None
-            for selected_read in selected_reads:
-                if selected_read in read_node_names:
-                    selected_index = read_node_names.index(selected_read)
-                    break
+        if len(filas) == 1:
+            self._go_to_read_cycle(self.row_read_names(filas[0]))
+            return
 
-            # Determinar el siguiente nodo Read al que moverse
-            if selected_index is not None:
-                next_index = (selected_index + 1) % len(
-                    read_node_names
-                )  # Mover al siguiente, o volver al primero si es el ultimo
-            else:
-                next_index = 0  # No se encontro un nodo Read seleccionado que coincida, ir al primero de la lista
+        # Varias filas: se juntan todos los Reads, sin repetir y respetando el
+        # orden de la tabla.
+        nombres = []
+        for fila in filas:
+            for nombre in self.row_read_names(fila):
+                if nombre not in nombres:
+                    nombres.append(nombre)
 
-            # Busca el siguiente nodo en Nuke y lo selecciona en el Node Graph
-            next_read_node_name = read_node_names[next_index]
-            read_node = nuke.toNode(next_read_node_name)
-            if read_node:
-                # Asegurarse de que ningun otro nodo este seleccionado
-                nuke.selectAll()
-                nuke.invertSelection()
-                # Selecciona y centra el nodo en el Node Graph
-                read_node.setSelected(True)
-                nuke.zoomToFitSelected()
-                read_node.showControlPanel()
+        nodos = [nuke.toNode(nombre) for nombre in nombres]
+        nodos = [nodo for nodo in nodos if nodo]
+        if not nodos:
+            debug_print("Ninguna de las filas seleccionadas tiene un Read vivo")
+            return
 
-            else:
-                # Manejar el caso en que el nombre no corresponda a un nodo existente
-                debug_print(f"No se encontro el nodo Read: {next_read_node_name}")
-                pass
+        nuke.selectAll()
+        nuke.invertSelection()
+        for nodo in nodos:
+            nodo.setSelected(True)
+        nuke.zoomToFitSelected()
+        # Sin showControlPanel: con veinte filas seleccionadas serian veinte
+        # paneles de propiedades abiertos de golpe.
+
+    def _go_to_read_cycle(self, read_node_names):
+        """Ciclado entre los Reads de una sola fila."""
+        if not read_node_names:
+            return
+
+        # Obtener los nodos Read y CopyCat actualmente seleccionados en Nuke
+        selected_reads = [
+            node.name()
+            for node in nuke.selectedNodes()
+            if node.Class() in ["Read", "CopyCat", "AudioRead", "ReadGeo", "DeepRead"]
+        ]
+
+        # Encuentra el indice del nodo Read seleccionado que esta en la lista, si existe
+        selected_index = None
+        for selected_read in selected_reads:
+            if selected_read in read_node_names:
+                selected_index = read_node_names.index(selected_read)
+                break
+
+        # Determinar el siguiente nodo Read al que moverse
+        if selected_index is not None:
+            next_index = (selected_index + 1) % len(
+                read_node_names
+            )  # Mover al siguiente, o volver al primero si es el ultimo
+        else:
+            next_index = 0  # No se encontro un nodo Read seleccionado que coincida, ir al primero de la lista
+
+        # Busca el siguiente nodo en Nuke y lo selecciona en el Node Graph
+        next_read_node_name = read_node_names[next_index]
+        read_node = nuke.toNode(next_read_node_name)
+        if read_node:
+            # Asegurarse de que ningun otro nodo este seleccionado
+            nuke.selectAll()
+            nuke.invertSelection()
+            # Selecciona y centra el nodo en el Node Graph
+            read_node.setSelected(True)
+            nuke.zoomToFitSelected()
+            read_node.showControlPanel()
+        else:
+            # Manejar el caso en que el nombre no corresponda a un nodo existente
+            debug_print(f"No se encontro el nodo Read: {next_read_node_name}")
+
+    # Cuantas carpetas se abren sin preguntar. Mas que esto y el explorador
+    # tapa la pantalla con ventanas que el usuario no pidio de a una.
+    REVEAL_MAX_FOLDERS = 5
 
     def reveal_selected(self):
-        selected_items = self.table.selectedItems()
-        if selected_items:
-            file_path = selected_items[
-                0
-            ].text()  # Obtiene el file_path de la fila seleccionada
-            self.reveal_in_explorer(file_path)
+        """Abre en el explorador la carpeta de cada fila seleccionada."""
+        filas = self.selected_rows()
+        if not filas:
+            return
+
+        # Se abre una ventana por CARPETA y no por fila: seleccionar una
+        # secuencia entera de la misma carpeta abria la misma ventana N veces.
+        carpetas = []
+        for fila in filas:
+            ruta = self.row_path(fila)
+            if not ruta:
+                continue
+            carpeta = os.path.dirname(ruta)
+            if carpeta and carpeta not in carpetas:
+                carpetas.append(carpeta)
+
+        if not carpetas:
+            return
+
+        if len(carpetas) > self.REVEAL_MAX_FOLDERS:
+            respuesta = QMessageBox.question(
+                self,
+                "Reveal",
+                "This will open %d explorer windows. Continue?" % len(carpetas),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if respuesta != QMessageBox.Yes:
+                return
+
+        for carpeta in carpetas:
+            self.open_folder(carpeta)
 
     def reveal_in_explorer(self, file_path):
-        directory = os.path.dirname(file_path)
+        """Abre la carpeta que contiene un archivo."""
+        self.open_folder(os.path.dirname(file_path))
+
+    def open_folder(self, directory):
         debug_print("Attempting to open folder: " + directory)
         if os.path.exists(directory):
             if sys.platform == "win32":
@@ -1007,18 +2415,66 @@ class FileScanner(QWidget):
 
     ##### Metodos para relinkear:
     def relink(self):
-        selected_items = self.table.selectedItems()
-        if selected_items:
-            status = selected_items[
-                2
-            ].text()  # Asumiendo que la columna de estado es la tercera
-            if status == "Offline":
-                directory = QFileDialog.getExistingDirectory(self, "Select Directory")
-                if directory:
-                    self.search_file_in_directory(directory, selected_items[0].text())
+        """
+        Reapunta los Reads de TODAS las filas seleccionadas.
+
+        Ya no exige que el archivo este Offline: se puede querer reapuntar un
+        Read online a otro archivo con el mismo nombre -otra version del mismo
+        plano, por ejemplo-, y el boton habilitado que solo sabia decir que no
+        era peor que no tenerlo.
+
+        La carpeta se elige UNA vez y despues se busca archivo por archivo. Las
+        busquedas van encadenadas y no en paralelo porque cada una es un
+        os.walk sobre la misma carpeta: lanzarlas juntas multiplica el trabajo
+        del disco por la cantidad de filas.
+        """
+        filas = self.selected_rows()
+        if not filas:
+            return
+
+        # Una tanda por vez, igual que una busqueda por vez.
+        if self.relink_worker is not None or self.relink_queue:
+            debug_print("Ya hay un relink en curso")
+            return
+
+        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+        if not directory:
+            return
+
+        self.relink_directory = directory
+        self.relink_queue = [self.row_path(fila) for fila in filas]
+        self.relink_queue = [ruta for ruta in self.relink_queue if ruta]
+        self.relink_missing = []
+        self._relink_next()
+
+    def _relink_next(self):
+        """Arranca la busqueda del proximo archivo de la tanda, si queda alguno."""
+        if self.relink_queue:
+            ruta = self.relink_queue.pop(0)
+            try:
+                self.search_file_in_directory(self.relink_directory, ruta)
+            except Exception as problema:
+                # Si armar la busqueda falla, la tanda se corta pero no se
+                # queda colgada: con la cola llena, Relink no se podia volver
+                # a apretar nunca.
+                debug_print("No se pudo buscar %s: %s" % (ruta, problema))
+                self.relink_queue = []
+                self.relink_missing = []
+            return
+
+        # Terminada la tanda se avisa UNA vez de lo que no aparecio, en vez de
+        # un cartel por archivo que habria que cerrar de a uno.
+        if self.relink_missing:
+            faltantes = self.relink_missing
+            self.relink_missing = []
+            if len(faltantes) == 1:
+                QMessageBox.information(self, "Information", "File not found.")
             else:
                 QMessageBox.information(
-                    self, "Information", "Relink is only available for Offline files."
+                    self,
+                    "Information",
+                    "%d files were not found:\n\n%s"
+                    % (len(faltantes), "\n".join(faltantes[:12])),
                 )
 
     def build_search_patterns(self, file_name):
@@ -1138,12 +2594,19 @@ class FileScanner(QWidget):
             if found_path:
                 self.update_read_node(file_name, found_path)
             else:
-                QMessageBox.information(self, "Information", "File not found.")
+                # El aviso no sale aca sino al final de la tanda: con varias
+                # filas seleccionadas serian N carteles seguidos.
+                self.relink_missing.append(os.path.basename(file_name))
         except RuntimeError:
             # La ventana del Media Manager se cerro durante la busqueda
             self.logger.debug(
                 "La ventana se cerro antes de que terminara la busqueda del relink"
             )
+            self.relink_queue = []
+            self.relink_missing = []
+            return
+
+        self._relink_next()
 
     def update_read_node(self, original_file_name, new_file_path):
         # Normalizar las barras en la ruta del archivo
@@ -1151,12 +2614,12 @@ class FileScanner(QWidget):
 
         # Buscar el nodo Read asociado al archivo original en la tabla y actualizar
         for row in range(self.table.rowCount()):
-            table_file_name = self.table.item(row, 0).text()
+            table_file_name = self.table.item(row, COL_PATH).text()
             if (
                 table_file_name == original_file_name
                 or table_file_name in original_file_name
             ):
-                node_name = self.table.item(row, 1).text()
+                node_name = self.table.item(row, COL_READ).text()
                 node = nuke.toNode(node_name)
                 if node:
                     # Construir la nueva ruta para el nodo
@@ -1178,18 +2641,9 @@ class FileScanner(QWidget):
                         os.path.dirname(new_file_path),
                         os.path.basename(table_file_name),
                     ).replace("\\", "/")
-                    self.table.item(row, 0).setText(new_table_path)
-
-                    # Actualizar QLabel
-                    label = self.table.cellWidget(row, 0)
-                    if label:
-                        label.setText(new_table_path)
-                        self.apply_color_to_label(
-                            label, self.project_folder, new_table_path
-                        )
-
-                    # Actualizar el estado y el color de fondo
-                    status_item = self.table.item(row, 2)
+                    self.table.item(row, COL_PATH).setText(new_table_path)
+                    # El path lo repinta el delegado a partir del dato de la
+                    # fila: no hay label que actualizar.
 
                     # Verificar si la nueva ruta esta dentro de la carpeta del proyecto.
                     # Se usa commonpath sobre rutas normalizadas: commonprefix compara
@@ -1209,15 +2663,13 @@ class FileScanner(QWidget):
                         # Rutas en unidades distintas: no hay path comun posible
                         common_path = ""
 
+                    # El estado, su color y su clave de orden salen del mismo
+                    # lugar que en el escaneo.
                     if common_path.replace("\\", "/") == normi_project_folder:
-                        # Actualizar el estado a "OK" y cambiar el color correspondiente
-                        status_item.setBackground(QColor("#25321e"))
-                        status_item.setText("OK")
-
+                        self.set_row_status(row, "Online")
                     else:
-                        # Actualizar el estado a "Outside" y cambiar el color correspondiente
-                        status_item.setBackground(QColor("#321e1e"))
-                        status_item.setText("Outside")
+                        self.set_row_status(row, "Outside")
+                    self.update_status_counts()
 
                     break
 
@@ -1526,22 +2978,65 @@ class FileScanner(QWidget):
         # WORKER, no esta funcion: resolver un comodin es un os.scandir por
         # nivel y por rama, y contra un servidor eso cuelga Nuke entero.
 
+        # Un escaneo por vez: dos workers escribiendo sobre la misma tabla se
+        # pisan las filas.
+        self._scan_running = True
+        if getattr(self, "rescan_button", None) is not None:
+            self.rescan_button.setEnabled(False)
+            self.apply_footer_stylesheet()
+
+        # Mientras se puebla la tabla el orden va apagado: con el orden activo,
+        # el setItem de la columna 0 mueve la fila en el acto y todo lo que se
+        # escribe despues para esa fila cae en otra.
+        self.table.setSortingEnabled(False)
+
         # El escaneo real se realizará en el worker
         scanner_worker = ScannerWorker(self)  # Solo pasamos la instancia de FileScanner
 
         # Conectar señales
         scanner_worker.signals.files_found.connect(self.on_files_found)
-        scanner_worker.signals.finished.connect(
-            lambda: [
-                self.table.resizeColumnsToContents(),
-                self.adjust_window_size(),
-                self.change_footage_text_color(True),
-                self.reorder_by_status(),
-            ]
-        )
+        scanner_worker.signals.finished.connect(self.on_scan_finished)
 
         # Iniciar el escaneo en segundo plano
         QThreadPool.globalInstance().start(scanner_worker)
+
+    def on_scan_finished(self):
+        """
+        Cierre del escaneo: orden, medidas, contadores y filtro.
+
+        Cada paso va en su propia linea y no en una lista adentro de un
+        lambda: ahi, una excepcion en el primero se llevaba puestos a todos
+        los demas sin dejar rastro.
+        """
+        self._scan_running = False
+
+        # Los ids se asignan con el orden TODAVIA apagado, o sea con la tabla
+        # en el orden en que se cargo: son un id estable y no la posicion.
+        self.assign_row_ids()
+
+        self.table.setSortingEnabled(True)
+        # Lo primero que se busca al abrir es que se rompio, asi que la tabla
+        # arranca ordenada por estado y no por path.
+        self.reorder_by_status()
+
+        try:
+            self.table.resizeColumnsToContents()
+            self.adjust_window_size()
+        except Exception as problema:
+            debug_print("No se pudo reajustar la ventana al terminar: %s" % problema)
+
+        self.refresh_path_delegate()
+        self.update_status_counts()
+        # El filtro se vuelve a aplicar sobre las filas nuevas: si no, un
+        # Rescan con un filtro puesto mostraba todo.
+        self.apply_filters()
+        # Con nada seleccionado la barra queda entera apagada y la ventana se
+        # abre pareciendo rota.
+        self.select_first_visible_row()
+
+        if getattr(self, "rescan_button", None) is not None:
+            self.rescan_button.setEnabled(True)
+            self.apply_footer_stylesheet()
 
     def on_files_found(self, data):
         files_data, unmatched_reads_data = data
@@ -1676,24 +3171,13 @@ class FileScanner(QWidget):
                 casi_file_path + (frame_range if is_sequence else "")
             )
             casi_file_item.setFlags(casi_file_item.flags() & ~Qt.ItemIsEditable)
-            self.table.setItem(row_position, 0, casi_file_item)
+            self.table.setItem(row_position, COL_PATH, casi_file_item)
+            # No hay QLabel por celda: el path lo dibuja PathDelegate a partir
+            # de este mismo item, asi que no puede quedar colgado de otra fila.
 
-            # Usar casi_file_path para el item que se mostrara en la tabla
-            label_file_item = QTableWidgetItem(
-                casi_file_path + (frame_range if is_sequence else "")
-            )
-            label_file_item.setFlags(label_file_item.flags() & ~Qt.ItemIsEditable)
-
-            # Preparar el texto para el QLabel
-            display_text = casi_file_path + (frame_range if is_sequence else "")
-
-            # Crear QLabel y establecer el texto
-            label = QLabel(display_text)
-            label.setTextFormat(Qt.RichText)  # Habilitar texto enriquecido
-            label.setStyleSheet(
-                f"color: rgb(200, 200, 200); font-size: {self.font_size}px;"
-            )
-            self.table.setCellWidget(row_position, 0, label)
+            # Si la rama rara del final no asigna estado, la fila queda
+            # marcada como rota y no hereda el estado de la vuelta anterior.
+            state = "Offline"
 
             if not is_unmatched_read:
                 # Manejo de los archivos del find_files
@@ -1704,7 +3188,6 @@ class FileScanner(QWidget):
                     normalize_path_for_comparison(path): nodes
                     for path, nodes in read_files.items()
                 }
-                status_color = "#32311e"
 
                 # Normalizar el file_path encontrado para comparacion
                 normalized_file_path_for_comparison = normalize_path_for_comparison(
@@ -1717,16 +3200,14 @@ class FileScanner(QWidget):
                             normalized_file_path_for_comparison, read_path, frame_range
                         ):
                             status = ", ".join(nodes)
-                            state = "OK"
-                            status_color = "#25321e"
+                            state = "Online"
                             self.matched_reads.extend(nodes)
                             break
                 else:
                     for read_path, nodes in normalized_read_files.items():
                         if normalized_file_path_for_comparison == read_path:
                             status = ", ".join(nodes)
-                            state = "OK"
-                            status_color = "#25321e"
+                            state = "Online"
                             self.matched_reads.extend(nodes)
                             break
 
@@ -1762,8 +3243,7 @@ class FileScanner(QWidget):
                             or file_dir_clean.startswith(read_path_clean + "/")
                         ):
                             status = ", ".join(nodes)
-                            state = "OK"
-                            status_color = "#25321e"
+                            state = "Online"
                             self.matched_reads.extend(nodes)
                             self.logger.debug(
                                 f"[READ_COPYCAT]   - ¡MATCH ENCONTRADO! Archivo {file_path} asociado a nodo(s): {nodes}"
@@ -1778,12 +3258,13 @@ class FileScanner(QWidget):
                 # Ajustar y establecer el valor para la columna "Read"
                 read_item = QTableWidgetItem(status)
                 read_item.setTextAlignment(Qt.AlignCenter)  # Centra el texto
-                self.table.setItem(row_position, 1, read_item)
+                self.table.setItem(row_position, COL_READ, read_item)
 
-                # Establecer y Agregar el estado a la columna "Status"
-                status_item = QTableWidgetItem(state)
-                status_item.setTextAlignment(Qt.AlignCenter)
-                self.table.setItem(row_position, 2, status_item)
+                # El estado NO se escribe aca: lo pone set_row_status al final
+                # de la vuelta, que crea la celda como SortKeyItem. Puesta a
+                # mano quedaba un QTableWidgetItem comun, o sea que esas filas
+                # se ordenaban por el TEXTO del estado y no por el rango
+                # Offline < Unused < Outside < Online.
 
             else:
                 # Manejo de los archivos del unmatched_reads
@@ -1832,10 +3313,8 @@ class FileScanner(QWidget):
                             )
                         )
                         read_item.setTextAlignment(Qt.AlignCenter)
-                        self.table.setItem(row_position, 1, read_item)
-                        self.table.setItem(row_position, 2, QTableWidgetItem("Offline"))
+                        self.table.setItem(row_position, COL_READ, read_item)
                         state = "Offline"
-                        status_color = "#621e1e"
                     else:
                         # Verificar si el archivo esta dentro del directorio del shot
                         file_directory = os.path.dirname(os.path.normpath(file_path))
@@ -1875,10 +3354,8 @@ class FileScanner(QWidget):
                                 )
                             )
                             read_item.setTextAlignment(Qt.AlignCenter)
-                            self.table.setItem(row_position, 1, read_item)
-                            self.table.setItem(row_position, 2, QTableWidgetItem("OK"))
-                            state = "OK"
-                            status_color = "#25321e"
+                            self.table.setItem(row_position, COL_READ, read_item)
+                            state = "Online"
                             self.matched_reads.extend(nodes)
 
                         else:
@@ -1892,12 +3369,8 @@ class FileScanner(QWidget):
                                 )
                             )
                             read_item.setTextAlignment(Qt.AlignCenter)
-                            self.table.setItem(row_position, 1, read_item)
-                            self.table.setItem(
-                                row_position, 2, QTableWidgetItem("Outside")
-                            )
+                            self.table.setItem(row_position, COL_READ, read_item)
                             state = "Outside"
-                            status_color = "#321e1e"
 
                 else:
                     # Si file_path no esta en read_files, asumir que el archivo esta Offline (no deberia pasar nunca!)
@@ -1912,24 +3385,34 @@ class FileScanner(QWidget):
             folder_delete_item = QTableWidgetItem(str(is_folder_deletable))
             folder_delete_item.setTextAlignment(Qt.AlignCenter)
             folder_delete_item.setFlags(folder_delete_item.flags() & ~Qt.ItemIsEditable)
-            self.table.setItem(row_position, 3, folder_delete_item)
+            self.table.setItem(row_position, COL_FOLDER_DELETE, folder_delete_item)
             # Insertar el estado de la secuencia
             sequence_item = QTableWidgetItem(str(sequence_state))
             sequence_item.setTextAlignment(Qt.AlignCenter)
             sequence_item.setFlags(sequence_item.flags() & ~Qt.ItemIsEditable)
-            self.table.setItem(
-                row_position, 4, sequence_item
-            )  # Asumiendo que la nueva columna es la 5ta (indice 4)
+            self.table.setItem(row_position, COL_SEQUENCE, sequence_item)
 
-            # Agregar el estado a la tabla
-            status_item = QTableWidgetItem(state)
-            status_item.setTextAlignment(Qt.AlignCenter)
-            self.table.setItem(row_position, 2, status_item)
+            # La columna Read se rehace como SortKeyItem para que se ordene
+            # numerico -Read2 antes que Read12- y las filas sin Read caigan al
+            # final. Por texto, Read12 iba antes que Read2.
+            read_existente = self.table.item(row_position, COL_READ)
+            texto_read = read_existente.text() if read_existente is not None else "-"
+            read_item = SortKeyItem(texto_read)
+            read_item.setTextAlignment(Qt.AlignCenter)
+            read_item.setData(Qt.UserRole, read_sort_key(texto_read))
+            read_item.setFlags(read_item.flags() & ~Qt.ItemIsEditable)
+            self.table.setItem(row_position, COL_READ, read_item)
 
-            # Aplicar el color de fondo solo a la celda del estado
-            status_item.setBackground(QColor(status_color))
+            # El estado, su color de fondo y su clave de orden, todos del
+            # mismo lugar: los hexes de estado ya no se escriben a mano.
+            self.set_row_status(row_position, state)
 
         self.remove_duplicates()
+        # El '#' se numera aca y no al final del escaneo para que las filas ya
+        # cargadas no se vean con la celda vacia mientras el resto llega. Se
+        # renumera despues de cada tanda porque remove_duplicates puede haber
+        # sacado filas del medio.
+        self.assign_row_ids()
 
         end_time = time.time()
         # print("add_file_to_table execution time end: ", end_time - start_time, "seconds")
@@ -1937,21 +3420,21 @@ class FileScanner(QWidget):
     def remove_duplicates(self):
         paths = {}  # Diccionario para almacenar los paths y sus indices de fila
         for row in range(self.table.rowCount()):
-            item = self.table.item(row, 0)
+            item = self.table.item(row, COL_PATH)
             if item is not None:
                 # Usar la funcion de normalizacion centralizada
                 file_path = normalize_path_for_comparison(
-                    self.table.item(row, 0).text()
+                    self.table.item(row, COL_PATH).text()
                 )
-                status = self.table.item(row, 2).text()
-                if file_path in paths and status != "OK":
-                    # Si el path esta duplicado y el estado actual no es "OK", eliminar la fila
+                status = self.table.item(row, COL_STATUS).text()
+                if file_path in paths and status != "Online":
+                    # Si el path esta duplicado y el estado actual no es Online, eliminar la fila
                     self.table.removeRow(row)
                 elif (
                     file_path in paths
-                    and self.table.item(paths[file_path], 2).text() != "OK"
+                    and self.table.item(paths[file_path], COL_STATUS).text() != "Online"
                 ):
-                    # Si el path esta duplicado y el estado del path previamente almacenado no es "OK", eliminar la fila previa
+                    # Si el path esta duplicado y el estado del path previamente almacenado no es Online, eliminar la fila previa
                     self.table.removeRow(paths[file_path])
                     paths[file_path] = (
                         row  # Actualizar el indice con la fila actual porque la anterior fue eliminada
@@ -2023,15 +3506,10 @@ class FileScanner(QWidget):
             if row in rows_to_delete:
                 continue
 
-            file_path = self.table.item(
-                row, 0
-            ).text()  # Obtiene el file_path de la fila seleccionada
-            status = self.table.item(
-                row, 2
-            ).text()  # Obtiene el estado del archivo seleccionado
-            read_node_name = self.table.item(
-                row, 1
-            ).text()  # Obtiene el nombre del nodo Read de la fila seleccionada
+            # Path, estado y Read de la fila seleccionada.
+            file_path = self.table.item(row, COL_PATH).text()
+            status = self.table.item(row, COL_STATUS).text()
+            read_node_name = self.table.item(row, COL_READ).text()
 
             # Verifica si el estado es 'Offline'
             if status == "Offline":
@@ -2087,8 +3565,8 @@ class FileScanner(QWidget):
             # Confirmacion para una sola fila (archivo unico o secuencia)
             file_path = files_to_delete[0][0]
             sequence_status = self.table.item(
-                files_to_delete[0][1], 4
-            ).text()  # Usando el indice 4 directamente
+                files_to_delete[0][1], COL_SEQUENCE
+            ).text()
 
             msgBox = QMessageBox(self)
             msgBox.setIcon(QMessageBox.Warning)
@@ -2147,8 +3625,8 @@ class FileScanner(QWidget):
             processed_rows.add(row)
 
             # Obtener el texto del file_path directamente desde la tabla
-            file_path_text = self.table.item(row, 0).text()  # Columna "File Path"
-            sequence_status = self.table.item(row, 4).text()  # Columna "Sequence"
+            file_path_text = self.table.item(row, COL_PATH).text()  # Columna "File Path"
+            sequence_status = self.table.item(row, COL_SEQUENCE).text()  # Columna "Sequence"
 
             # Imprimir los valores para depuracion
             debug_print(f"Fila {row}:")
@@ -2260,7 +3738,7 @@ class FileScanner(QWidget):
     def print_debug_info(self, file_path):
         # print(f"Normalized requested to delete: '{file_path}'", f"Length: {len(file_path)}")
         for row in range(self.table.rowCount()):
-            table_file_path = self.table.item(row, 0).text().replace("\\", "/").lower()
+            table_file_path = self.table.item(row, COL_PATH).text().replace("\\", "/").lower()
 
     def _confirm_and_delete(self, file_path):
         # Crear un QMessageBox personalizado para confirmar la eliminacion
@@ -2293,85 +3771,114 @@ class FileScanner(QWidget):
 
     ##### Copia:
     def copy_to(self, location):
-        selected_items = self.table.selectedItems()
-        if selected_items:
-            source_file_path = selected_items[0].text()
+        """
+        Copia a la location elegida TODAS las filas seleccionadas.
 
-            # Obtener el estado del archivo seleccionado
-            status = selected_items[2].text()
+        Las copias van encadenadas y no en paralelo: cada una puede abrir su
+        propio cartel de confirmacion por sobreescritura, y varias a la vez
+        serian varios carteles pisandose sobre la misma carpeta destino.
+        """
+        filas = self.selected_rows()
+        if not filas:
+            return
 
-            # Permitir la copia solo si el estado es 'Outside'
-            if status != "Outside":
-                QMessageBox.warning(
-                    self,
-                    "Copy Not Allowed",
-                    "The copy operation is limited to 'Outside' files",
-                )
-                return  # Sale del metodo si el archivo no tiene estado 'Outside'
-
-            # Obtener el nombre del nodo Read de la fila seleccionada
-            read_node_name = selected_items[1].text()
-
-            # Verificar si el footage pertenece a algun Read
-            if read_node_name != "-":
-                self.current_read_node_name = read_node_name
-                nuke.executeInMainThread(
-                    lambda: self.logger.debug(
-                        f"\n  El footage pertenece al nodo Read: {self.current_read_node_name}"
-                    )
-                )
-            else:
-                self.current_read_node_name = None
-                nuke.executeInMainThread(
-                    lambda: self.logger.debug(
-                        "\n  El footage no pertenece a ningun nodo Read."
-                    )
-                )
-
-            # El destino sale de la ruta de la location, resuelta contra
-            # disco. Un comodin puede abrir cero o varias carpetas, y en los
-            # dos casos elegir por el usuario seria adivinar: con cero no hay
-            # que crear nada -"../*assets*" no es un nombre de carpeta- y con
-            # varias no hay forma de saber cual queria. La ventana de ajustes
-            # ya avisa antes de guardar; esto es la red de atras.
-            resultado = mm_paths.resolve(location.get("path", ""), self.nk_dir())
-            if len(resultado.folders) > 1:
-                QMessageBox.warning(
-                    self,
-                    "Copy Not Allowed",
-                    "\"%s\" matches %d folders, so there is no single "
-                    "destination:\n\n%s"
-                    % (location.get("name", ""), len(resultado.folders),
-                       "\n".join(resultado.folders[:8])),
-                )
-                return
-            if not resultado.folders:
-                QMessageBox.warning(
-                    self,
-                    "Copy Not Allowed",
-                    "\"%s\" does not match any existing folder."
-                    % (location.get("name") or location.get("path", "")),
-                )
-                return
-            dest_folder = resultado.folders[0]
-
-            self.loading_window = LoadingWindow("Copying...", self)
-            self.center_window(self.loading_window)
-            self.loading_window.show()
-
-            self.copy_thread = CopyThread(source_file_path, dest_folder)
-            self.copy_thread.finishedCopying.connect(self.on_copy_finished)
-            self.copy_thread.finishedCopyingUnico.connect(self.on_copy_finished_unico)
-            self.copy_thread.errorOccurred.connect(self.show_simple_message)
-            self.copy_thread.confirmationNeeded.connect(self.show_confirmation_dialog)
-            self.copy_thread.confirmationNeededUnico.connect(
-                self.show_confirmation_dialog_unico
+        # Guard de siempre, ahora sobre TODAS las filas: Copy to es traerse
+        # adentro del shot algo que esta afuera, y copiar de nuevo algo que ya
+        # esta adentro no significa nada.
+        if any(self.row_status(fila) != "Outside" for fila in filas):
+            QMessageBox.warning(
+                self,
+                "Copy Not Allowed",
+                "The copy operation is limited to 'Outside' files",
             )
-            self.copy_thread.copyCancelled.connect(self.on_copy_cancelled)
-            self.copy_thread.copyCancelledUnico.connect(self.on_copy_finished_unico)
-            self.copy_thread.copyCancelledUnico.connect(self.on_copy_cancelled_unico)
+            return
 
-            self.copy_thread.start()
+        if self.copy_queue:
+            debug_print("Ya hay una tanda de copias en curso")
+            return
+
+        # El destino sale de la ruta de la location, resuelta contra
+        # disco. Un comodin puede abrir cero o varias carpetas, y en los
+        # dos casos elegir por el usuario seria adivinar: con cero no hay
+        # que crear nada -"../*assets*" no es un nombre de carpeta- y con
+        # varias no hay forma de saber cual queria. La ventana de ajustes
+        # ya avisa antes de guardar; esto es la red de atras.
+        resultado = mm_paths.resolve(location.get("path", ""), self.nk_dir())
+        if len(resultado.folders) > 1:
+            QMessageBox.warning(
+                self,
+                "Copy Not Allowed",
+                "\"%s\" matches %d folders, so there is no single "
+                "destination:\n\n%s"
+                % (location.get("name", ""), len(resultado.folders),
+                   "\n".join(resultado.folders[:8])),
+            )
+            return
+        if not resultado.folders:
+            QMessageBox.warning(
+                self,
+                "Copy Not Allowed",
+                "\"%s\" does not match any existing folder."
+                % (location.get("name") or location.get("path", "")),
+            )
+            return
+
+        self.copy_dest_folder = resultado.folders[0]
+        self.copy_queue = [
+            (self.row_path(fila), self.row_read(fila))
+            for fila in filas
+            if self.row_path(fila)
+        ]
+        self._copy_next()
+
+    def _copy_next(self):
+        """Arranca la copia del proximo archivo de la tanda, si queda alguno."""
+        if not self.copy_queue:
+            return
+
+        source_file_path, read_node_name = self.copy_queue.pop(0)
+
+        # Verificar si el footage pertenece a algun Read
+        if read_node_name and read_node_name != "-":
+            # Con varios Reads sobre la misma media se reapunta el primero:
+            # los demas siguen apuntando al original hasta que el usuario los
+            # relinkee. Es lo que hacia antes y no cambia aca.
+            self.current_read_node_name = read_node_name.split(",")[0].strip()
+            nuke.executeInMainThread(
+                lambda: self.logger.debug(
+                    f"\n  El footage pertenece al nodo Read: {self.current_read_node_name}"
+                )
+            )
+        else:
+            self.current_read_node_name = None
+            nuke.executeInMainThread(
+                lambda: self.logger.debug(
+                    "\n  El footage no pertenece a ningun nodo Read."
+                )
+            )
+
+        self.loading_window = CopyStepWindow("Copying...", self, self._copy_next)
+        self.center_window(self.loading_window)
+        self.loading_window.show()
+
+        # El hilo anterior se guarda un paso mas: si se lo suelta apenas
+        # termina de emitir, Python puede destruir el QThread mientras su
+        # run() todavia esta saliendo.
+        self.previous_copy_thread = getattr(self, "copy_thread", None)
+
+        self.copy_thread = CopyThread(source_file_path, self.copy_dest_folder)
+        self.copy_thread.finishedCopying.connect(self.on_copy_finished)
+        self.copy_thread.finishedCopyingUnico.connect(self.on_copy_finished_unico)
+        self.copy_thread.errorOccurred.connect(self.show_simple_message)
+        self.copy_thread.confirmationNeeded.connect(self.show_confirmation_dialog)
+        self.copy_thread.confirmationNeededUnico.connect(
+            self.show_confirmation_dialog_unico
+        )
+        self.copy_thread.copyCancelled.connect(self.on_copy_cancelled)
+        self.copy_thread.copyCancelledUnico.connect(self.on_copy_finished_unico)
+        self.copy_thread.copyCancelledUnico.connect(self.on_copy_cancelled_unico)
+
+        self.copy_thread.start()
 
     def on_copy_finished(self, specific_dest_folder):
         if self.current_read_node_name:
@@ -2411,29 +3918,21 @@ class FileScanner(QWidget):
 
         # Buscar la fila en la tabla que corresponde al archivo copiado
         for row in range(self.table.rowCount()):
-            # Actualizar la ruta en el QTableWidgetItem y el QLabel
-            table_path = self.table.item(row, 0).text()
+            # Actualizar la ruta en el QTableWidgetItem
+            table_path = self.table.item(row, COL_PATH).text()
             if table_path.startswith(original_file_path[: -len(filename)]):
                 # Actualizar la ruta manteniendo los '#' y el rango de cuadros
                 new_table_path = (
                     new_file_path_table + table_path[len(original_file_path) :]
                 )
-                self.table.item(row, 0).setText(new_table_path)
+                self.table.item(row, COL_PATH).setText(new_table_path)
+                # El path lo repinta el delegado a partir del item.
 
-                label = self.table.cellWidget(row, 0)
-                if label:
-                    label.setText(new_table_path)
-                    self.apply_color_to_label(
-                        label, self.project_folder, new_table_path
-                    )
-
-                # Si el archivo estaba "OUTSIDE", actualizar el estado a "OK"
-                status_item = self.table.item(row, 2)
-                if status_item.text() == "Outside":
-                    status_item.setText("OK")
-                    status_item.setBackground(
-                        QColor("#25321e")
-                    )  # Verde oscuro para "OK"
+                # El archivo se trajo adentro del shot: deja de estar Outside.
+                status_item = self.table.item(row, COL_STATUS)
+                if status_item is not None and status_item.text() == "Outside":
+                    self.set_row_status(row, "Online")
+                    self.update_status_counts()
 
     def on_copy_finished_unico(self, specific_dest_folder=None):
         if specific_dest_folder and self.current_read_node_name:
@@ -2466,21 +3965,16 @@ class FileScanner(QWidget):
 
         # Buscar la fila en la tabla que corresponde al archivo copiado
         for row in range(self.table.rowCount()):
-            if self.table.item(row, 0).text() == original_file_path:
+            if self.table.item(row, COL_PATH).text() == original_file_path:
                 # Actualizar la ruta en el QTableWidgetItem
-                self.table.item(row, 0).setText(new_file_path)
+                self.table.item(row, COL_PATH).setText(new_file_path)
+                # El path lo repinta el delegado a partir del item.
 
-                # Actualizar tambien el QLabel si es necesario
-                label = self.table.cellWidget(row, 0)
-                if label:
-                    label.setText(new_file_path)
-                    self.apply_color_to_label(label, self.project_folder, new_file_path)
-
-                # Si el archivo estaba "OUTSIDE", actualizar el estado a "OK"
-                status_item = self.table.item(row, 2)
-                if status_item.text() == "Outside":
-                    status_item.setText("OK")
-                    # Actualizar el color de
+                # El archivo se trajo adentro del shot: deja de estar Outside.
+                status_item = self.table.item(row, COL_STATUS)
+                if status_item is not None and status_item.text() == "Outside":
+                    self.set_row_status(row, "Online")
+                    self.update_status_counts()
 
     def show_simple_message(self, message):
         QMessageBox.information(self, "Error", message)
