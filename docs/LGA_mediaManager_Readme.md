@@ -129,6 +129,21 @@ checkbox de 19 px y un par de teclas. Cualquier holgura sobre eso se lee como
 un hueco entre columnas, no como aire. Título y contenido van los dos
 centrados.
 
+**Los títulos se sangran lo mismo que su contenido.** El encabezado pone un
+`QLabel` pelado en cada columna y la fila pone widgets con estructura —una
+ranura, el borde y el padding de un campo—, así que el texto de los dos no
+arranca en el mismo lugar salvo que se lo corrija. Esa corrección son las
+constantes `HEAD_INDENT_*`, escritas **como la suma de las medidas que la
+producen** (`RANURA_WIDTH`, `RANURA_GAP`, `FIELD_BORDER`, `FIELD_PADDING_H`) y
+no como un número calibrado a ojo: si cambia el padding del campo, la sangría
+se mueve sola.
+
+**La reserva de la barra de scroll se mide, no se deduce.** `_sync_head_margin()`
+compara el ancho real del encabezado con el del viewport y lo llama el
+`eventFilter` del viewport, que es cuando la barra aparece o se va. Deducirlo
+de si el contenido pasa el alto máximo estuvo mal desde que la ventana se puede
+achicar: con pocas filas y la ventana baja la barra aparece igual.
+
 > **El encabezado y las filas tienen que tener los MISMOS items.** Son dos
 > `QHBoxLayout` distintos que se alinean sólo porque recorren la misma lista de
 > columnas. Un `QHBoxLayout` pone su espaciado *entre* items sin mirar cuánto

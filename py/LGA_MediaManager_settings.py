@@ -1,9 +1,30 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.36 | Lega
+  LGA_MediaManager_settings v2.37 | Lega
   Ventana de ajustes del Media Manager
 
+  v2.37: Seis desalineaciones entre el encabezado y las filas,
+         medidas con Qt real. Los titulos de las tres columnas de
+         texto se sangran lo mismo que su contenido -"Name" caia 35
+         px antes que los nombres y "Path" 9 px antes que las rutas-
+         con la cuenta escrita a partir de las medidas que la
+         producen, no a ojo.
+         La reserva de la barra de scroll deja de deducirse de si el
+         contenido pasa el alto maximo: eso dejo de ser lo mismo que
+         "hay barra" cuando la ventana se pudo achicar, y con pocas
+         filas y la ventana baja las columnas de la derecha volvian a
+         correrse 10 px. Ahora se mide la diferencia real entre el
+         encabezado y el viewport, avisada por el propio viewport.
+         El minimo de la caja reserva tambien esa barra: sin eso, en
+         el ancho minimo con la barra puesta, a las filas les faltaban
+         8 px y se los comia la papelera.
+         El checkbox del shot pedia 22 px en una celda de 18 y Qt le
+         recortaba 3 del indicador; va sin el padding de la hoja
+         comun. El guion del atajo se centra -los 12 px de padding lo
+         corrian 6,5 y prender Copy to movia el marcador- y "Shot
+         folder" suma el pixel de borde que el campo tiene y el label
+         no.
   v2.36: Los titulos de las tres columnas de la derecha SI estaban
          centrados; lo que estaba corrido era la columna. El
          encabezado llevaba un widget de ancho cero al final para
@@ -193,6 +214,11 @@ COL_TRASH = (34, 0, 34)
 COLUMNS = (COL_GRIP, COL_NAME, COL_PATH, COL_REAL, COL_SCAN, COL_COPY,
            COL_KEY, COL_TRASH)
 
+# La separacion entre columnas. La usan el encabezado y cada fila, y tiene que
+# ser la MISMA en los dos: son dos QHBoxLayout distintos que se alinean solo
+# porque recorren la misma lista con el mismo espaciado.
+COLUMN_SPACING = 9
+
 # El minimo lo pone el CONTENIDO -la suma de los minimos de las columnas mas
 # los margenes- y no un numero escrito a mano. El 1180 de antes era mas ancho
 # que lo que la tabla necesita, asi que la ventana no se podia achicar hasta
@@ -235,6 +261,30 @@ HEAD_LETTER_SPACING = 0.4  # va por QFont: QSS no tiene letter-spacing
 KEY_HEIGHT = 28
 KEY_MIN_WIDTH = 34
 KEY_FONT = 12
+
+# --------------------------------------------------------------------------
+#  Alineacion del encabezado con las filas
+# --------------------------------------------------------------------------
+# El encabezado pone un QLabel pelado en cada columna y la fila pone widgets
+# con estructura adentro, asi que el texto de los dos NO arranca en el mismo
+# lugar salvo que se lo corrija. Estas medidas son las que reconstruyen, para
+# el encabezado, el mismo margen que la fila tiene por su contenido. Si cambia
+# alguna de las de abajo, el titulo se corre: son la misma cuenta.
+#
+# La ranura de la primera columna del nombre, y su separacion del campo.
+# Suman 26, que es donde arrancan todos los nombres.
+RANURA_WIDTH = 18
+RANURA_GAP = 8
+# El campo inline: 1 px de borde -transparente en reposo, pero ocupa- mas el
+# padding horizontal de su hoja.
+FIELD_BORDER = 1
+FIELD_PADDING_H = 8
+# Donde arranca el TEXTO de cada columna, contado desde el borde de la
+# columna. El encabezado se sangra otro tanto para caer encima.
+HEAD_INDENT_NAME = RANURA_WIDTH + RANURA_GAP + FIELD_BORDER + FIELD_PADDING_H
+HEAD_INDENT_PATH = FIELD_BORDER + FIELD_PADDING_H
+# "Resolves to" no lleva: su label no tiene ni borde ni padding.
+HEAD_INDENT_REAL = 0
 
 # Los botones de tema son mas chatos y con menos aire que los botones de
 # accion del pie: son una tira de seis y con el padding del boton normal la
@@ -542,7 +592,7 @@ class LocationRow(QFrame):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(9)
+        layout.setSpacing(COLUMN_SPACING)
 
         # --- primera columna: grip, o el encendido del shot ----------------
         if shot:
@@ -560,11 +610,15 @@ class LocationRow(QFrame):
         nombre_caja = QWidget(self)
         nombre_layout = QHBoxLayout(nombre_caja)
         nombre_layout.setContentsMargins(0, 0, 0, 0)
-        nombre_layout.setSpacing(9)
+        nombre_layout.setSpacing(RANURA_GAP)
 
-        # La ranura mide lo que el icono (17) para que "Shot folder" arranque
-        # exactamente donde arrancan los nombres de las locations. El checkbox
-        # es de 19 y desborda 1 px por lado, que con el gap de 9 no toca nada.
+        # La ranura mide 18 y no 17: es lo que necesita el indicador del
+        # checkbox del shot -16 de cuadro mas 1 de borde por lado- para no
+        # quedar recortado. Qt acota un item alineado al ancho de su celda, asi
+        # que con 17 se dibujaban 15 de los 18 px. Con 18, el icono de carpeta
+        # de las otras filas (17) y el indicador quedan los dos centrados en 9,
+        # y el gap baja a 8 para que RANURA_WIDTH + RANURA_GAP siga siendo 26 y
+        # "Shot folder" arranque donde arrancan los nombres.
         if shot:
             self.enabled_check = QCheckBox("")
             self.enabled_check.setChecked(bool(self.data.get("enabled", True)))
@@ -583,17 +637,19 @@ class LocationRow(QFrame):
             self.name_edit.textChanged.connect(lambda _t: self.changed.emit())
 
         if shot:
-            # La ranura mide lo que el icono y el checkbox desborda 1 px por
-            # lado: con el ancho fijo puesto sobre el propio checkbox, Qt le
-            # recortaba el indicador.
+            # El checkbox va SIN el padding de la hoja comun: con el pide 22 px
+            # y la celda le da 18, y Qt acota el item alineado al ancho de la
+            # celda, asi que le recortaba el indicador. Sin padding pide 18
+            # justos. La regla va por id para que le gane a Style.CHECKBOX.
+            self.enabled_check.setObjectName("lgaShotCheck")
             ranura_caja = QWidget(self)
             ranura_layout = QHBoxLayout(ranura_caja)
             ranura_layout.setContentsMargins(0, 0, 0, 0)
             ranura_layout.addWidget(self.ranura, 0, Qt.AlignCenter)
-            ranura_caja.setFixedWidth(17)
+            ranura_caja.setFixedWidth(RANURA_WIDTH)
             nombre_layout.addWidget(ranura_caja)
         else:
-            self.ranura.setFixedWidth(17)
+            self.ranura.setFixedWidth(RANURA_WIDTH)
             nombre_layout.addWidget(self.ranura)
         nombre_layout.addWidget(self.name_label or self.name_edit, 1)
 
@@ -881,6 +937,11 @@ class LocationRow(QFrame):
                 }
             )
             + UI.Style.CHECKBOX
+            # El checkbox del shot va sin el padding de la hoja comun: con el
+            # pide 22 px y su celda mide 18, y Qt acota al ancho de la celda un
+            # item alineado, asi que le recortaba 3 px del indicador. Va por id
+            # para ganarle a la regla generica de arriba.
+            + "#lgaShotCheck { padding: 0px; }"
         )
 
     # -------------------------------------------------------------- datos ---
@@ -928,8 +989,9 @@ class LocationRow(QFrame):
             # El mismo padding que el campo de nombre de las filas de abajo,
             # para que "Shot folder" arranque en la misma vertical.
             self.name_label.setStyleSheet(
-                "color: %s; %s padding-left: 8px; %s"
-                % (UI.Color.TEXT_STRONG, UIStyle.semibold_css(), chico)
+                "color: %s; %s padding-left: %dpx; %s"
+                % (UI.Color.TEXT_STRONG, UIStyle.semibold_css(),
+                   FIELD_BORDER + FIELD_PADDING_H, chico)
             )
         if self.grip is not None:
             # El grip va en el gris de borde y no en el del texto: es un
@@ -968,9 +1030,10 @@ class LocationRow(QFrame):
             self.plus_label.setStyleSheet(
                 "color: %s; font-size: %dpx;" % (UI.Color.TEXT_DIM, KEY_FONT)
             )
-            self.dash_label.setStyleSheet(
-                "color: %s; padding-left: 12px;" % UI.Color.TEXT_DIM
-            )
+            # Sin padding: el guion vive entre los dos stretch de su columna,
+            # asi que ya cae centrado. Los 12 px que tenia lo corrian 6,5 a la
+            # derecha del centro, o sea que prender Copy to movia el marcador.
+            self.dash_label.setStyleSheet("color: %s;" % UI.Color.TEXT_DIM)
         if self.key_edit is not None:
             # Borde de acento SIEMPRE y no solo al foco: es el unico campo de
             # la fila que espera una sola tecla, y sin marcarlo no se ve que
@@ -1195,13 +1258,16 @@ class SettingsWindow(QWidget):
         # El margen derecho lo escribe _fit_table con el ancho de la barra de
         # scroll, para que el encabezado y las filas repartan lo mismo.
         self.head_layout.setContentsMargins(0, 0, 0, 0)
-        self.head_layout.setSpacing(9)
+        self.head_layout.setSpacing(COLUMN_SPACING)
         head = self.head_layout
         self.head_labels = []
-        for texto, columna in (
-            ("", COL_GRIP), ("Name", COL_NAME), ("Path", COL_PATH),
-            ("Resolves to", COL_REAL), ("Scan", COL_SCAN),
-            ("Copy to", COL_COPY), ("Copy Shortcut", COL_KEY), ("", COL_TRASH),
+        for texto, columna, sangria in (
+            ("", COL_GRIP, 0),
+            ("Name", COL_NAME, HEAD_INDENT_NAME),
+            ("Path", COL_PATH, HEAD_INDENT_PATH),
+            ("Resolves to", COL_REAL, HEAD_INDENT_REAL),
+            ("Scan", COL_SCAN, 0), ("Copy to", COL_COPY, 0),
+            ("Copy Shortcut", COL_KEY, 0), ("", COL_TRASH, 0),
         ):
             etiqueta = QLabel(texto)
             # Las tres de la derecha van centradas, igual que su contenido.
@@ -1210,6 +1276,15 @@ class SettingsWindow(QWidget):
             # su propia columna.
             if columna in (COL_SCAN, COL_COPY, COL_KEY):
                 etiqueta.setAlignment(Qt.AlignCenter)
+            # Las tres de la izquierda se sangran lo mismo que su contenido.
+            # El encabezado pone un label pelado y la fila pone widgets con
+            # estructura -una ranura, el borde y el padding de un campo- asi
+            # que sin esto "Name" arrancaba 35 px antes que los nombres y
+            # "Path" 9 px antes que las rutas. Va por contentsMargins y no por
+            # hoja de estilo para no tener que repetirle el color y el tamano
+            # que ya le pone la regla del encabezado.
+            elif sangria:
+                etiqueta.setContentsMargins(sangria, 0, 0, 0)
             _add_column(head, etiqueta, columna)
             self.head_labels.append(etiqueta)
         # El encabezado vive AFUERA del area scrolleable, asi que cuando
@@ -1248,7 +1323,23 @@ class SettingsWindow(QWidget):
         # alineacion la mantiene el hueco del encabezado, que se prende y se
         # apaga junto con la barra en _fit_table.
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        # La reserva del encabezado se rehace cuando el VIEWPORT cambia de
+        # tamano, que es exactamente cuando la barra aparece o se va. Deducirlo
+        # de cuantas filas hay fallaba con la ventana achicada.
+        self.scroll.viewport().installEventFilter(self)
         caja.addWidget(self.scroll)
+        # El minimo de la caja reserva tambien el ancho de la barra de scroll.
+        # Sin eso, con la ventana en su ancho minimo Y la barra visible, a las
+        # filas les quedaban 8 px menos que a sus propias columnas y el ultimo
+        # widget -la papelera- se comia esa diferencia. El encabezado, que vive
+        # afuera del area scrolleable, no la sufria: otro desfasaje entre los
+        # dos por el mismo motivo de siempre.
+        self.table_box.setMinimumWidth(
+            sum(col[2] for col in COLUMNS)
+            + COLUMN_SPACING * (len(COLUMNS) - 1)
+            + UIStyle.Metric.SCROLLBAR_WIDTH
+            + 2  # el borde de la caja, 1 px por lado
+        )
         raiz.addWidget(self.table_box)
 
         # --- agregar + tarjeta ---------------------------------------------------
@@ -1801,11 +1892,27 @@ class SettingsWindow(QWidget):
         # tope, asi que la barra aparece exactamente cuando el contenido lo
         # supera. Reservando el ancho siempre, las veces que NO hay barra el
         # encabezado quedaba corrido 10 px contra las filas.
-        self.head_layout.setContentsMargins(
-            0, 0,
-            UIStyle.Metric.SCROLLBAR_WIDTH if contenido > TABLE_MAX_HEIGHT else 0,
-            0,
-        )
+        self._sync_head_margin()
+
+    def _sync_head_margin(self):
+        """
+        Le reserva al encabezado el ancho que la barra de scroll le come a las
+        filas.
+
+        Se mide la diferencia REAL entre el encabezado y el viewport, no se
+        deduce de si el contenido pasa el alto maximo. Deducirlo estaba mal
+        desde que la ventana se puede achicar: con pocas filas pero la ventana
+        baja, la barra aparece igual -el area de filas se comprime hasta dos
+        filas- y el encabezado no reservaba nada, asi que las columnas de la
+        derecha volvian a quedar corridas 10 px. Es el mismo desfasaje que el
+        del item de ancho cero, entrando por la otra puerta.
+        """
+        if getattr(self, "head_layout", None) is None:
+            return
+        falta = max(0, self.head_row.width() - self.scroll.viewport().width())
+        margenes = self.head_layout.contentsMargins()
+        if margenes.right() != falta:
+            self.head_layout.setContentsMargins(0, 0, falta, 0)
 
     # ------------------------------------------------------------- resolucion --
     def _path_edited(self, _fila):
@@ -2070,6 +2177,21 @@ class SettingsWindow(QWidget):
             self._worker.cancel()
             self._worker = None
         super().closeEvent(event)
+
+    def eventFilter(self, obj, event):
+        """
+        El viewport avisa cuando aparece o se va la barra de scroll.
+
+        Es el unico momento confiable: la barra la decide Qt segun el alto real
+        del area, que cambia tanto al agregar filas como al achicar la ventana.
+        """
+        if (
+            getattr(self, "scroll", None) is not None
+            and obj is self.scroll.viewport()
+            and event.type() == QtCore.QEvent.Resize
+        ):
+            self._sync_head_margin()
+        return super().eventFilter(obj, event)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:

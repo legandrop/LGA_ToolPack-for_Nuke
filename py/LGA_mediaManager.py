@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.36 | Lega
+  LGA_mediaManager v2.37 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -20,6 +20,15 @@ _______________________________________________________________________
   LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
   mano en la interfaz.
 
+  v2.37: Seis desalineaciones mas de la tabla de ajustes, medidas
+         con Qt real en vez de estimadas. La mas grande: el titulo
+         "Name" caia 35 px antes que los nombres, porque el
+         encabezado pone un label pelado y la fila pone una ranura,
+         un borde y un padding. Y la reserva de la barra de scroll se
+         deducia de cuantas filas hay, que dejo de ser lo mismo que
+         "hay barra" desde que la ventana se puede achicar: con pocas
+         filas y la ventana baja, las columnas de la derecha volvian
+         a correrse 10 px. Ahora se mide la diferencia real.
   v2.36: Aparece por que los titulos de la tabla de ajustes no
          caian sobre su contenido, despues de tres intentos de
          centrarlos: SI estaban centrados, pero en una columna
