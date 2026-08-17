@@ -742,6 +742,10 @@ class FileScanner(QWidget):
         # toca archivos en disco.
         self.toolbar_separator = QFrame(self)
         self.toolbar_separator.setFixedSize(1, TOOLBAR_SEPARATOR_HEIGHT)
+        # Sin esto Qt resuelve la hoja y no pinta un solo pixel, asi que el
+        # separador quedaba invisible aunque su regla fuera correcta.
+        self.toolbar_separator.setFrameShape(QFrame.NoFrame)
+        self.toolbar_separator.setAttribute(Qt.WA_StyledBackground, True)
         main_buttons_layout.addWidget(self.toolbar_separator)
         main_buttons_layout.addWidget(self.delete_button)
 

@@ -46,7 +46,7 @@ un usuario puede tener instalado uno solo, así que no pueden importarse entre
 sí. Lo único que difería era el docstring: nombre del módulo, su propio
 historial de versiones y la ruta del ejemplo de import.
 
-**Hoy no lo son.** El de este repo está en `v1.12` con los seis temas y los
+**Hoy no lo son.** El de este repo está en `v1.15` con los seis temas y los
 otros tres quedaron en el cuerpo de antes, que es la mitad de largo. La regla
 de "se cambia en las cuatro" sigue siendo la que se quiere, pero aplicarla
 ahora significa portar los temas a los otros tres repos y revisar sus ventanas
@@ -237,6 +237,31 @@ w.show(); app.processEvents(); w.grab().save("out.png")
 Es mucho más rápido que reiniciar Nuke y permite medir píxeles en vez de mirar a
 ojo. Para chequear que un QSS parsea, instalar un `qInstallMessageHandler` y
 confirmar que no llegue ningún `Could not parse stylesheet`.
+
+## La trampa que más veces mordió: `WA_StyledBackground`
+
+**Qt resuelve la hoja de estilo y no pinta nada** si el widget no tiene
+`Qt.WA_StyledBackground`. La regla es correcta, gana en especificidad, y no se
+dibuja un solo píxel. Es un modo de fallar particularmente difícil de ver
+leyendo el código, porque no hay nada mal escrito.
+
+Pasa con `QWidget` y `QFrame` a los que se les pone `background-color` o
+`border` por hoja propia. En el port del Media Manager mordió **tres veces**:
+la caja de la tabla de ajustes con su cabecera y sus separadores, el fondo de
+la ventana de ajustes, y el separador vertical de la barra de herramientas.
+
+```python
+caja.setFrameShape(QFrame.NoFrame)   # que el borde lo dibuje la hoja, no el estilo nativo
+caja.setAttribute(Qt.WA_StyledBackground, True)
+caja.setObjectName("lgaCaja")        # y la regla por #id, no por clase:
+caja.setStyleSheet("#lgaCaja { background-color: %s; }" % Color.SURFACE)
+```
+
+**El `objectName` no es opcional.** Una regla `QFrame { ... }` sin selector se
+le aplica también a todos los `QFrame` hijos.
+
+No hace falta en un `QLabel`, un `QPushButton` ni un `QLineEdit`: esos ya
+pintan su fondo por hoja. Es el contenedor pelado el que no.
 
 ## Dónde tocar
 
