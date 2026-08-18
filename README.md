@@ -107,7 +107,7 @@ Los knobs con expresiones TCL, como los Writes creados con Write Presets, no se 
 [https://www.nukepedia.com/python/misc/readfromwrite](https://www.nukepedia.com/python/misc/readfromwrite)<br>
 Genera un nodo Read a partir de la ruta y archivo del nodo Write seleccionado.
 <br><br>
-![](Doc_Media/readfromwrite_v01.gif)
+![](Doc_Media/readfromwrite_v01.gif)<br>
 <img src="Doc_Media/read_from_write_shortcut.svg" alt="Read from Write shortcut" width="150" height="43">
 
 <br>
@@ -133,7 +133,7 @@ Abre una ventana con opciones de render pre configuradas que se cargan desde un 
 Si se ejecuta sobre un write existente se abre el editor de TLC:<br>
 ![](Doc_Media/write_presetsB_v01.gif)
 
-<br><br>
+<br>
 <img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcut" width="150" height="43">
 
 <br>
