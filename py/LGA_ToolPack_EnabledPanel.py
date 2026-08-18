@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_ToolPack_EnabledPanel v1.05 | Lega
+  LGA_ToolPack_EnabledPanel v1.06 | Lega
 
   Panel para activar y desactivar las herramientas del pack.
 
@@ -17,6 +17,14 @@ ____________________________________________________________________
     - En ningun lado mas. La ventana no muestra version y el README no
       tiene una seccion propia para esta tool.
 
+  v1.06: El subrayado del path ya no queda enganchado al salir del
+         hover: era rich text con `<a>` y `linkHovered`, y reescribir
+         el HTML al entrar movia el ancla debajo del mouse, asi que la
+         salida muchas veces no se emitia. Ahora es un QLabel propio,
+         PathLink, con enterEvent y leaveEvent, que son del widget y no
+         del contenido. El texto ademas queda de verdad en 14 px: en
+         v1.05 la fuente se le ponia a la ventana y los hijos no la
+         heredaban por tener hoja de estilo.
   v1.05: La ventana usa la fuente del pack en 13 px -antes heredaba la
          del host, que en Nuke sale mucho mas chica que el indicador
          del checkbox-, el nombre de la tool deja de estar pegado al
@@ -81,16 +89,6 @@ def _pretty(key):
     return key.replace("_", " ")
 
 
-def _escape(text):
-    """El path va adentro de un `<a>`, asi que hay que escaparlo."""
-    return (
-        (text or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
-
-
 def reveal_in_file_browser(path):
     """
     Muestra `path` en el Finder / Explorer, seleccionado si existe.
@@ -120,6 +118,58 @@ def reveal_in_file_browser(path):
     except Exception:
         return False
     return True
+
+
+class PathLink(QtWidgets.QLabel):
+    """
+    El path del ini, en texto plano, que se subraya al pasarle por encima.
+
+    Empezo como rich text con un `<a>` y la senal `linkHovered`, y el
+    subrayado quedaba enganchado: al entrar se reescribia el HTML, y
+    reescribirlo mueve el ancla debajo del mouse, asi que la salida muchas
+    veces no llegaba a emitirse. `enterEvent` y `leaveEvent` no dependen del
+    contenido: son del widget.
+
+    El widget se achica al ancho de su texto -por el size policy- para que el
+    area sensible sea el path y no la franja entera del pie de la ventana.
+    """
+
+    HOJA = (
+        "QLabel { color: %s; font-size: %dpx; text-decoration: %s; }"
+    )
+
+    def __init__(self, path, parent=None):
+        super().__init__(path, parent)
+        self._path = path
+        self.setCursor(Qt.PointingHandCursor)
+        self.setTextInteractionFlags(Qt.NoTextInteraction)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed
+        )
+        self._pintar(False)
+
+    def _pintar(self, encima):
+        self.setStyleSheet(
+            self.HOJA
+            % (
+                Color.TEXT if encima else Color.TEXT_DIM,
+                Metric.FORM_PATH_FONT_SIZE,
+                "underline" if encima else "none",
+            )
+        )
+
+    def enterEvent(self, event):
+        self._pintar(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._pintar(False)
+        super().leaveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self.rect().contains(event.pos()):
+            reveal_in_file_browser(self._path)
+        super().mouseReleaseEvent(event)
 
 
 class EnabledPanel(QtWidgets.QWidget):
@@ -225,35 +275,11 @@ class EnabledPanel(QtWidgets.QWidget):
         para poder llegar al archivo.
         """
         self._config_path = enabled_config.get_user_path() or ""
-        label = QtWidgets.QLabel()
-        label.setTextFormat(Qt.RichText)
-        label.setToolTip(TOOLTIPS["path"])
         if not self._config_path:
-            return label
-
-        label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
-        label.setCursor(Qt.PointingHandCursor)
-        label.setText(self._path_html(False))
-        label.linkActivated.connect(
-            lambda _: reveal_in_file_browser(self._config_path)
-        )
-        # QLabel no tiene :hover para un `<a>`, asi que el subrayado se pone
-        # y se saca a mano con la senal que avisa cuando el mouse entra.
-        label.linkHovered.connect(
-            lambda url: label.setText(self._path_html(bool(url)))
-        )
+            return QtWidgets.QLabel()
+        label = PathLink(self._config_path)
+        label.setToolTip(TOOLTIPS["path"])
         return label
-
-    def _path_html(self, hover):
-        return (
-            "<a href='#' style='color:%s; font-size:%dpx; "
-            "text-decoration:%s;'>%s</a>"
-        ) % (
-            Color.TEXT if hover else Color.TEXT_DIM,
-            Metric.FORM_PATH_FONT_SIZE,
-            "underline" if hover else "none",
-            _escape(self._config_path),
-        )
 
     def _build_error_ui(self, root):
         """Pantalla de error cuando el manifiesto del pack no se puede leer."""

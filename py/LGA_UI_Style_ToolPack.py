@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.19 | Lega
+  LGA_UI_Style_ToolPack v1.20 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,15 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.20: apply_ui_font le pone la fuente a CADA hijo y no solo a la
+         ventana. La herencia del QFont no llega cuando hay hoja de
+         estilo: al aplicarla, QStyleSheetStyle le fija a cada hijo la
+         fuente que resuelve para el y esa queda marcada como propia.
+         Medido: el panel de Enable Tools quedaba en Inter 13 px con
+         todos sus checkboxes en la Sans Serif de 9 pt del host, o sea
+         que v1.19 no cambiaba nada de lo que se veia. Y FORM_FONT_SIZE
+         pasa a 14 px, que es lo que pide un texto al lado de un
+         indicador de 16.
   v1.19: Metric.FORM_FONT_SIZE y FORM_PATH_FONT_SIZE, el checkbox con
          etiqueta separa el texto del cuadrito -por la propiedad
          `lgaLabeled`, porque QSS no sabe si un checkbox tiene texto-, y
@@ -399,10 +408,11 @@ class Metric(object):
     # --- tamano de letra de las VENTANAS DE FORMULARIO -----------------------
     # Las ventanas que no llaman a apply_ui_font heredan la fuente del host, y
     # la de Nuke en macOS es varios puntos mas chica que la del prototipo: al
-    # lado de un indicador de checkbox de 16 px el texto se lee diminuto. Es la
-    # misma medida que usa la tabla del Media Manager, para que dos ventanas
-    # del pack abiertas juntas se lean iguales.
-    FORM_FONT_SIZE = 13
+    # lado de un indicador de checkbox de 16 px el texto se lee diminuto.
+    # 14 y no 13 -la medida de la tabla del Media Manager- porque el que manda
+    # aca es el checkbox: una tabla no tiene al lado un control de 16 px con el
+    # que comparar el texto, y una ventana de formulario es toda checkboxes.
+    FORM_FONT_SIZE = 14
     # El path del pie va un escalon abajo: es dato de referencia, no contenido.
     FORM_PATH_FONT_SIZE = 12
 
@@ -1609,16 +1619,36 @@ def apply_ui_font(widget, size=None):
     host, que es feo pero funciona. El TAMANO se aplica igual en ese caso: es
     justamente donde mas hace falta, porque la fuente del host viene con SU
     tamano y ese es el que dejaba el texto diminuto al lado de los controles.
+
+    LA HERENCIA NO ALCANZA CUANDO LA VENTANA TIENE HOJA DE ESTILO. La teoria
+    es que un QFont puesto en el padre baja solo a los hijos, y asi era antes
+    de las hojas; pero al aplicar un QSS, QStyleSheetStyle le fija a CADA hijo
+    la fuente que resuelve para el -la de la app si la hoja no dice nada- y esa
+    fuente queda marcada como propia, o sea que ya no hereda nada del padre.
+    Medido en el panel de Enable Tools: la ventana quedaba en Inter 13 px y sus
+    checkboxes en la Sans Serif de 9 pt del host. Por eso se recorren los hijos
+    uno por uno. Lo que la hoja SI declara -un font-size en una regla- le sigue
+    ganando a esto, que es lo que se quiere: la hoja es la excepcion explicita.
     """
     familia = font_family()
-    fuente = widget.font()
-    if familia:
-        fuente.setFamily(familia)
-    if size:
-        fuente.setPixelSize(size)
     if not familia and not size:
         return False
-    widget.setFont(fuente)
+
+    def poner(objetivo):
+        fuente = objetivo.font()
+        if familia:
+            fuente.setFamily(familia)
+        if size:
+            fuente.setPixelSize(size)
+        objetivo.setFont(fuente)
+
+    poner(widget)
+    try:
+        from LGA_QtAdapter_ToolPack import QtWidgets
+    except Exception:
+        return bool(familia)
+    for hijo in widget.findChildren(QtWidgets.QWidget):
+        poner(hijo)
     return bool(familia)
 
 
