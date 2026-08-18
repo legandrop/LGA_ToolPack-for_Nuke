@@ -27,9 +27,20 @@
   nuke.pluginAddPath('./LGA_ToolPack')
   ```
 
-- El ToolPack permite **activar/desactivar** herramientas desde el menú **TP > Enable Tools**<br>
-  Las que se destildan se ocultan del menú y evitan cargarse. Los cambios se aplican al reiniciar Nuke.<br>
-  La elección se guarda **fuera del pack**, en **%APPDATA%\LGA\ToolPack\Enabled.ini** (Windows) o **~/Library/Application Support/LGA/ToolPack/Enabled.ini** (macOS), así que las actualizaciones no la pisan.
+- El pack permite **activar/desactivar** herramientas desde el menú **TP > Enable Tools**, que se explica acá abajo.
+
+<br>
+
+## Enable Tools v1.06 | Lega
+
+Para elegir qué herramientas del pack aparecen en el menú.<br>
+Se abre desde **TP > Enable Tools** y muestra una casilla por herramienta, agrupadas igual que el menú. La que se destilda se oculta del menú y además **no se carga**, así que apagar lo que no se usa también le saca trabajo al arranque de Nuke. Los cambios se aplican al reiniciar Nuke.<br>
+La elección se guarda **fuera del pack**, en **%APPDATA%\LGA\ToolPack\Enabled.ini** (Windows) o **~/Library/Application Support/LGA/ToolPack/Enabled.ini** (macOS), así que actualizar el pack no la pisa. El path del archivo se muestra abajo de todo y se puede clickear para abrirlo en el explorador de archivos.<br>
+**All On** y **All Off** tildan y destildan todo; **Reset** vuelve a los valores de fábrica, que igual hay que guardar con **Save**.
+
+![](Doc_Media/enable_tools_v01.png)
+
+<br>
 
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">

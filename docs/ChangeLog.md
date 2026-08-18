@@ -2,6 +2,10 @@
 
 ## v2.63
 
+- **`Enable Tools` tiene sección propia en el README.** Estaba documentada sólo como una viñeta adentro de Instalación: sin captura, sin versión y contando el archivo de config al lado de los pasos de instalar, que es donde nadie lo busca después. Ahora es una sección como las demás, con la captura de la ventana, qué hace destildar una tool —se oculta del menú y además no se carga—, dónde vive el ini y qué hacen All On, All Off y Reset. La viñeta de Instalación queda en una línea que apunta a la sección, así el dato del ini está en un solo lugar.
+
+  El título de la sección lleva la versión, que por regla del pack hay que mover junto con el header del `.py`; el header de `LGA_ToolPack_EnabledPanel.py` lo deja asentado, porque hasta ahora decía que la versión no se veía en ningún otro lado. La sección va sin el bullet de categoría que usan las demás: `Enable Tools` no vive adentro de ninguna. [ EnableTools - Documentar la tool en el README ]
+
 - **La entrada anterior no cambiaba nada de lo que se veía: la fuente le llegaba a la ventana y no a sus controles.** `apply_ui_font` le ponía el QFont al widget de arriba y confiaba en que Qt lo bajara solo, que es como funciona sin hojas de estilo. Con hoja no: al aplicarla, `QStyleSheetStyle` le fija a **cada hijo** la fuente que resuelve para él —la de la app si la hoja no dice nada— y esa queda marcada como propia, o sea que el hijo ya no hereda. Medido en el panel: la ventana en Inter 13 px y sus treinta checkboxes en la Sans Serif de 9 pt del host. Ahora la fuente se le pone a cada hijo; lo que la hoja **sí** declara le sigue ganando, que es lo que se quiere. Toca también al Media Manager, que llamaba a `apply_ui_font` sin tamaño y por lo mismo se quedaba sin la familia del pack en sus controles.
 
   `FORM_FONT_SIZE` pasa a 14 px. No es la medida de la tabla del Media Manager: en una ventana de formulario el que manda es el checkbox, y un texto de 13 al lado de un indicador de 16 px sigue leyéndose chico.

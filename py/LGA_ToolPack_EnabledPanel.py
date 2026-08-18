@@ -14,8 +14,8 @@ ____________________________________________________________________
     LGA_ToolPack_Enabled.py        <- el core que lee y guarda los flags
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
-    - En ningun lado mas. La ventana no muestra version y el README no
-      tiene una seccion propia para esta tool.
+    - El titulo de la seccion "Enable Tools" del README.md, que es a
+      mano y no lo actualiza nada. La ventana no muestra version.
 
   v1.06: El subrayado del path ya no queda enganchado al salir del
          hover: era rich text con `<a>` y `linkHovered`, y reescribir
