@@ -2,6 +2,12 @@
 
 ## v2.63
 
+- **Enable Tools: el texto se leía diminuto al lado de su propio checkbox.** La ventana nunca llamaba a `apply_ui_font`, así que se dibujaba con la fuente del host —en Nuke varios puntos más chica que el indicador de 16 px—, y el nombre de la tool parecía una etiqueta al pie del cuadrito en vez de la etiqueta del control. Ahora usa Inter en 13 px, la misma medida que la tabla del Media Manager, para que dos ventanas del pack abiertas juntas se lean iguales. `apply_ui_font` además aplica el tamaño aunque las fuentes del pack no hayan cargado: ese es justo el caso en el que hace falta, porque sin ellas queda también el tamaño del host.
+
+  El nombre estaba pegado al cuadrito. La hoja compartida pone `spacing: 0px` a propósito —un `QCheckBox("")` sin texto reserva esa separación igual y queda descentrado al centrarlo en una columna de tabla—, así que el aire va por propiedad: `lgaLabeled` sobre los que sí tienen etiqueta, porque QSS no distingue un checkbox con texto de uno sin él. Los checkbox sin texto de los otros paneles quedan como estaban.
+
+  Y el path de la config dejó de salir por `colorize_path`. Esa paleta por nivel de carpeta sirve para **comparar** dos rutas —de dónde a dónde copia algo—; en un pie de ventana no hay nada que comparar y el arcoíris pesaba más que el contenido. Va en un solo color, un escalón más chico, y se clickea: muestra el ini seleccionado en el Finder / Explorer, o abre la carpeta que lo va a contener si todavía no existe, que es el estado antes del primer Save. [ EnableTools - Agrandar el texto, separarlo del checkbox y hacer clickeable el path ]
+
 - **El escaneo devolvía la tabla vacía.** Adentro del `run()` del worker quedó un `for node in read_nodes` huérfano: la tanda anterior sacó el `read_nodes = nuke.allNodes("Read")` de más arriba —que era justamente el `allNodes` desde el hilo del pool que había que sacar— y dejó abajo el bucle que lo recorría. `NameError` en cada escaneo.
 
   Lo que lo mantuvo escondido tres commits es el `except` del `run()`: logueaba el error y emitía `finished` igual, así que el hilo principal recibía un final **normal**, cerraba la ventana de progreso y mostraba la tabla vacía — tirando los miles de archivos y los catorce Reads que el worker ya había juntado dos líneas antes. Una tabla vacía por un error se lee exactamente igual que una tabla vacía porque el proyecto no tiene media, y el usuario no tiene forma de distinguirlas.

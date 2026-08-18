@@ -1,12 +1,15 @@
 """
 ____________________________________________________________________
 
-  LGA_ToolPack_Enabled v1.03 | Lega
+  LGA_ToolPack_Enabled v1.05 | Lega
 
   Resuelve que herramientas del pack estan habilitadas.
 
   La config del usuario vive FUERA del pack, en la carpeta de datos
   del sistema, porque la carpeta del pack se borra en cada update.
+
+  El principal de esta tool es LGA_ToolPack_EnabledPanel.py, y los dos
+  van con la misma version: v1.04 y v1.05 son cambios de ese archivo.
 
   v1.03: `SIBLING_BACKUP_DIRS` es igual en los tres packs: la version
          derivada perdia `LGA_ToolPack_backup` y no rescataba de ahi.

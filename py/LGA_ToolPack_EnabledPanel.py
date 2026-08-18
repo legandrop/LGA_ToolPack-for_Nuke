@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_ToolPack_EnabledPanel v1.04 | Lega
+  LGA_ToolPack_EnabledPanel v1.05 | Lega
 
   Panel para activar y desactivar las herramientas del pack.
 
@@ -9,6 +9,21 @@ ____________________________________________________________________
   la eleccion del usuario fuera del pack, para que sobreviva a los
   updates.
 
+  Modulos de esta tool (todos van con la misma version):
+    LGA_ToolPack_EnabledPanel.py   <- este, el principal (la ventana)
+    LGA_ToolPack_Enabled.py        <- el core que lee y guarda los flags
+
+  Donde mas se ve esta version, y hay que moverla junto con el header:
+    - En ningun lado mas. La ventana no muestra version y el README no
+      tiene una seccion propia para esta tool.
+
+  v1.05: La ventana usa la fuente del pack en 13 px -antes heredaba la
+         del host, que en Nuke sale mucho mas chica que el indicador
+         del checkbox-, el nombre de la tool deja de estar pegado al
+         cuadrito, y el path de la config va en un solo color y se
+         clickea para mostrarlo en el Finder / Explorer. El arcoiris
+         de colorize_path sirve para comparar dos rutas, y aca no hay
+         nada que comparar.
   v1.04: La ventana abre con el alto que necesita el contenido. Estaba
          clavada en 620x620 y siempre mostraba scrollbar aunque faltaran
          veinte pixeles; ademas ese alto se desactualizaba al agregar o
@@ -23,10 +38,12 @@ ____________________________________________________________________
 ____________________________________________________________________
 """
 
+import os
+import subprocess
 import sys
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore
-from LGA_UI_Style_ToolPack import Color, Metric, Style, colorize_path
+from LGA_UI_Style_ToolPack import Color, Metric, Style, apply_ui_font
 
 import LGA_ToolPack_Enabled as enabled_config
 
@@ -52,13 +69,57 @@ TOOLTIPS = {
     "reset": "Vuelve todo a los valores de fabrica; despues hay que guardar",
     "save": "Guarda y cierra. Los cambios se ven al reiniciar Nuke",
     "cancel": "Cierra sin guardar",
-    "path": "Archivo donde se guarda tu eleccion, fuera del pack",
+    "path": (
+        "Archivo donde se guarda tu eleccion, fuera del pack.\n"
+        "Clic para mostrarlo en el explorador de archivos"
+    ),
 }
 
 
 def _pretty(key):
     """`Show_in_Flow` -> `Show in Flow`."""
     return key.replace("_", " ")
+
+
+def _escape(text):
+    """El path va adentro de un `<a>`, asi que hay que escaparlo."""
+    return (
+        (text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def reveal_in_file_browser(path):
+    """
+    Muestra `path` en el Finder / Explorer, seleccionado si existe.
+
+    El ini todavia puede no existir -recien se crea al primer Save-, asi que
+    cuando no esta se abre la carpeta que lo va a contener en vez de no hacer
+    nada: el usuario igual queria llegar ahi.
+    """
+    if not path:
+        return False
+    target = path if os.path.exists(path) else ""
+    folder = os.path.dirname(path)
+    if not target and not os.path.isdir(folder):
+        return False
+    try:
+        if sys.platform == "win32":
+            if target:
+                # La coma pegada al path es la sintaxis de explorer, no un
+                # error: con espacio despues de la coma abre Documentos.
+                subprocess.Popen('explorer /select,"%s"' % target.replace("/", "\\"))
+            else:
+                os.startfile(folder)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", target] if target else ["open", folder])
+        else:
+            subprocess.Popen(["xdg-open", folder])
+    except Exception:
+        return False
+    return True
 
 
 class EnabledPanel(QtWidgets.QWidget):
@@ -71,8 +132,14 @@ class EnabledPanel(QtWidgets.QWidget):
         self.setStyleSheet(Style.FORM)
         self._checkboxes = {}
         self._scroll = None
+        self._config_path = ""
         self._defaults = enabled_config.read_defaults()
         self._build_ui()
+        # Despues de armar la ventana, para que alcance a los hijos que ya
+        # existen. Sin esto la ventana se dibujaba con la fuente del host: en
+        # Nuke sale varios puntos mas chica que el indicador del checkbox, y
+        # el nombre de la tool se leia diminuto al lado de su propio cuadrito.
+        apply_ui_font(self, Metric.FORM_FONT_SIZE)
 
     # -- construccion ------------------------------------------------------
 
@@ -127,6 +194,10 @@ class EnabledPanel(QtWidgets.QWidget):
             box_layout = QtWidgets.QVBoxLayout(box)
             for key in keys:
                 checkbox = QtWidgets.QCheckBox(_pretty(key))
+                # Aire entre el cuadrito y el nombre. Va por propiedad: la
+                # hoja del pack no separa por default porque un checkbox sin
+                # texto reserva esa separacion igual y queda descentrado.
+                checkbox.setProperty("lgaLabeled", True)
                 checkbox.setToolTip(TOOLTIPS["checkbox"])
                 checkbox.setChecked(current.get(key, self._defaults.get(key, True)))
                 box_layout.addWidget(checkbox)
@@ -140,15 +211,49 @@ class EnabledPanel(QtWidgets.QWidget):
         scroll.setWidget(content)
         root.addWidget(scroll)
 
-        path = enabled_config.get_user_path()
-        path_label = QtWidgets.QLabel(colorize_path(path) if path else "")
-        path_label.setTextFormat(Qt.RichText)
-        path_label.setStyleSheet("font-size: 10px;")
-        path_label.setToolTip(TOOLTIPS["path"])
-        path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        root.addWidget(path_label)
-
+        root.addWidget(self._build_path_label())
         root.addLayout(self._build_buttons())
+
+    def _build_path_label(self):
+        """
+        El path de la config, en un solo color y clickeable.
+
+        Antes salia por colorize_path, que es la paleta por nivel de carpeta:
+        sirve para COMPARAR dos rutas -de donde a donde copia algo- y aca no
+        hay nada que comparar, asi que el arcoiris solo pesa mas que el
+        contenido de la ventana. Va como link porque para eso se muestra:
+        para poder llegar al archivo.
+        """
+        self._config_path = enabled_config.get_user_path() or ""
+        label = QtWidgets.QLabel()
+        label.setTextFormat(Qt.RichText)
+        label.setToolTip(TOOLTIPS["path"])
+        if not self._config_path:
+            return label
+
+        label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        label.setCursor(Qt.PointingHandCursor)
+        label.setText(self._path_html(False))
+        label.linkActivated.connect(
+            lambda _: reveal_in_file_browser(self._config_path)
+        )
+        # QLabel no tiene :hover para un `<a>`, asi que el subrayado se pone
+        # y se saca a mano con la senal que avisa cuando el mouse entra.
+        label.linkHovered.connect(
+            lambda url: label.setText(self._path_html(bool(url)))
+        )
+        return label
+
+    def _path_html(self, hover):
+        return (
+            "<a href='#' style='color:%s; font-size:%dpx; "
+            "text-decoration:%s;'>%s</a>"
+        ) % (
+            Color.TEXT if hover else Color.TEXT_DIM,
+            Metric.FORM_PATH_FONT_SIZE,
+            "underline" if hover else "none",
+            _escape(self._config_path),
+        )
 
     def _build_error_ui(self, root):
         """Pantalla de error cuando el manifiesto del pack no se puede leer."""

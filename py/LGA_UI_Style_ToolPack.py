@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.18 | Lega
+  LGA_UI_Style_ToolPack v1.19 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,13 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.19: Metric.FORM_FONT_SIZE y FORM_PATH_FONT_SIZE, el checkbox con
+         etiqueta separa el texto del cuadrito -por la propiedad
+         `lgaLabeled`, porque QSS no sabe si un checkbox tiene texto-, y
+         apply_ui_font aplica el tamano aunque las fuentes del pack no
+         hayan cargado: sin eso, la ventana que no las tenia se quedaba
+         tambien con el tamano del host, que es el caso en el que el
+         tamano hace falta.
   v1.18: semibold_family() y semibold_css(). Poner Inter no
          alcanzaba: sus tres caras NO forman una sola familia para
          Qt. La Regular y la Bold caen las dos en "Inter", pero la
@@ -373,6 +380,11 @@ class Metric(object):
     RADIUS_FIELD = 6  # campo inline y pastilla de atajo
     RADIUS_CARD = 10  # caja de una tabla o de una tarjeta informativa
 
+    # Aire entre el cuadrito del checkbox y su etiqueta. Solo para los que
+    # tienen texto: el default de la hoja es 0 porque un checkbox sin texto
+    # reserva esa separacion igual y queda descentrado en una columna.
+    CHECKBOX_LABEL_GAP = 8
+
     ROW_HEIGHT = 24  # alto de fila de tabla
     # Alto de un boton de una fila de acciones. Va fijo en los dos roles porque
     # BTN_SECONDARY suma un borde de 1 px sobre el mismo padding que
@@ -383,6 +395,16 @@ class Metric(object):
     # La cruz de cerrar. 26 px es el minimo comodo para acertarle con el
     # mouse sin apuntar: mas chica se falla y se termina moviendo la ventana.
     CLOSE_BUTTON_SIZE = 26
+
+    # --- tamano de letra de las VENTANAS DE FORMULARIO -----------------------
+    # Las ventanas que no llaman a apply_ui_font heredan la fuente del host, y
+    # la de Nuke en macOS es varios puntos mas chica que la del prototipo: al
+    # lado de un indicador de checkbox de 16 px el texto se lee diminuto. Es la
+    # misma medida que usa la tabla del Media Manager, para que dos ventanas
+    # del pack abiertas juntas se lean iguales.
+    FORM_FONT_SIZE = 13
+    # El path del pie va un escalon abajo: es dato de referencia, no contenido.
+    FORM_PATH_FONT_SIZE = 12
 
     # --- tamano de letra de las TABLAS --------------------------------------
     # Lo elige el usuario. Toca SOLO las tablas y no el resto de la ventana:
@@ -1039,6 +1061,11 @@ QCheckBox {
        titulo de la columna, ese si centrado de verdad, no le caia encima. */
     spacing: 0px;
 }
+/* El de arriba es el caso sin texto. El que SI tiene etiqueta necesita aire:
+   pegado al cuadrito, el nombre de la tool parece parte del control. Va por
+   propiedad porque QSS no distingue un checkbox con texto de uno sin el:
+       checkbox.setProperty("lgaLabeled", True)   # antes del primer polish */
+QCheckBox[lgaLabeled="true"] { spacing: %(gap)dpx; }
 QCheckBox::indicator {
     width: 16px;
     height: 16px;
@@ -1064,6 +1091,7 @@ QCheckBox::indicator:checked:disabled {
 }
 """ % {
         "text": Color.TEXT,
+        "gap": Metric.CHECKBOX_LABEL_GAP,
         "off": Color.CHECKBOX_OFF,
         "off_hover": Color.CHECKBOX_OFF_HOVER,
         "on": Color.CHECKBOX_ON,
@@ -1578,17 +1606,20 @@ def apply_ui_font(widget, size=None):
     que alcance tambien a los hijos que ya existen.
 
     Devuelve False si las fuentes no cargaron: sin fuente propia se usa la del
-    host, que es feo pero funciona.
+    host, que es feo pero funciona. El TAMANO se aplica igual en ese caso: es
+    justamente donde mas hace falta, porque la fuente del host viene con SU
+    tamano y ese es el que dejaba el texto diminuto al lado de los controles.
     """
     familia = font_family()
-    if not familia:
-        return False
     fuente = widget.font()
-    fuente.setFamily(familia)
+    if familia:
+        fuente.setFamily(familia)
     if size:
         fuente.setPixelSize(size)
+    if not familia and not size:
+        return False
     widget.setFont(fuente)
-    return True
+    return bool(familia)
 
 
 def semibold(fuente):
