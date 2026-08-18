@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.42 | Lega
+  LGA_mediaManager v2.43 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -23,6 +23,9 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.43: El escaneo volvia vacio por un NameError adentro del worker
+         que el except se comia. El detalle esta en el header de
+         LGA_MediaManager_utils.
   v2.42: Se sacan tres imports de LGA_MediaManager_utils que ya no
          existian -TransparentTextDelegate, CopyThread y DeleteThread-
          y hacian fallar la apertura con ImportError. Los dos Thread

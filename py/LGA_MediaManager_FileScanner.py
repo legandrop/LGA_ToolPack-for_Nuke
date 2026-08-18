@@ -1,10 +1,12 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.42 | Lega
+  LGA_MediaManager_FileScanner v2.43 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.43: Suma on_scan_failed: el cartel de que el escaneo se corto por
+         un error, con el detalle y la referencia al log.
   v2.42: Sin cambios propios: acompana la version de la tool, que
          subio por el ImportError de TransparentTextDelegate.
   v2.41: Cinco defectos que salieron de revisar copy, delete y relink
@@ -3942,9 +3944,28 @@ class FileScanner(QWidget):
         # local y la X terminaba cancelando otro worker.
         self.scanner_worker = ScannerWorker(self)
         self.scanner_worker.signals.files_found.connect(self.on_files_found)
+        self.scanner_worker.signals.failed.connect(self.on_scan_failed)
         self.scanner_worker.signals.finished.connect(self.on_scan_finished)
         QThreadPool.globalInstance().start(self.scanner_worker)
         return self.scanner_worker
+
+    def on_scan_failed(self, detalle):
+        """
+        El escaneo se corto por un error. Corre en el hilo principal.
+
+        Se avisa y no se disimula: una tabla vacia por un error se lee igual
+        que una tabla vacia porque no hay media, y el usuario no tiene forma
+        de distinguirlas. El detalle va tambien al log, que es donde se puede
+        ver que fallo.
+        """
+        debug_print("El escaneo fallo: %s" % detalle)
+        QMessageBox.warning(
+            self,
+            "Scan failed",
+            "The scan stopped because of an error, so the list is "
+            "incomplete:\n\n%s\n\nSee logs/LGA_mediaManager.log for the "
+            "full traceback." % detalle,
+        )
 
     def on_scan_finished(self):
         """

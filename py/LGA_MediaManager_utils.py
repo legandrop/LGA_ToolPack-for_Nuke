@@ -1,11 +1,26 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.42 | Lega
+  LGA_MediaManager_utils v2.43 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.43: El escaneo devolvia la tabla VACIA. Adentro de run() quedo
+         un `for node in read_nodes` huerfano cuando v2.40 saco el
+         `read_nodes = nuke.allNodes("Read")` de arriba -que era el
+         allNodes desde el hilo del pool que habia que sacar-, asi que
+         el bucle se quedo sin la variable. El NameError se lo comia el
+         except de run(), que loguea y emite `finished` igual: el
+         escaneo terminaba sin error a la vista, tirando los miles de
+         archivos y los 14 Reads que ya habia juntado dos lineas antes.
+         El bucle se saca en vez de reponer la variable: solo movia la
+         barra, y node.name() es API de Nuke, o sea el problema
+         original.
+         El except ahora avisa. ScannerSignals suma `failed`, que el
+         hilo principal muestra: terminar y fallar son dos finales
+         distintos y una tabla vacia por un error se lee igual que una
+         tabla vacia porque no hay media.
   v2.42: Vuelve TransparentTextDelegate, que v2.40 borro de aca y
          dejo importado en dos modulos: la herramienta no abria, tiraba
          ImportError antes de mostrar nada. Es el delegado de base de
@@ -1033,6 +1048,11 @@ class ScannerSignals(QObject):
     progress = Signal(int)  # Para actualizar la barra de progreso
     finished = Signal()  # Para indicar que terminó el escaneo
     files_found = Signal(list)  # Para enviar los archivos encontrados
+    # El escaneo se cayo. Existe porque sin ella un error adentro del worker
+    # terminaba exactamente igual que un escaneo sin resultados: la ventana de
+    # progreso se cerraba sola y la tabla quedaba vacia, sin nada que dijera
+    # que algo fallo. Un NameError vivio tres commits escondido asi.
+    failed = Signal(str)
 
 
 class RelinkSearchSignals(QObject):
@@ -1378,10 +1398,23 @@ class ScannerWorker(QRunnable):
                 return
             unmatched_reads_data = self.file_scanner.search_unmatched_reads()
 
-            for node in read_nodes:
+            # La barra avanza la etapa entera de una. Antes esto era un bucle
+            # `for node in read_nodes` que avanzaba de a un nodo, y quedo
+            # HUERFANO cuando se saco el `read_nodes = nuke.allNodes("Read")`
+            # de mas arriba -que era justamente el allNodes desde el hilo del
+            # pool que habia que sacar-: quedo el bucle sin la variable. El
+            # NameError se lo comia el `except` de abajo, que loguea y emite
+            # `finished` igual, asi que el escaneo terminaba sin error a la
+            # vista y con la tabla VACIA, tirando los miles de archivos y los
+            # Reads que ya habia juntado dos lineas antes.
+            #
+            # No se repone la variable: reponerla obliga a tener los nodos aca
+            # y `node.name()` es API de Nuke, o sea el problema original. El
+            # progreso no necesita los nodos, solo cuantos son.
+            if total_reads > 0:
                 update_progress(
-                    reads_increment,
-                    f"Procesando nodo Read: {node.name()}",
+                    reads_increment * total_reads,
+                    "Procesando %d nodo(s) Read" % total_reads,
                     is_second_phase=True,
                 )
 
@@ -1412,7 +1445,12 @@ class ScannerWorker(QRunnable):
             self.signals.finished.emit()
 
         except Exception as e:
+            # Al log Y a la cara del usuario. Emitir solo `finished` deja la
+            # tabla vacia y la herramienta pareciendo que el proyecto no tiene
+            # media, que es una respuesta creible y equivocada.
+            self.logger.exception("El escaneo se corto por un error")
             debug_print(f"Error en el escaneo: {e}")
+            self.signals.failed.emit("%s: %s" % (type(e).__name__, e))
             self.signals.finished.emit()
 
     def find_files(self, folder, progress_callback=None):

@@ -2,6 +2,12 @@
 
 ## v2.63
 
+- **El escaneo devolvía la tabla vacía.** Adentro del `run()` del worker quedó un `for node in read_nodes` huérfano: la tanda anterior sacó el `read_nodes = nuke.allNodes("Read")` de más arriba —que era justamente el `allNodes` desde el hilo del pool que había que sacar— y dejó abajo el bucle que lo recorría. `NameError` en cada escaneo.
+
+  Lo que lo mantuvo escondido tres commits es el `except` del `run()`: logueaba el error y emitía `finished` igual, así que el hilo principal recibía un final **normal**, cerraba la ventana de progreso y mostraba la tabla vacía — tirando los miles de archivos y los catorce Reads que el worker ya había juntado dos líneas antes. Una tabla vacía por un error se lee exactamente igual que una tabla vacía porque el proyecto no tiene media, y el usuario no tiene forma de distinguirlas.
+
+  El bucle se saca en vez de reponer la variable: sólo movía la barra de progreso, y `node.name()` adentro es API de Nuke desde el hilo del pool, o sea el problema que esa tanda estaba arreglando. Y el `except` ahora avisa: `ScannerSignals` suma una señal `failed` que el hilo principal muestra en un cartel con el detalle y la referencia al log. Terminar y fallar pasan a ser dos finales distintos. [ MediaManager - Arreglar el escaneo que devolvia la tabla vacia ]
+
 - **El Media Manager no abría: `ImportError` antes de mostrar nada.** `TransparentTextDelegate` se había borrado de `LGA_MediaManager_utils.py` en la tanda anterior, pero seguía importado —y usado— desde `LGA_mediaManager.py` y `LGA_MediaManager_FileScanner.py`; junto a él quedaron dos imports muertos más, `CopyThread` y `DeleteThread`, que `CopyWorker` y `DeleteWorker` ya habían reemplazado. Nada de eso lo ve `py_compile`: compilar valida la sintaxis de cada archivo, no que el nombre exista del otro lado, así que los cuatro imports rotos compilaban perfecto y explotaban recién al abrir la herramienta.
 
   El delegado vuelve, reescrito al idioma de los otros tres. Sigue haciendo falta: es el que dibuja las columnas sin delegado propio, y la hoja de la tabla declara `item:selected` **transparente a propósito** —si no, le ganaría al color propio de la columna Status y esa columna perdería su color justo al seleccionarla—, así que el fondo de la fila elegida no lo pinta el estilo y lo tiene que pintar el delegado. Ahora toma `(table, ui)`, tiene `set_theme()` y saca el color del tema, en vez de los grises fijos de la versión vieja. [ MediaManager - Arreglar el ImportError que impedia abrir la herramienta ]
