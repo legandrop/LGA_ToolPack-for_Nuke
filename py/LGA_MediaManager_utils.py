@@ -1,11 +1,21 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.41 | Lega
+  LGA_MediaManager_utils v2.42 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.42: Vuelve TransparentTextDelegate, que v2.40 borro de aca y
+         dejo importado en dos modulos: la herramienta no abria, tiraba
+         ImportError antes de mostrar nada. Es el delegado de base de
+         la tabla y sigue haciendo falta porque la hoja declara
+         `item:selected` transparente a proposito -si no le ganaria al
+         color propio de Status-, asi que el fondo de la fila elegida
+         lo tiene que pintar el delegado. Reescrito al idioma de los
+         otros tres: toma (table, ui), tiene set_theme y saca el color
+         del tema en vez de los grises fijos que tenia la version
+         vieja.
   v2.41: El progreso de las tandas deja de avisar por archivo. Con
          una secuencia de tres mil frames eran seis mil eventos en la
          cola del hilo principal y tres mil repintados del cartel: la
@@ -378,6 +388,53 @@ def tinted_icon(name, color, size=24):
 # `!= "-"` para decidir si hay Read, asi que el guion corto se queda en el
 # item y la raya del disenio la dibuja ReadCellDelegate al pintar.
 READ_NONE = "-"
+
+
+class TransparentTextDelegate(QStyledItemDelegate):
+    """
+    El delegado de base de la tabla: el que dibuja las columnas que no tienen
+    uno propio (hoy, el numero de fila).
+
+    Existe por el mismo motivo que el `fillRect` de los otros tres delegados:
+    la hoja de la tabla declara `item:selected` TRANSPARENTE a proposito
+    -si no, le ganaria al color propio de la columna Status y esa columna
+    perderia su color justo al seleccionarla-, asi que el fondo de la fila
+    elegida no lo pinta el estilo y hay que pintarlo aca. Sin esto, la fila
+    seleccionada se ve iluminada salvo un bloque oscuro en las columnas sin
+    delegado propio.
+
+    El texto lo sigue dibujando la clase de base: asi respeta la alineacion y
+    el formato que cada item traiga, sin que este delegado tenga que saber que
+    columna esta pintando.
+    """
+
+    def __init__(self, table, ui=None, parent=None):
+        super().__init__(parent or table)
+        self.table = table
+        self.UI = ui
+
+    def set_theme(self, ui):
+        self.UI = ui
+
+    def paint(self, painter, option, index):
+        C = self.UI.Color if self.UI else Color
+
+        if option.state & QStyle.State_Selected:
+            painter.fillRect(option.rect, QColor(C.SURFACE_SELECTED))
+
+        # Se trabaja sobre una COPIA: `option` es del viewport y lo que se le
+        # cambie aca se arrastra a la celda siguiente.
+        opcion = QStyleOptionViewItem(option)
+        self.initStyleOption(opcion, index)
+        # El fondo de la seleccion ya se pinto arriba: si el estado sigue
+        # puesto, el estilo lo vuelve a pintar encima con SU color, que es el
+        # azul del sistema y no el del tema.
+        opcion.state &= ~QStyle.State_Selected
+        opcion.palette.setColor(QPalette.Text, QColor(C.TEXT))
+        opcion.palette.setColor(QPalette.HighlightedText, QColor(C.TEXT))
+        super().paint(painter, opcion, index)
+
+        paint_row_separator(painter, option.rect, C.ROW_LINE)
 
 
 class ReadCellDelegate(QStyledItemDelegate):

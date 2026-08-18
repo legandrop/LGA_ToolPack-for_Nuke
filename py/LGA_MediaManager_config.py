@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_config v2.41 | Lega
+  LGA_MediaManager_config v2.42 | Lega
   Donde vive la configuracion del Media Manager, y que tiene adentro
 
   v2.28: El tema de fabrica pasa de "lga" a "pack": la herramienta

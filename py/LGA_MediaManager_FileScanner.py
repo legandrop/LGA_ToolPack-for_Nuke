@@ -1,10 +1,12 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.41 | Lega
+  LGA_MediaManager_FileScanner v2.42 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.42: Sin cambios propios: acompana la version de la tool, que
+         subio por el ImportError de TransparentTextDelegate.
   v2.41: Cinco defectos que salieron de revisar copy, delete y relink
          con seleccion multiple. repoint_read reescribia la tabla
          filtrando por la CARPETA de origen, asi que copiar una fila

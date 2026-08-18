@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.41 | Lega
+  LGA_mediaManager v2.42 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -23,6 +23,11 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.42: Se sacan tres imports de LGA_MediaManager_utils que ya no
+         existian -TransparentTextDelegate, CopyThread y DeleteThread-
+         y hacian fallar la apertura con ImportError. Los dos Thread
+         los reemplazaron CopyWorker y DeleteWorker en v2.40 y aca no
+         se usaban; el delegado vuelve a existir en utils.
   v2.41: Copy to, Delete y Relink revisados con seleccion multiple.
          El detalle esta en los headers de LGA_MediaManager_FileScanner
          y LGA_MediaManager_utils.
@@ -265,12 +270,9 @@ import send2trash
 
 # Importar clases desde archivos auxiliares
 from LGA_MediaManager_utils import (
-    TransparentTextDelegate,
     StartupWindow,
     ScannerSignals,
     ScannerWorker,
-    CopyThread,
-    DeleteThread,
 )
 from LGA_MediaManager_settings import SettingsWindow
 from LGA_MediaManager_FileScanner import FileScanner
