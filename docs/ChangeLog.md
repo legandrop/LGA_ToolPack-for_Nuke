@@ -2,6 +2,10 @@
 
 ## v2.63
 
+- **El README se empareja al formato del ToolPack-B, que quedó como referencia de aire.** El andamiaje de espaciado se reescribió entero con una pasada mecánica que deja el contenido palabra por palabra como estaba: título, línea en blanco, descripción, `<br><br>`, placa del shortcut, línea en blanco, `<br>` de cierre y tres líneas en blanco hasta la sección siguiente; y `<br><br>` arriba de cada banner de sección.
+
+  Lo que estaba desparejo eran los casos de borde, que se habían escrito a mano uno por uno: placas pegadas a un gif sin ningún `<br>` en el medio, otras con tres saltos porque la línea anterior ya terminaba en `<br>`, placas con un `<br>` colgando atrás, y secciones que terminaban en imagen dejando el título siguiente encima de esa imagen. Medido sobre el render de GitHub, ahora todas las placas quedan a 27 px del texto —24 cuando lo de arriba es una imagen, que es la misma construcción con la línea base del gif— contra los 3 a 59 px que había antes según la sección. [ ToolPack - Emparejar el aire del README ]
+
 - **`Enable Tools` tiene sección propia en el README.** Estaba documentada sólo como una viñeta adentro de Instalación: sin captura, sin versión y contando el archivo de config al lado de los pasos de instalar, que es donde nadie lo busca después. Ahora es una sección como las demás, con la captura de la ventana, qué hace destildar una tool —se oculta del menú y además no se carga—, dónde vive el ini y qué hacen All On, All Off y Reset. La viñeta de Instalación queda en una línea que apunta a la sección, así el dato del ini está en un solo lugar.
 
   El título de la sección lleva la versión, que por regla del pack hay que mover junto con el header del `.py`; el header de `LGA_ToolPack_EnabledPanel.py` lo deja asentado, porque hasta ahora decía que la versión no se veía en ningún otro lado. La sección va sin el bullet de categoría que usan las demás: `Enable Tools` no vive adentro de ninguna. [ EnableTools - Documentar la tool en el README ]

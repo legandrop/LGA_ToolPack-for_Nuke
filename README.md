@@ -5,10 +5,6 @@
 </p>
 <br clear="left">
 
-
-
-
-
 ## Instalación
 
 - Copiar la carpeta **LGA_ToolPack** que contiene todos los archivos del ToolPack a **%USERPROFILE%/.nuke**.<br> Debería quedar así:
@@ -31,6 +27,8 @@
 
 <br>
 
+
+
 ## Enable Tools v1.06 | Lega
 
 Para elegir qué herramientas del pack aparecen en el menú.<br>
@@ -41,6 +39,8 @@ La elección se guarda **fuera del pack**, en **%APPDATA%\LGA\ToolPack\Enabled.i
 ![](Doc_Media/enable_tools_v01.png)
 
 <br>
+
+
 
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
@@ -107,7 +107,8 @@ Los knobs con expresiones TCL, como los Writes creados con Write Presets, no se 
 [https://www.nukepedia.com/python/misc/readfromwrite](https://www.nukepedia.com/python/misc/readfromwrite)<br>
 Genera un nodo Read a partir de la ruta y archivo del nodo Write seleccionado.
 <br><br>
-![](Doc_Media/readfromwrite_v01.gif)<br>
+![](Doc_Media/readfromwrite_v01.gif)
+<br><br>
 <img src="Doc_Media/read_from_write_shortcut.svg" alt="Read from Write shortcut" width="150" height="43">
 
 <br>
@@ -132,8 +133,7 @@ Abre una ventana con opciones de render pre configuradas que se cargan desde un 
 
 Si se ejecuta sobre un write existente se abre el editor de TLC:<br>
 ![](Doc_Media/write_presetsB_v01.gif)
-
-<br>
+<br><br>
 <img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcut" width="150" height="43">
 
 <br>
@@ -146,6 +146,7 @@ Para ir rápidamente al nodo Wirte principal.<br>
 Busca un nodo Write con un nombre definido en los settings del ToolPack, lo pone en foco y lo abre en el panel de propiedades.
 <br><br>
 ![](Doc_Media/Write_Focus_v01.gif)
+<br><br>
 <img src="Doc_Media/write_focus_shortcut.svg" alt="Write focus shortcut" width="225" height="43">
 
 <br>
@@ -174,7 +175,7 @@ Ejecuta las acciones siguientes cuando termina el render:
 - Calcula la duración al finalizar el render y la agrega en un knob con esa información en el tab User del nodo Write.
 - Envía un email con los detalles del render si se ha creado un checkbox usando la herramienta Write send mail y si ese checkbox está activado.
 
-<br><br>
+<br>
 
 
 
@@ -224,13 +225,15 @@ Esta lista se puede editar en los settings del ToolPack.
 
 
 
+<br><br>
 <img src="Doc_Media/frame_range.svg" alt="FRAME RANGE" width="245" height="33">
 
 ## <img src="Doc_Media/image8.png" alt="" width="6" height="16" style="margin-right:3px;"> Frame range | Read to Project v1.0 | Lega</strong>
 
 Útil para cuando se empieza un proyecto nuevo y se quiere usar el frame range de un nodo Read en los settings del proyecto.
 <br><br>
-![](Doc_Media/Frame_range_ReadtoProject_v01.gif)<br>
+![](Doc_Media/Frame_range_ReadtoProject_v01.gif)
+<br><br>
 <img src="Doc_Media/frame_range_read_to_project_shortcut.svg" alt="Frame range Read to Project shortcut" width="150" height="43">
 
 <br>
@@ -241,13 +244,15 @@ Esta lista se puede editar en los settings del ToolPack.
 
 Igual que el anterior, pero además de copiar el frame range del Read, también se copia la resolución a los settings del proyecto.
 <br><br>
-![](Doc_Media/Frame_range_ReadtoProjectRes_v01.gif)<br>
+![](Doc_Media/Frame_range_ReadtoProjectRes_v01.gif)
+<br><br>
 <img src="Doc_Media/frame_range_read_to_project_res_shortcut.svg" alt="Frame range Read to Project res shortcut" width="205" height="43">
 
+<br>
+
+
+
 <br><br>
-
-
-
 <img src="Doc_Media/rotate_transform.svg" alt="ROTATE TRANSFORM" width="335" height="33">
 
 ## <img src="Doc_Media/image21.png" alt="" width="6" height="16" style="margin-right:3px;"> Rotate Transform v1.0 | Lega
@@ -261,14 +266,18 @@ Shortcuts (usando las teclas / y * del teclado numérico):
 - Ctrl + shift + / gira 0.1 grados hacia la izquierda
 
 ![](Doc_Media/Rotate_Transform_v01.gif)
+
+<br>
+
+
+
 <br><br>
-
-
-
 <img src="Doc_Media/node_builds.svg" alt="NODE BUILDS" width="235" height="33">
 
 Esta sección es para armar setups de nodos que se usan repetidamente usando shortcuts.<br>
 Similar al uso de toolSets, pero más ágil y con más posibilidades.
+
+<br>
 
 
 
@@ -299,11 +308,11 @@ Si NO hay un nodo Merge seleccionado, crea un nodo Merge con operación en Mask 
 ![](Doc_Media/build_mergeMaskA_v01.gif)<br>
 Si en cambio se ejecuta con un nodo Merge seleccionado, cambia sus operaciones y va rotando entre 'over' con bbox 'B', 'mask' con bbox 'A' y 'stencil' con bbox 'B'.
 <br>
-![](Doc_Media/build_mergeMaskB_v01.gif)<br><br>
+![](Doc_Media/build_mergeMaskB_v01.gif)
+<br><br>
 <img src="Doc_Media/build_merge_shortcut.svg" alt="Build Merge shortcut" width="150" height="43">
 
 <br>
-
 
 
 
@@ -318,7 +327,6 @@ Crea un nodo Grade y en el input Mask suma un nodo Roto y un Blur.<br>
 
 
 
-
 ## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Grade Highlights v1.1 | Lega
 
 Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del grade y un Shuffle para poder evaluar el canal alpha con el viewer en RGB.<br>
@@ -326,14 +334,12 @@ Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del
 <br><br>
 <img src="Doc_Media/build_grade_highlights_shortcut.svg" alt="Build Grade Highlights shortcut" width="205" height="43">
 
+<br>
+
+
+
 <br><br>
-
-
-
-
 <img src="Doc_Media/knobs.svg" alt="KNOBS" width="120" height="33">
-
-
 
 ## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Channels Cycle v1.1 | Lega
 
@@ -367,7 +373,6 @@ Una vez creado el grupo, si se ejecuta Shift+D seleccionado en nodo master Disab
 
 
 
-
 ## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Channel Hotbox v2.0 | Falk Hofmann
 
 [http://www.nukepedia.com/python/ui/channel-hotbox](http://www.nukepedia.com/python/ui/channel-hotbox)<br>
@@ -384,10 +389,11 @@ Shortcuts con la GUI abierta:
 - Ctrl+Click Crea un nodo Grade con el canal configurado al seleccionado.
 - Alt Cambia el visor de vuelta a RGBA.
 
+<br>
+
+
+
 <br><br>
-
-
-
 <img src="Doc_Media/va.svg" alt="VA" width="55" height="33">
 
 ## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Viewer Rec709 v1.0 | Lega</strong>
@@ -397,7 +403,6 @@ Cambia el viewer a Rec709.
 <img src="Doc_Media/viewer_rec709_shortcut.svg" alt="Viewer Rec709 shortcut" width="150" height="43">
 
 <br>
-
 
 
 
@@ -417,15 +422,13 @@ El último botón abre una galería con todos los snapshots que se guardan, sepa
 
 
 
-
 ## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Reset workspace v1.0 | Checho
 
 Reinicia el workspace.
 <br><br>
-<img src="Doc_Media/reset_workspace_shortcut.svg" alt="Reset workspace shortcut" width="195" height="43"><br>
+<img src="Doc_Media/reset_workspace_shortcut.svg" alt="Reset workspace shortcut" width="195" height="43">
 
 <br>
-
 
 
 
@@ -434,4 +437,6 @@ Reinicia el workspace.
 Reinicia NukeX. Antes de hacerlo espera a que se guarde o no el proyecto actual, busca cual es la versión actual de Nuke abierta y lo reinicia usando la misma consola que se estaba usando.<br>
 Útil cuando borrar la caché no es suficiente para que Nuke vuelva a funcionar correctamente y es necesario cerrarlo y volver a abrirlo.
 <br><br>
-<img src="Doc_Media/restart_nukex_shortcut.svg" alt="Restart NukeX shortcut" width="225" height="43"><br>
+<img src="Doc_Media/restart_nukex_shortcut.svg" alt="Restart NukeX shortcut" width="225" height="43">
+
+<br>
