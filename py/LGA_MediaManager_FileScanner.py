@@ -1,10 +1,43 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.40 | Lega
+  LGA_MediaManager_FileScanner v2.41 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.41: Cinco defectos que salieron de revisar copy, delete y relink
+         con seleccion multiple. repoint_read reescribia la tabla
+         filtrando por la CARPETA de origen, asi que copiar una fila
+         tambien reapuntaba las otras que vivian en esa carpeta y las
+         marcaba Online sin haber copiado nada de ellas; y armaba el
+         path nuevo cortando el texto por el largo del path del knob,
+         que solo coincide con padding 4 -"%05d" son cuatro caracteres
+         y "#####" son cinco-, asi que con cualquier otro padding
+         salia roto. Ahora toca UNA fila, buscada por su ruta, y le
+         cambia solo la carpeta.
+         El reapuntado se aplicaba sin mirar `cancelado` ni `errores`:
+         cancelar una copia de seis filas despues de la primera
+         dejaba los seis Reads mirando el destino y cinco offline.
+         Ahora se verifica contra disco, fila por fila.
+         El relink no hacia nada -y no avisaba nada- en las filas con
+         mas de un Read: la celda dice "Read1, Read2" y eso a
+         nuke.toNode() le da None, con lo que se salteaba el bloque
+         entero, incluido el path de la tabla. Ahora se reapuntan
+         todos los Reads de la fila, y encontrar el archivo sin tener
+         a que apuntarlo tambien se informa.
+         closeEvent no marcaba la tanda de relink como cancelada, asi
+         que cerrar el Media Manager durante una busqueda abria un
+         "File not found." sobre una ventana ya cerrada.
+         remove_duplicates borraba filas recorriendo hacia adelante,
+         con el range() calculado antes de las bajas y los indices
+         del diccionario apuntando a otras filas despues de cada una.
+         Ademas: las tres operaciones se excluyen entre si y apagan la
+         barra mientras corren -la ventana de progreso no es modal-;
+         la carpeta que se manda entera a la papelera se revalida
+         contra disco en el momento de borrar y no con el dato del
+         escaneo; el resumen del borrado cuenta archivos reales y no
+         entradas del worker; y los carteles pasan a ingles, que es
+         el idioma de la UI.
   v2.40: Once defectos de concurrencia que salieron de auditar lo de
          v2.39. El peor: se arrancaban DOS ScannerWorker en cada
          apertura -uno en __init__ que nadie conectaba y otro en
@@ -807,7 +840,14 @@ class FileScanner(QWidget):
         self._batch_worker = None
         self._batch_window = None
         self._delete_paths = []
-        self._copy_reapuntar = {}
+        self._delete_total = 0
+        self._copy_reapuntar = []
+        # Los nodos que toco la tanda de relink. Se juntan y el Node Graph se
+        # enfoca UNA vez al final: hacerlo por fila destruye la seleccion del
+        # usuario N veces y abre N paneles de propiedades.
+        self._relink_tocados = []
+        self.relink_sin_nodo = []
+        self._relink_cancelado = False
         # Filtro de estado y busqueda. Se combinan con AND: la pastilla dice
         # que estados se ven y el buscador que paths, y una fila se muestra
         # solo si pasa los dos.
@@ -2173,10 +2213,11 @@ class FileScanner(QWidget):
         if self._scan_running:
             debug_print("Ya hay un escaneo corriendo: se ignora el Rescan")
             return
-        # Tampoco con una copia o un borrado en curso: el Rescan vacia la tabla
-        # y la tanda termina buscando filas que ya no existen.
-        if getattr(self, "_batch_worker", None) is not None:
-            debug_print("Hay una tanda en curso: se ignora el Rescan")
+        # Tampoco con una copia, un borrado o un relink en curso: el Rescan
+        # vacia la tabla y la operacion termina buscando filas que ya no
+        # existen.
+        if self.operacion_en_curso() is not None:
+            debug_print("Hay una operacion en curso: se ignora el Rescan")
             return
 
         self.table.setSortingEnabled(False)
@@ -2226,6 +2267,57 @@ class FileScanner(QWidget):
         item = self.table.item(row, COL_STATUS)
         return item.text() if item is not None else ""
 
+    def find_row_by_path(self, ruta):
+        """
+        La fila cuya ruta es EXACTAMENTE esta, o None.
+
+        Por igualdad y no por `ruta_a in ruta_b`: la subcadena tomaba
+        cualquier fila cuyo path fuera prefijo de otro, y las tandas guardan
+        rutas justamente para poder volver a encontrar SU fila despues de que
+        la tabla se reordeno.
+        """
+        for fila in range(self.table.rowCount()):
+            celda = self.table.item(fila, COL_PATH)
+            if celda is not None and celda.text() == ruta:
+                return fila
+        return None
+
+    def focus_nodes(self, nodos):
+        """
+        Deja seleccionados en el Node Graph los nodos que toco la operacion.
+
+        Se llama UNA vez por tanda, nunca por fila: con seis filas
+        seleccionadas, hacerlo adentro del bucle destruia la seleccion del
+        usuario seis veces y apilaba seis paneles de propiedades.
+        """
+        if not nodos:
+            return
+        nuke.selectAll()
+        nuke.invertSelection()
+        for nodo in nodos:
+            nodo.setSelected(True)
+        nuke.zoomToFitSelected()
+        # El panel solo con uno: con varios serian varios paneles apilados.
+        if len(nodos) == 1:
+            nodos[0].showControlPanel()
+
+    def operacion_en_curso(self):
+        """
+        Que hay corriendo ahora mismo, o None.
+
+        Las tres operaciones se excluyen entre si y no solo cada una de si
+        misma: la ventana de progreso no es modal, asi que con un relink
+        recorriendo un servidor nada impedia apretar Delete y mandar a la
+        papelera justo el archivo al que el relink iba a apuntar.
+        """
+        if getattr(self, "_scan_running", False):
+            return "scan"
+        if getattr(self, "_batch_worker", None) is not None:
+            return "batch"
+        if getattr(self, "relink_worker", None) is not None or self.relink_queue:
+            return "relink"
+        return None
+
     def row_read_names(self, row):
         """Los nombres de nodo de una fila, ya separados y sin el centinela."""
         texto = self.row_read(row)
@@ -2247,6 +2339,16 @@ class FileScanner(QWidget):
         if not getattr(self, "toolbar_buttons", None):
             return
         if getattr(self, "table", None) is None:
+            return
+
+        # Con algo corriendo la barra se apaga entera. Antes los botones
+        # quedaban prendidos y el guard de adentro de cada handler se limitaba
+        # a un debug_print: el usuario apretaba y no pasaba nada, sin ninguna
+        # explicacion.
+        if self.operacion_en_curso() is not None:
+            for datos in self.toolbar_buttons:
+                datos["boton"].setEnabled(False)
+            self.refresh_toolbar_icons()
             return
 
         filas = self.selected_rows()
@@ -2616,8 +2718,16 @@ class FileScanner(QWidget):
                     worker.cancel()
                 except (RuntimeError, AttributeError):
                     pass
+        # La bandera hace falta ademas de vaciar la cola, por lo mismo que en
+        # _cancel_relink: el worker cortado emite finished("") y eso es
+        # indistinguible de "no lo encontre". Sin marcarla, cerrar el Media
+        # Manager durante un relink terminaba abriendo un cartel de
+        # "File not found." sobre una ventana que el usuario ya habia cerrado.
+        self._relink_cancelado = True
         self.relink_queue = []
         self.relink_missing = []
+        self.relink_sin_nodo = []
+        self._relink_tocados = []
         super(FileScanner, self).closeEvent(event)
 
     def keyPressEvent(self, event):
@@ -3191,9 +3301,11 @@ class FileScanner(QWidget):
         if not filas:
             return
 
-        # Una tanda por vez, igual que una busqueda por vez.
-        if self.relink_worker is not None or self.relink_queue:
-            debug_print("Ya hay un relink en curso")
+        # Una operacion por vez, y contra TODAS: con una copia o un borrado
+        # en curso, el relink termina reapuntando Reads a archivos que la otra
+        # tanda esta moviendo o mandando a la papelera.
+        if self.operacion_en_curso() is not None:
+            debug_print("Hay una operacion en curso: se ignora el Relink")
             return
 
         directory = QFileDialog.getExistingDirectory(self, "Select Directory")
@@ -3205,6 +3317,9 @@ class FileScanner(QWidget):
         self.relink_queue = [self.row_path(fila) for fila in filas]
         self.relink_queue = [ruta for ruta in self.relink_queue if ruta]
         self.relink_missing = []
+        self.relink_sin_nodo = []
+        self._relink_tocados = []
+        self.update_button_states()
         self._relink_next()
 
     def _relink_next(self):
@@ -3213,29 +3328,48 @@ class FileScanner(QWidget):
             ruta = self.relink_queue.pop(0)
             try:
                 self.search_file_in_directory(self.relink_directory, ruta)
+                return
             except Exception as problema:
                 # Si armar la busqueda falla, la tanda se corta pero no se
                 # queda colgada: con la cola llena, Relink no se podia volver
-                # a apretar nunca.
+                # a apretar nunca. Y NO se vuelve con un return: hay que pasar
+                # por el cierre de abajo, que es el que vuelve a prender la
+                # barra de herramientas.
                 debug_print("No se pudo buscar %s: %s" % (ruta, problema))
                 self.relink_queue = []
                 self.relink_missing = []
-            return
+                self.relink_sin_nodo = []
 
-        # Terminada la tanda se avisa UNA vez de lo que no aparecio, en vez de
-        # un cartel por archivo que habria que cerrar de a uno.
-        if self.relink_missing:
-            faltantes = self.relink_missing
-            self.relink_missing = []
+        # Terminada la tanda: el Node Graph se enfoca UNA vez, con todo lo que
+        # se toco, y el aviso sale UNA vez, en vez de un cartel por archivo que
+        # habria que cerrar de a uno.
+        self.focus_nodes(self._relink_tocados)
+        self._relink_tocados = []
+        self.update_button_states()
+
+        faltantes = self.relink_missing
+        sin_nodo = self.relink_sin_nodo
+        self.relink_missing = []
+        self.relink_sin_nodo = []
+        partes = []
+        if faltantes:
             if len(faltantes) == 1:
-                QMessageBox.information(self, "Information", "File not found.")
+                partes.append("File not found.")
             else:
-                QMessageBox.information(
-                    self,
-                    "Information",
-                    "%d files were not found:\n\n%s"
-                    % (len(faltantes), "\n".join(faltantes[:12])),
+                partes.append(
+                    "%d files were not found:\n%s"
+                    % (len(faltantes), "\n".join(faltantes[:12]))
                 )
+        # Encontrar el archivo y no tener a que apuntarlo tambien hay que
+        # decirlo: antes ese caso no hacia nada y no avisaba nada, asi que el
+        # usuario esperaba la busqueda entera para no enterarse de nada.
+        if sin_nodo:
+            partes.append(
+                "%d file(s) were found but have no Read node to update:\n%s"
+                % (len(sin_nodo), "\n".join(sin_nodo[:12]))
+            )
+        if partes:
+            QMessageBox.information(self, "Relink", "\n\n".join(partes))
 
     def build_search_patterns(self, file_name):
         """
@@ -3377,10 +3511,15 @@ class FileScanner(QWidget):
                 # Cancelado: ni se aplica el resultado ni se acumula como
                 # faltante ni se sigue con el proximo de la tanda.
                 self._relink_cancelado = False
+                self._relink_tocados = []
+                self.update_button_states()
                 return
 
             if found_path:
-                self.update_read_node(file_name, found_path)
+                tocados, con_nodo = self.update_read_node(file_name, found_path)
+                self._relink_tocados.extend(tocados)
+                if not con_nodo:
+                    self.relink_sin_nodo.append(os.path.basename(file_name))
             else:
                 # El aviso no sale aca sino al final de la tanda: con varias
                 # filas seleccionadas serian N carteles seguidos.
@@ -3392,74 +3531,84 @@ class FileScanner(QWidget):
             )
             self.relink_queue = []
             self.relink_missing = []
+            self.relink_sin_nodo = []
+            self._relink_tocados = []
             return
 
         self._relink_next()
 
     def update_read_node(self, original_file_name, new_file_path):
-        # Normalizar las barras en la ruta del archivo
+        """
+        Aplica a su fila el archivo que encontro la busqueda del relink.
+
+        Devuelve (nodos_tocados, hubo_nodo). Los nodos los enfoca quien llama,
+        una sola vez al final de la tanda.
+
+        Reapunta TODOS los Reads de la fila, no el primero. La celda de Reads
+        se arma con ", ".join(nodes), asi que en una fila con dos nodos el
+        texto es "Read1, Read2": pasarselo entero a nuke.toNode() devuelve
+        None y el bloque entero se salteaba. Con eso, ni se reapuntaba el
+        nodo, ni se actualizaba el path de la tabla, ni cambiaba el estado, ni
+        salia ningun cartel. La fila simplemente no se relinkeaba y nadie se
+        enteraba.
+        """
         new_file_path = new_file_path.replace("\\", "/")
 
-        # Buscar el nodo Read asociado al archivo original en la tabla y actualizar
-        for row in range(self.table.rowCount()):
-            table_file_name = self.table.item(row, COL_PATH).text()
-            if (
-                table_file_name == original_file_name
-                or table_file_name in original_file_name
-            ):
-                node_name = self.table.item(row, COL_READ).text()
-                node = nuke.toNode(node_name)
-                if node:
-                    # Construir la nueva ruta para el nodo
-                    new_file_path_for_node = os.path.join(
-                        os.path.dirname(new_file_path),
-                        os.path.basename(node["file"].getValue()),
-                    ).replace("\\", "/")
+        fila = self.find_row_by_path(original_file_name)
+        if fila is None:
+            return [], True
+        celda = self.table.item(fila, COL_PATH)
+        if celda is None:
+            return [], True
 
-                    # Seleccionar y actualizar el nodo en Nuke
-                    nuke.selectAll()
-                    nuke.invertSelection()
-                    node.setSelected(True)
-                    nuke.zoomToFitSelected()
-                    node["file"].setValue(new_file_path_for_node)
-                    node.showControlPanel()
+        carpeta_nueva = os.path.dirname(new_file_path)
 
-                    # Actualizar la ruta en la tabla manteniendo el nombre de archivo
-                    new_table_path = os.path.join(
-                        os.path.dirname(new_file_path),
-                        os.path.basename(table_file_name),
-                    ).replace("\\", "/")
-                    self.table.item(row, COL_PATH).setText(new_table_path)
-                    # El path lo repinta el delegado a partir del dato de la
-                    # fila: no hay label que actualizar.
+        tocados = []
+        for nombre in self.row_read_names(fila):
+            nodo = nuke.toNode(nombre)
+            if nodo is None:
+                continue
+            # El nombre lo pone el nodo y la carpeta la busqueda: el archivo
+            # encontrado puede ser otro frame de la misma secuencia, asi que su
+            # nombre no sirve para el knob.
+            ruta_nodo = os.path.join(
+                carpeta_nueva, os.path.basename(nodo["file"].getValue())
+            ).replace("\\", "/")
+            nodo["file"].setValue(ruta_nodo)
+            tocados.append(nodo)
 
-                    # Verificar si la nueva ruta esta dentro de la carpeta del proyecto.
-                    # Se usa commonpath sobre rutas normalizadas: commonprefix compara
-                    # caracter por caracter y falla por mayusculas o por carpetas
-                    # hermanas con el mismo prefijo (proj vs proj2).
-                    normi_new_directory = normalize_path_for_comparison(
-                        os.path.dirname(new_file_path)
-                    )
-                    normi_project_folder = normalize_path_for_comparison(
-                        self.project_folder
-                    )
-                    try:
-                        common_path = os.path.commonpath(
-                            [normi_new_directory, normi_project_folder]
-                        )
-                    except ValueError:
-                        # Rutas en unidades distintas: no hay path comun posible
-                        common_path = ""
+        # La fila se actualiza aunque no haya ningun Read: el archivo se
+        # encontro igual y la tabla tiene que decir donde esta.
+        nueva_ruta_tabla = os.path.join(
+            carpeta_nueva, os.path.basename(celda.text())
+        ).replace("\\", "/")
+        celda.setText(nueva_ruta_tabla)
+        # El path lo repinta el delegado a partir del dato de la fila: no hay
+        # label que actualizar.
 
-                    # El estado, su color y su clave de orden salen del mismo
-                    # lugar que en el escaneo.
-                    if common_path.replace("\\", "/") == normi_project_folder:
-                        self.set_row_status(row, "Online")
-                    else:
-                        self.set_row_status(row, "Outside")
-                    self.update_status_counts()
+        # Verificar si la nueva ruta esta dentro de la carpeta del proyecto.
+        # Se usa commonpath sobre rutas normalizadas: commonprefix compara
+        # caracter por caracter y falla por mayusculas o por carpetas
+        # hermanas con el mismo prefijo (proj vs proj2).
+        normi_new_directory = normalize_path_for_comparison(carpeta_nueva)
+        normi_project_folder = normalize_path_for_comparison(self.project_folder)
+        try:
+            common_path = os.path.commonpath(
+                [normi_new_directory, normi_project_folder]
+            )
+        except ValueError:
+            # Rutas en unidades distintas: no hay path comun posible
+            common_path = ""
 
-                    break
+        # El estado, su color y su clave de orden salen del mismo lugar que en
+        # el escaneo.
+        if common_path.replace("\\", "/") == normi_project_folder:
+            self.set_row_status(fila, "Online")
+        else:
+            self.set_row_status(fila, "Outside")
+        self.update_status_counts()
+
+        return tocados, bool(tocados)
 
     ##### Buesqueda de archivos:
     def search_unmatched_reads(self):
@@ -3762,7 +3911,7 @@ class FileScanner(QWidget):
         # Esta función ahora solo configura el worker y lo inicia
         project_path = nuke.root().name()
         if not project_path:
-            nuke.message("Por favor guarda el script antes de ejecutar este script.")
+            nuke.message("Please save the script before running this tool.")
             return
 
         # La carpeta del shot y las carpetas a escanear las resuelve el
@@ -4166,8 +4315,8 @@ class FileScanner(QWidget):
 
                 else:
                     # Si file_path no esta en read_files, asumir que el archivo esta Offline (no deberia pasar nunca!)
-                    print(
-                        "if file_path in read_files da que ELSE (esto no deberia pasar nunca!!!!!!!!!!!!!!!!!!!!!!!)"
+                    debug_print(
+                        "file_path no esta en read_files: no deberia pasar nunca"
                     )
                     # print(f"file_path: {file_path}")
                     # print(f"is_offline: {is_offline}")
@@ -4211,31 +4360,49 @@ class FileScanner(QWidget):
         # print("add_file_to_table execution time end: ", end_time - start_time, "seconds")
 
     def remove_duplicates(self):
-        paths = {}  # Diccionario para almacenar los paths y sus indices de fila
-        for row in range(self.table.rowCount()):
-            item = self.table.item(row, COL_PATH)
-            if item is not None:
-                # Usar la funcion de normalizacion centralizada
-                file_path = normalize_path_for_comparison(
-                    self.table.item(row, COL_PATH).text()
-                )
-                status = self.table.item(row, COL_STATUS).text()
-                if file_path in paths and status != "Online":
-                    # Si el path esta duplicado y el estado actual no es Online, eliminar la fila
-                    self.table.removeRow(row)
-                elif (
-                    file_path in paths
-                    and self.table.item(paths[file_path], COL_STATUS).text() != "Online"
-                ):
-                    # Si el path esta duplicado y el estado del path previamente almacenado no es Online, eliminar la fila previa
-                    self.table.removeRow(paths[file_path])
-                    paths[file_path] = (
-                        row  # Actualizar el indice con la fila actual porque la anterior fue eliminada
-                    )
-                else:
-                    paths[file_path] = row  # Almacenar el indice de la fila
+        """
+        Deja una sola fila por path, prefiriendo la que este Online.
+
+        Se decide TODO primero y se saca despues, al reves. Antes se borraba
+        adentro del mismo recorrido que iba hacia adelante, y eso rompia de
+        tres formas a la vez: al sacar una fila las de abajo se corren, asi
+        que la siguiente vuelta se saltaba una; el range() se calculo con el
+        rowCount original, asi que las ultimas vueltas indexaban filas que ya
+        no existian; y los indices guardados en el diccionario quedaban
+        apuntando a otras filas despues de cada baja, con lo cual la rama que
+        borra "la fila previa" borraba cualquier otra.
+        """
+        vistos = {}  # path normalizado -> fila que se queda
+        a_sacar = set()
+        for fila in range(self.table.rowCount()):
+            celda = self.table.item(fila, COL_PATH)
+            estado_item = self.table.item(fila, COL_STATUS)
+            if celda is None or estado_item is None:
+                continue
+            # Usar la funcion de normalizacion centralizada
+            file_path = normalize_path_for_comparison(celda.text())
+            estado = estado_item.text()
+            previa = vistos.get(file_path)
+            if previa is None:
+                vistos[file_path] = fila
+                continue
+            estado_previo_item = self.table.item(previa, COL_STATUS)
+            estado_previo = (
+                estado_previo_item.text() if estado_previo_item is not None else ""
+            )
+            if estado != "Online":
+                a_sacar.add(fila)
+            elif estado_previo != "Online":
+                a_sacar.add(previa)
+                vistos[file_path] = fila
             else:
-                pass
+                # Las dos Online: se queda la primera, que es la que ya estaba.
+                a_sacar.add(fila)
+
+        # De abajo hacia arriba: sacando de arriba, cada baja corre los
+        # indices que faltan sacar.
+        for fila in sorted(a_sacar, reverse=True):
+            self.table.removeRow(fila)
 
     def is_sequence_match(self, sequence_path, read_path, frame_range):
         # Verifica si la secuencia de archivos coincide con algun archivo en los nodos Read
@@ -4334,24 +4501,39 @@ class FileScanner(QWidget):
                     ventana.deleteLater()
                 except RuntimeError:
                     pass
+                # Red de seguridad: si al_terminar se cayo, la barra quedaria
+                # apagada hasta que el usuario toque algo. El worker ya volvio
+                # a None ahi adentro, asi que esto la prende.
+                try:
+                    self.update_button_states()
+                except RuntimeError:
+                    pass
 
         worker.signals.finished.connect(cerrar)
         # La referencia se guarda: sin ella, el worker y sus senales se pueden
         # destruir mientras el hilo del pool todavia esta saliendo de run().
         self._batch_window = ventana
         self._batch_worker = worker
+        # Con la tanda en curso la barra se apaga: es lo que evita lanzar un
+        # Relink o un Rescan encima de una copia.
+        self.update_button_states()
         ventana.show()
         QApplication.processEvents()
         QThreadPool.globalInstance().start(worker)
 
     @staticmethod
     def _resumen_tanda(hechos, salteados, errores, cancelado, verbo):
-        """El texto del cartel final. Uno solo por tanda, nunca uno por archivo."""
-        partes = ["%d %s." % (hechos, verbo)]
+        """El texto del cartel final. Uno solo por tanda, nunca uno por archivo.
+
+        En ingles como toda la UI: este cartel estaba en castellano, que por
+        regla del pack es el idioma de los comentarios y los tooltips, no el
+        de lo que ve el usuario.
+        """
+        partes = ["%d file(s) %s." % (hechos, verbo)]
         if cancelado and salteados:
-            partes.append("%d sin procesar por la cancelacion." % salteados)
+            partes.append("%d left unprocessed after cancelling." % salteados)
         if errores:
-            partes.append("%d con error:" % len(errores))
+            partes.append("%d failed:" % len(errores))
             partes.append("\n".join(errores[:10]))
             if len(errores) > 10:
                 partes.append("...")
@@ -4368,8 +4550,8 @@ class FileScanner(QWidget):
         filas = self.selected_rows()
         if not filas:
             return
-        if getattr(self, "_batch_worker", None) is not None:
-            debug_print("Ya hay una tanda en curso")
+        if self.operacion_en_curso() is not None:
+            debug_print("Hay una operacion en curso: se ignora el Delete")
             return
 
         # Offline no se puede borrar: el archivo no esta, asi que no hay nada
@@ -4399,11 +4581,23 @@ class FileScanner(QWidget):
             borrable = (
                 item_carpeta is not None and item_carpeta.text().lower() == "true"
             )
+            carpeta_seq = ""
             if borrable and "#" in ruta:
+                carpeta_seq = os.path.normpath(os.path.dirname(archivos[0]))
+                # El dato viene del ESCANEO y puede tener minutos: entre medio
+                # pudo entrar un render en esa carpeta. Se revalida ahora, que
+                # es una llamada a disco, contra el riesgo de llevarse a la
+                # papelera archivos que nadie selecciono.
+                if not self._carpeta_tiene_solo(carpeta_seq, archivos):
+                    debug_print(
+                        "La carpeta %s ya no tiene solo la secuencia: se borran"
+                        " los archivos de a uno" % carpeta_seq
+                    )
+                    carpeta_seq = ""
+            if carpeta_seq:
                 # La secuencia tiene su carpeta para ella sola: se manda la
                 # carpeta y no los N archivos, que es una operacion en vez de
                 # miles y ademas deja la papelera prolija.
-                carpeta_seq = os.path.normpath(os.path.dirname(archivos[0]))
                 # Sin deduplicar, dos filas cuya secuencia vive en la misma
                 # carpeta la mandaban dos veces: el segundo send2trash falla y
                 # el usuario ve un error que no existe.
@@ -4439,6 +4633,12 @@ class FileScanner(QWidget):
         # Las carpetas van al final: si se borrara la carpeta primero, los
         # archivos de adentro que todavia estan en la lista ya no existirian.
         worker = DeleteWorker(plan + carpetas)
+        # El total en ARCHIVOS reales, para que el resumen final hable en la
+        # misma unidad que el cartel de confirmacion. Las entradas del worker
+        # no sirven: una secuencia borrada por carpeta es una sola entrada y
+        # mil archivos, asi que el resumen decia "1 enviado a la papelera"
+        # despues de borrar mil frames.
+        self._delete_total = total
         # Se guardan las RUTAS y no los indices de fila. La ventana de progreso
         # no es modal, asi que durante la tanda el usuario puede ordenar la
         # tabla y los indices pasan a apuntar a otras filas: se terminaba
@@ -4453,6 +4653,7 @@ class FileScanner(QWidget):
         # ahora, la tabla pudo reordenarse. Se recorre al reves para que los
         # indices de las que faltan sacar no se corran al ir sacandolas.
         pedidas = set(getattr(self, "_delete_paths", []))
+        borrados = 0
         for fila in range(self.table.rowCount() - 1, -1, -1):
             ruta = self.row_path(fila)
             if ruta not in pedidas:
@@ -4462,8 +4663,11 @@ class FileScanner(QWidget):
             # la tanda cancelada a la mitad, sacar todas las filas mostraria
             # como borrado lo que sigue en disco.
             if archivos and not os.path.exists(archivos[0]):
+                borrados += len(archivos)
                 self.table.removeRow(fila)
+        total = getattr(self, "_delete_total", 0)
         self._delete_paths = []
+        self._delete_total = 0
         self.renumber_visible_rows()
         self.update_status_counts()
         self.update_button_states()
@@ -4472,7 +4676,11 @@ class FileScanner(QWidget):
                 self,
                 "Delete",
                 self._resumen_tanda(
-                    hechos, salteados, errores, cancelado, "enviados a la papelera"
+                    borrados,
+                    max(0, total - borrados) if cancelado else 0,
+                    errores,
+                    cancelado,
+                    "sent to the trash",
                 ),
             )
 
@@ -4489,8 +4697,8 @@ class FileScanner(QWidget):
         filas = self.selected_rows()
         if not filas:
             return
-        if getattr(self, "_batch_worker", None) is not None:
-            debug_print("Ya hay una tanda en curso")
+        if self.operacion_en_curso() is not None:
+            debug_print("Hay una operacion en curso: se ignora el Copy to")
             return
 
         # Guard de siempre, sobre TODAS las filas: Copy to es traerse adentro
@@ -4580,10 +4788,16 @@ class FileScanner(QWidget):
         """
         Que archivo va a donde, y cuales ya existen.
 
-        Devuelve (plan, conflictos, reapuntar):
+        Devuelve (plan, conflictos, colisiones, reapuntar):
           plan        pares (origen, destino) de archivos REALES
           conflictos  destinos que ya existen
-          reapuntar   {nodo Read: carpeta destino}, para despues de copiar
+          colisiones  dos origenes distintos que caen en el mismo destino
+          reapuntar   una entrada POR FILA, con la ruta de la fila, su nodo,
+                      la carpeta destino y los destinos de esa fila. Es una
+                      lista de filas y no un {nodo: carpeta} porque despues de
+                      copiar hay que saber QUE fila corresponde a cada nodo:
+                      sin eso, el reapuntado no podia mirar si esa fila se
+                      copio de verdad ni encontrar su fila en la tabla
 
         Se arma entero antes de arrancar el worker: es lo que permite hacer
         una sola pregunta por la sobreescritura en vez de una por archivo, y
@@ -4593,7 +4807,7 @@ class FileScanner(QWidget):
         conflictos = []
         colisiones = []
         vistos = {}
-        reapuntar = {}
+        reapuntar = []
         for fila in filas:
             ruta = self.row_path(fila)
             archivos = expand_sequence(ruta)
@@ -4607,6 +4821,7 @@ class FileScanner(QWidget):
                 )
             else:
                 carpeta = destino_base
+            destinos_fila = []
             for origen in archivos:
                 destino = os.path.join(carpeta, os.path.basename(origen))
                 # Dos filas distintas pueden dar el MISMO destino: dos versiones
@@ -4619,68 +4834,129 @@ class FileScanner(QWidget):
                     continue
                 vistos[destino] = origen
                 plan.append((origen, destino))
+                destinos_fila.append(destino)
                 if os.path.exists(destino):
                     conflictos.append(destino)
+            if not destinos_fila:
+                continue
             # Con varios Reads sobre la misma media se reapunta el primero:
             # los demas siguen apuntando al original hasta que el usuario los
-            # relinkee. Es lo que hacia antes y no cambia aca.
+            # relinkee. El original sigue existiendo, asi que no quedan rotos.
             nodos = self.row_read_names(fila)
-            if nodos:
-                reapuntar[nodos[0]] = carpeta
+            reapuntar.append(
+                {
+                    "ruta": ruta,
+                    "nodo": nodos[0] if nodos else "",
+                    "carpeta": carpeta,
+                    "destinos": destinos_fila,
+                }
+            )
         return plan, conflictos, colisiones, reapuntar
 
     def _on_copy_finished(self, hechos, salteados, errores, cancelado):
-        """Reapunta los Reads de lo que se copio y actualiza la tabla."""
+        """Reapunta los Reads de las filas que SI se copiaron."""
         self._batch_worker = None
-        for nombre, carpeta in (getattr(self, "_copy_reapuntar", {}) or {}).items():
-            nodo = nuke.toNode(nombre)
-            if nodo is None:
+        tocados = []
+        for registro in getattr(self, "_copy_reapuntar", []) or []:
+            # Se verifica contra DISCO y no contra el plan. Antes se reapuntaba
+            # todo lo planificado sin mirar `cancelado` ni `errores`: cancelar
+            # una copia de seis filas despues de la primera dejaba los seis
+            # Reads mirando el destino y cinco de ellos offline.
+            if not self._copia_completa(registro["destinos"]):
                 continue
             try:
-                self.repoint_read(nodo, carpeta)
+                nodo = self.repoint_read(registro)
             except Exception as problema:
-                debug_print("No se pudo reapuntar %s: %s" % (nombre, problema))
-        self._copy_reapuntar = {}
+                debug_print(
+                    "No se pudo reapuntar %s: %s" % (registro["ruta"], problema)
+                )
+                continue
+            if nodo is not None:
+                tocados.append(nodo)
+        self._copy_reapuntar = []
+        self.focus_nodes(tocados)
         self.update_status_counts()
         self.update_button_states()
         if errores or cancelado:
             QMessageBox.information(
                 self,
                 "Copy to",
-                self._resumen_tanda(hechos, salteados, errores, cancelado, "copiados"),
+                self._resumen_tanda(hechos, salteados, errores, cancelado, "copied"),
             )
 
-    def repoint_read(self, read_node, dest_folder):
+    @staticmethod
+    def _carpeta_tiene_solo(carpeta, archivos):
         """
-        Deja el Read apuntando a la copia, y la tabla al dia.
+        Si en esa carpeta no hay nada mas que estos archivos.
+
+        Es la condicion para mandar la CARPETA a la papelera en vez de sus N
+        archivos. La calcula tambien el escaneo, pero ese dato es una foto: lo
+        que decide un borrado se vuelve a mirar en el momento de borrar.
+        """
+        try:
+            adentro = os.listdir(carpeta)
+        except OSError as problema:
+            debug_print("No se pudo revisar %s: %s" % (carpeta, problema))
+            return False
+        return len(adentro) == len(archivos)
+
+    @staticmethod
+    def _copia_completa(destinos):
+        """
+        Si esta fila llego entera al destino.
+
+        Se miran el primero y el ultimo, no los mil del medio: una tanda se
+        corta siempre al final -la cancelacion es una bandera que el worker
+        mira entre archivo y archivo- asi que si el ultimo esta, estan todos.
+        Mil llamadas a disco por fila costarian mas que la copia.
+        """
+        if not destinos:
+            return False
+        return os.path.exists(destinos[0]) and os.path.exists(destinos[-1])
+
+    def repoint_read(self, registro):
+        """
+        Deja el Read de UNA fila apuntando a la copia, y su fila al dia.
+
+        Devuelve el nodo tocado, o None: el Node Graph lo enfoca quien llama,
+        una sola vez por tanda.
+
+        Toca exactamente la fila que se copio, buscada por su ruta. La version
+        anterior recorria la tabla quedandose con toda fila cuyo path empezara
+        con la carpeta de ORIGEN, asi que copiar una fila reescribia tambien
+        las otras siete que vivian en esa carpeta y las marcaba Online sin que
+        se hubiera copiado nada de ellas.
 
         Corre en el hilo principal -lo llama el `finished` del worker- asi que
         toca la API de Nuke y la tabla sin ceremonia.
         """
-        original = read_node["file"].getValue()
-        nombre = os.path.basename(original)
-        nuevo = os.path.join(dest_folder, nombre).replace("\\", "/")
-        if read_node.Class() == "Read":
-            read_node["file"].setValue(nuevo)
+        carpeta = registro["carpeta"]
+        nombre_nodo = registro["nodo"]
 
-        # El '#' de la tabla contra el %0Nd que usa Nuke en el knob.
-        nuevo_tabla = re.sub(r"%0(\d+)d", lambda m: "#" * int(m.group(1)), nuevo)
-        prefijo = original[: -len(nombre)] if nombre else original
-        for fila in range(self.table.rowCount()):
-            celda = self.table.item(fila, COL_PATH)
-            if celda is None:
-                continue
-            actual = celda.text()
-            if not actual.startswith(prefijo):
-                continue
-            celda.setText(nuevo_tabla + actual[len(original):])
-            # El archivo se trajo adentro del shot: deja de estar Outside.
-            estado = self.table.item(fila, COL_STATUS)
-            if estado is not None and estado.text() == "Outside":
-                self.set_row_status(fila, "Online")
+        nodo = nuke.toNode(nombre_nodo) if nombre_nodo else None
+        if nodo is not None and nodo.Class() == "Read":
+            original = nodo["file"].getValue()
+            nuevo = os.path.join(carpeta, os.path.basename(original))
+            nodo["file"].setValue(nuevo.replace("\\", "/"))
+        else:
+            nodo = None
 
-        nuke.selectAll()
-        nuke.invertSelection()
-        read_node.setSelected(True)
-        nuke.zoomToFitSelected()
-        read_node.showControlPanel()
+        fila = self.find_row_by_path(registro["ruta"])
+        if fila is None:
+            return nodo
+        celda = self.table.item(fila, COL_PATH)
+        if celda is None:
+            return nodo
+        # Se cambia SOLO la carpeta, dejando el nombre tal como esta escrito
+        # en la tabla. Antes se armaba cortando el texto por el largo del path
+        # del knob, y los dos largos solo coinciden con padding 4: el knob trae
+        # "%05d" -cuatro caracteres- donde la tabla tiene "#####", que son
+        # cinco, asi que con cualquier otro padding el corte quedaba corrido y
+        # el path salia roto ("...exrr[1001-1100]").
+        nuevo_tabla = os.path.join(carpeta, os.path.basename(celda.text()))
+        celda.setText(nuevo_tabla.replace("\\", "/"))
+        # El archivo se trajo adentro del shot: deja de estar Outside.
+        estado = self.table.item(fila, COL_STATUS)
+        if estado is not None and estado.text() == "Outside":
+            self.set_row_status(fila, "Online")
+        return nodo

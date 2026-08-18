@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.40 | Lega
+  LGA_mediaManager v2.41 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -15,11 +15,17 @@ _______________________________________________________________________
     LGA_MediaManager_paths.py        resolucion de rutas e inclusiones
     LGA_MediaManager_logging.py      logger a logs/LGA_mediaManager.log
 
-  Version visible en la UI: la muestra la ventana de ajustes, abajo a
-  la izquierda. Sale de leer ESTE header con get_tool_version() de
-  LGA_MediaManager_settings.py, asi que no hay ningun numero escrito a
-  mano en la interfaz.
+  Donde mas se ve esta version, y hay que moverla junto con el header:
+    - La ventana de ajustes, abajo a la izquierda. Esa sale sola: la lee
+      de ESTE header con get_tool_version() de
+      LGA_MediaManager_settings.py, asi que no hay ningun numero
+      escrito a mano en la interfaz.
+    - El titulo de la seccion "Media manager" del README.md. Ese SI es
+      un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.41: Copy to, Delete y Relink revisados con seleccion multiple.
+         El detalle esta en los headers de LGA_MediaManager_FileScanner
+         y LGA_MediaManager_utils.
   v2.40: Once defectos de concurrencia que salieron de auditar lo de
          v2.39. El peor: se arrancaban DOS ScannerWorker en cada
          apertura -uno en __init__ que nadie conectaba y otro en

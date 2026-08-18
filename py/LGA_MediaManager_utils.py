@@ -1,11 +1,17 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.40 | Lega
+  LGA_MediaManager_utils v2.41 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.41: El progreso de las tandas deja de avisar por archivo. Con
+         una secuencia de tres mil frames eran seis mil eventos en la
+         cola del hilo principal y tres mil repintados del cartel: la
+         ventana que muestra que la herramienta avanza era la que la
+         frenaba. Ahora avisa unas doscientas veces en total, y el
+         ultimo aviso sale siempre.
   v2.40: Once defectos de concurrencia que salieron de auditar lo de
          v2.39. El peor: se arrancaban DOS ScannerWorker en cada
          apertura -uno en __init__ que nadie conectaba y otro en
@@ -647,6 +653,8 @@ class BatchWorker(QRunnable):
         self.signals.moveToThread(QApplication.instance().thread())
         self.logger = configure_logger()
         self._cancelado = False
+        # Cada cuantos archivos se avisa. Ver avisa().
+        self._cada = max(1, len(self.items) // 200)
         # Sin esto Qt destruye el objeto C++ apenas run() termina, y el
         # cancel() que la ventana hace al cerrarse tira RuntimeError: el
         # `finished` viaja en cola, asi que hay un hueco entre que el worker
@@ -658,6 +666,23 @@ class BatchWorker(QRunnable):
 
     def cancelado(self):
         return self._cancelado
+
+    def avisa(self, indice):
+        """
+        Si a este archivo le toca avisar del progreso.
+
+        Con una secuencia de tres mil frames, una senal por archivo son seis
+        mil eventos en la cola del hilo principal y tres mil repintados del
+        cartel: la ventana que deberia mostrar que la herramienta avanza es
+        justamente la que la frena. Con tandas chicas avisa siempre; con
+        tandas grandes, unas doscientas veces en total, que es mas de lo que
+        una barra de progreso puede mostrar.
+        """
+        return indice % self._cada == 0
+
+    def ultimo(self, hechos, errores):
+        """Si ya no queda nada: el ultimo aviso sale siempre."""
+        return hechos + errores >= len(self.items)
 
 
 class CopyWorker(BatchWorker):
@@ -674,10 +699,12 @@ class CopyWorker(BatchWorker):
         hechos = 0
         errores = []
         try:
-            for origen, destino in self.items:
+            for indice, (origen, destino) in enumerate(self.items):
                 if self._cancelado:
                     break
-                self.signals.item.emit(os.path.basename(origen))
+                avisa = self.avisa(indice)
+                if avisa:
+                    self.signals.item.emit(os.path.basename(origen))
                 try:
                     carpeta = os.path.dirname(destino)
                     if carpeta and not os.path.isdir(carpeta):
@@ -688,7 +715,8 @@ class CopyWorker(BatchWorker):
                     hechos += 1
                 except Exception as problema:
                     errores.append("%s: %s" % (os.path.basename(origen), problema))
-                self.signals.progress.emit(hechos + len(errores), len(self.items))
+                if avisa or self.ultimo(hechos, len(errores)):
+                    self.signals.progress.emit(hechos + len(errores), len(self.items))
         except Exception as problema:
             errores.append(str(problema))
         # Salteados: los que el plan dejo afuera ya no estan en self.items, asi
@@ -711,10 +739,12 @@ class DeleteWorker(BatchWorker):
         hechos = 0
         errores = []
         try:
-            for ruta in self.items:
+            for indice, ruta in enumerate(self.items):
                 if self._cancelado:
                     break
-                self.signals.item.emit(os.path.basename(ruta))
+                avisa = self.avisa(indice)
+                if avisa:
+                    self.signals.item.emit(os.path.basename(ruta))
                 try:
                     # send2trash quiere separadores nativos. La version vieja
                     # los forzaba a '\\' siempre, o sea que en macOS y Linux le
@@ -723,7 +753,8 @@ class DeleteWorker(BatchWorker):
                     hechos += 1
                 except Exception as problema:
                     errores.append("%s: %s" % (os.path.basename(ruta), problema))
-                self.signals.progress.emit(hechos + len(errores), len(self.items))
+                if avisa or self.ultimo(hechos, len(errores)):
+                    self.signals.progress.emit(hechos + len(errores), len(self.items))
         except Exception as problema:
             errores.append(str(problema))
         sin_hacer = len(self.items) - hechos - len(errores)
