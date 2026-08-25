@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="410" height="68" viewBox="0 0 410 68" role="img" aria-label="Open in Shot Player shortcuts">
+  <text x="0" y="18" fill="#8a8a8a" font-size="16" font-weight="700" font-family="Segoe UI, Arial, Helvetica, sans-serif">Shortcuts:</text>
+  <text x="0" y="42" fill="#8a8a8a" font-size="16" font-family="Segoe UI, Arial, Helvetica, sans-serif">
+    <tspan font-weight="700" font-style="italic">Ctrl + Alt + Shift + P</tspan>
+    <tspan> [Windows]</tspan>
+  </text>
+  <text x="0" y="66" fill="#8a8a8a" font-size="16" font-family="Segoe UI, Arial, Helvetica, sans-serif">
+    <tspan font-weight="700" font-style="italic">Command + Alt + Shift + P</tspan>
+    <tspan> [macOS]</tspan>
+  </text>
+</svg>

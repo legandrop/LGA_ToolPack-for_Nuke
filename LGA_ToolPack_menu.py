@@ -182,6 +182,19 @@ add_tool(
 
 add_tool(
     n,
+    label="  Open in Shot Player",
+    key="Open_in_Shot_Player",
+    module="LGA_OpenInShotPlayer",
+    attr="main",
+    # Nuke interpreta Ctrl como Command en macOS (PortableText propio).
+    shortcut="ctrl+alt+shift+p",
+    icon=icon_RnW,
+    context=2,
+)
+
+
+add_tool(
+    n,
     label="  Duplicate Publish",
     key="Duplicate_Publish",
     module="LGA_RnW_DuplicatePublish",
