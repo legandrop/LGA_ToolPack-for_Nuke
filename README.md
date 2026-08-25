@@ -117,9 +117,7 @@ Genera un nodo Read a partir de la ruta y archivo del nodo Write seleccionado.
 
 ## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Open in Shot Player v1.01 | Lega
 
-Abre en LGA Shot Player la media del nodo Read seleccionado.<br>
-Exige exactamente un Read. Si existe el archivo del frame actual abre ese; si no —por ejemplo, porque el timeline está en 1 y el Read empieza en 975— abre el primer frame declarado por el Read. Así el player siempre recibe un archivo real, igual que al hacer doble click sobre un archivo asociado.<br>
-Detecta la instalación multiplataforma mediante el registro compartido de LGA y sus ubicaciones de instalación estándar. Si Shot Player no está instalado, muestra un aviso que indica instalarlo desde la tarjeta LGA Updates de PipeSync.<br><br>
+Abre en LGA Shot Player la media del nodo Read seleccionado.<br><br>
 <img src="Doc_Media/open_in_shot_player_shortcut.svg" alt="Open in Shot Player shortcuts" width="355" height="59">
 
 <br>
