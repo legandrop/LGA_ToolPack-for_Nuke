@@ -1,5 +1,11 @@
 # ChangeLog
 
+## v2.64
+
+- **Nuke se cerraba entero al abrir un script.** `Take/Show Snapshot` llamaba a `QApplication.allWidgets()` para encontrar el viewer. Esa llamada materializa de golpe un wrapper de PySide por cada widget del proceso, y al dispararse desde el `addOnCreate` del Viewer cae justo mientras Nuke esta creando y destruyendo widgets: corrompe el heap y el proceso muere con `0xc0000374`. Pasa igual en Nuke 15 con Qt5 y en 16/17 con Qt6.
+
+  El adapter suma cuatro helpers —`is_widget_alive`, `safe_widget_call`, `iter_live_widgets` e `iter_live_children`—. `iter_live_widgets` no envuelve a `allWidgets()`: baja desde `topLevelWidgets()`, porque todo widget o es top level o desciende de uno. Mismo conjunto, armado de a poco y validando con shiboken. Ademas el timer que espera al viewer reintentaba cada 500 ms para siempre: ahora corta a los 20 intentos. [ TakeShowSnapshot - Dejar de llamar allWidgets al buscar el viewer ]
+
 ## v2.63
 
 - **Nueva herramienta `Open in Shot Player` en READ n WRITE.** Con un único Read seleccionado prueba primero la media del frame actual y, si ese archivo no existe, abre el primer frame declarado por el Read —por ejemplo 975 aunque el timeline esté en 1—. Resuelve tokens de secuencia, deja trazas diagnósticas en el Script Editor y abre con la semántica de archivo asociado del sistema. Lee los perfiles `LGA Shot Player.json` y `LGA Player.json` del registro compartido, normaliza sus rutas de instalación, descarta instalaciones stale o de desarrollo, prueba los paths estándar y avisa con el tema del pack si el player no está instalado o no se puede lanzar. En el menú y el README queda ubicada debajo de `Read from Write`, con `Ctrl+Alt+Shift+P` en Windows y `Command+Alt+Shift+P` en macOS. [ OpenInShotPlayer - Abrir un frame existente del Read en Shot Player ]

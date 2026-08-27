@@ -1,9 +1,13 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v0.55 - Lega
+  LGA_viewer_SnapShot_Gallery v0.56 - Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
+  v0.56 - buscar_ventana_existente() deja de barrer allWidgets() a pelo:
+          los wrappers de widgets ya destruidos en C++ hacian crashear a
+          Nuke. Ahora itera con iter_live_widgets() y lee objectName e
+          isVisible con safe_widget_call().
   v0.55 - El look sale de LGA_UI_Style_ToolPack: los tres grises de
           texto y los cinco fondos distintos se colapsan a los roles
           de la paleta, y la barra de scroll es la del pack. Los
@@ -22,7 +26,13 @@ import shutil
 import subprocess  # Importar subprocess para abrir archivos en macOS/Linux
 import platform  # Importar platform para detectar el SO
 import configparser
-from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui
+from LGA_QtAdapter_ToolPack import (
+    QtWidgets,
+    QtCore,
+    QtGui,
+    iter_live_widgets,
+    safe_widget_call,
+)
 from LGA_UI_Style_ToolPack import SCROLLBAR, Color, Style
 from LGA_tooltip_helper import (
     TOOLTIP_BG,
@@ -1202,11 +1212,13 @@ def buscar_ventana_existente(nombre_objeto):
     Busca si ya existe una ventana con el nombre de objeto especificado.
     Devuelve la ventana si existe y esta visible, None en caso contrario.
     """
-    for widget in QApplication.instance().allWidgets():
+    # iter_live_widgets descarta los wrappers de widgets ya destruidos en C++:
+    # tocarles el objectName lee memoria liberada y tumba el proceso.
+    for widget in iter_live_widgets():
         if (
-            widget.objectName() == nombre_objeto
-            and isinstance(widget, QWidget)
-            and widget.isVisible()
+            isinstance(widget, QWidget)
+            and safe_widget_call(widget, "objectName") == nombre_objeto
+            and safe_widget_call(widget, "isVisible", False)
         ):
             return widget
     return None

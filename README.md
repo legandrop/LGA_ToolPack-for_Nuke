@@ -415,7 +415,7 @@ Cambia el viewer a Rec709.
 
 
 
-## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.0 | Lega</strong>
+## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.01 | Lega</strong>
 
 Take: Toma un snapshot (jpg), lo guarda en la carpeta de archivos temporales, y también lo guarda en una galería.<br>
 Show: Muestra el último snapshot tomado, el de la carpeta de archivos temporales.<br>

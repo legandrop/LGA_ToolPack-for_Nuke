@@ -1,15 +1,33 @@
 """
 ______________________________________________________
 
-  LGA_NKS_SnapSho_Buttons - Lega
+  LGA_viewer_SnapShot_Buttons v1.01 | Lega
+
   Crea botones en el viewer para snapshots
+
+  Donde mas se ve esta version, y hay que moverla junto con el header:
+    - El titulo de la seccion "Take/Show Snapshot" del README.md, a mano.
+
+  v1.01: Se deja de barrer QApplication.allWidgets() a pelo. Los wrappers
+         de widgets ya destruidos en C++ hacian crashear a Nuke con heap
+         corruption. Ahora se itera con iter_live_widgets() y se leen los
+         metodos con safe_widget_call(). El reintento del timer tiene tope.
+  v1.00: Version inicial documentada.
 ______________________________________________________
 
 """
 
 import nuke
 import os
-from LGA_QtAdapter_ToolPack import QtGui, QtCore, QtWidgets
+from LGA_QtAdapter_ToolPack import (
+    QtGui,
+    QtCore,
+    QtWidgets,
+    is_widget_alive,
+    iter_live_children,
+    iter_live_widgets,
+    safe_widget_call,
+)
 
 # Obtener la ruta de los iconos
 KS_DIR = os.path.dirname(__file__)
@@ -35,13 +53,18 @@ BTN_NAME_GALLERY = "LGA_Snapshot_Gallery"
 
 DEBUG = False
 
+# Tope de reintentos del timer que espera a que el viewer exista.
+# 20 x 500 ms = 10 segundos. Sin tope, cada reintento barria la lista de
+# widgets del proceso para siempre, que es justo lo que terminaba crasheando.
+MAX_LAUNCH_RETRIES = 20
+
 
 def debug_print(*message):
     if DEBUG:
         print(*message)
 
 
-def launch():
+def launch(_retry=0):
     """Funcion principal que inserta los botones en el viewer"""
 
     class CustomButton(QPushButton):
@@ -252,30 +275,27 @@ def launch():
             # Primero intentar con el activeViewer
             active_viewer = nuke.activeViewer()
             if active_viewer:
-                for widget in QApplication.allWidgets():
-                    if (
-                        hasattr(widget, "windowTitle")
-                        and widget.windowTitle() == active_viewer.node().name()
-                    ):
+                nombre_activo = active_viewer.node().name()
+                for widget in iter_live_widgets():
+                    if safe_widget_call(widget, "windowTitle") == nombre_activo:
                         debug_print(
-                            f"✅ Encontrado widget del viewer activo: {widget.windowTitle()}"
+                            f"✅ Encontrado widget del viewer activo: {nombre_activo}"
                         )
                         return widget
 
             # Si no hay activeViewer, buscar cualquier viewer widget
             debug_print("⚠️ No hay activeViewer, buscando viewers disponibles...")
-            for widget in QApplication.allWidgets():
-                if hasattr(widget, "windowTitle") and widget.windowTitle():
-                    title = widget.windowTitle().lower()
-                    # Buscar widgets que parezcan viewers (contienen "viewer" o son nodos Viewer)
-                    if "viewer" in title or any(
-                        node.name() == widget.windowTitle()
-                        for node in nuke.allNodes("Viewer")
-                    ):
-                        debug_print(
-                            f"✅ Encontrado widget de viewer: {widget.windowTitle()}"
-                        )
-                        return widget
+            # Los nombres de los nodos Viewer se resuelven una sola vez: antes
+            # se consultaba nuke.allNodes() adentro del bucle, por widget.
+            nombres_viewer = [node.name() for node in nuke.allNodes("Viewer")]
+            for widget in iter_live_widgets():
+                titulo = safe_widget_call(widget, "windowTitle", "") or ""
+                if not titulo:
+                    continue
+                # Buscar widgets que parezcan viewers (contienen "viewer" o son nodos Viewer)
+                if "viewer" in titulo.lower() or titulo in nombres_viewer:
+                    debug_print(f"✅ Encontrado widget de viewer: {titulo}")
+                    return widget
 
         except Exception as e:
             debug_print(f"❌ Error en find_viewer: {e}")
@@ -285,14 +305,10 @@ def launch():
 
     def is_frameslider_widget(w):
         """Detecta el control de frame slider en diferentes versiones de Nuke/Qt."""
-        try:
-            tt = w.toolTip().lower() if hasattr(w, "toolTip") else ""
-        except Exception:
-            tt = ""
-        try:
-            name = w.objectName().lower()
-        except Exception:
-            name = ""
+        if not is_widget_alive(w):
+            return False
+        tt = (safe_widget_call(w, "toolTip", "") or "").lower()
+        name = (safe_widget_call(w, "objectName", "") or "").lower()
         cls_name = w.__class__.__name__.lower()
         if "frameslider" in tt or "frame slider" in tt:
             return True
@@ -309,50 +325,48 @@ def launch():
 
     def find_framerange(root):
         """Busca el frameslider y agrega los botones (Nuke 15/16)."""
-        queue = [root]
-        while queue:
-            c = queue.pop(0)
+        # iter_live_children recorre en anchura salteando los widgets cuyo
+        # objeto C++ ya murio, y filtra QAction y layouts por si solo.
+        for c in iter_live_children(root):
             try:
-                if is_frameslider_widget(c):
-                    parent = c.parentWidget()
-                    layout = parent.layout() if parent else None
-                    if parent and layout:
-                        take_snapshot_btn = Take_SnapShotButton()
-                        show_snapshot_btn = Show_SnapShotButton()
-                        gallery_snapshot_btn = Gallery_SnapShotButton()
+                if not is_frameslider_widget(c):
+                    continue
+                parent = c.parentWidget()
+                if not is_widget_alive(parent):
+                    continue
+                layout = parent.layout()
+                if not layout:
+                    continue
 
-                        # Remover instancias previas de nuestros botones por objectName
-                        for w in list(parent.children()):
-                            try:
-                                if w.objectName() in (
-                                    BTN_NAME_TAKE,
-                                    BTN_NAME_SHOW,
-                                    BTN_NAME_GALLERY,
-                                ):
-                                    layout.removeWidget(w)
-                                    w.deleteLater()
-                            except Exception:
-                                continue
+                take_snapshot_btn = Take_SnapShotButton()
+                show_snapshot_btn = Show_SnapShotButton()
+                gallery_snapshot_btn = Gallery_SnapShotButton()
 
-                        layout.addWidget(take_snapshot_btn)
-                        layout.addWidget(show_snapshot_btn)
-                        layout.addWidget(gallery_snapshot_btn)
+                # Remover instancias previas de nuestros botones por objectName
+                for w in list(parent.children()):
+                    if not is_widget_alive(w):
+                        continue
+                    try:
+                        if safe_widget_call(w, "objectName") in (
+                            BTN_NAME_TAKE,
+                            BTN_NAME_SHOW,
+                            BTN_NAME_GALLERY,
+                        ):
+                            layout.removeWidget(w)
+                            w.deleteLater()
+                    except Exception:
+                        continue
 
-                        debug_print(
-                            "✅ Botones LGA SnapShot agregados al viewer (Take, Show y Gallery)"
-                        )
-                        return c
+                layout.addWidget(take_snapshot_btn)
+                layout.addWidget(show_snapshot_btn)
+                layout.addWidget(gallery_snapshot_btn)
+
+                debug_print(
+                    "✅ Botones LGA SnapShot agregados al viewer (Take, Show y Gallery)"
+                )
+                return c
             except Exception as e:
                 debug_print(f"⚠️ Error buscando frame slider: {e}")
-
-            # Explorar hijos widgets (saltar QAction y layouts)
-            for child in c.children():
-                if QAction and isinstance(child, QAction):
-                    continue
-                if isinstance(child, QtWidgets.QLayout):
-                    continue
-                if isinstance(child, QtWidgets.QWidget):
-                    queue.append(child)
         return None
 
     # Ejecutar la insercion de botones
@@ -360,9 +374,17 @@ def launch():
     if viewer_widget:
         find_framerange(viewer_widget)
         debug_print("✅ Botones agregados exitosamente al viewer")
+    elif _retry >= MAX_LAUNCH_RETRIES:
+        # Rendirse: seguir reintentando barria la lista de widgets del proceso
+        # cada 500 ms para siempre, aun con el viewer cerrado.
+        debug_print(
+            f"⚠️ No se encontro el widget del viewer despues de "
+            f"{MAX_LAUNCH_RETRIES} intentos - se abandona"
+        )
     else:
         debug_print(
-            "⚠️ No se pudo encontrar el widget del viewer - reintentando en 500ms..."
+            f"⚠️ No se pudo encontrar el widget del viewer - reintento "
+            f"{_retry + 1}/{MAX_LAUNCH_RETRIES} en 500ms..."
         )
         # Reintentar despues de mas tiempo si no se encontro
-        QtCore.QTimer.singleShot(500, launch)
+        QtCore.QTimer.singleShot(500, lambda: launch(_retry + 1))
