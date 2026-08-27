@@ -1,7 +1,7 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v0.56 - Lega
+  LGA_viewer_SnapShot_Gallery v1.02 | Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
   v0.56 - buscar_ventana_existente() deja de barrer allWidgets() a pelo:

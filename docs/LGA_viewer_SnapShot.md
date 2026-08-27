@@ -27,8 +27,10 @@ Sistema de botones personalizados para el viewer de Nuke que permite tomar snaps
 - **Función**: Contiene la lógica principal de snapshot
 - **Características**:
   - Compatibilidad con PySide/PySide2
-  - Verificaciones exhaustivas de canales válidos antes de procesar
-  - Función `take_snapshot(save_to_gallery=False)` para capturar imagen del viewer
+  - Dos motores de captura: `_snapshot_con_capture()` (por defecto) y `_snapshot_con_write()` (el viejo, detrás de Ctrl)
+  - Verificaciones de canales válidos antes de renderizar, sólo en el motor Write
+  - Recorte del vacío del viewport con `_parece_uniforme()`, `_medir_bandas()` y `_rect_visible()`
+  - Función `take_snapshot(save_to_gallery=False, use_write=False)` para capturar imagen del viewer
   - Función `show_snapshot_hold()` para mostrar snapshot con control manual
   - Sistema de galería organizado por proyecto con `save_snapshot_to_gallery()`
   - Funciones de proyecto: `get_project_info()`, `get_next_gallery_number()`
@@ -60,7 +62,7 @@ Sistema de botones personalizados para el viewer de Nuke que permite tomar snaps
 ### Verificaciones de Seguridad
 - **Viewer activo**: Verifica que hay un viewer disponible
 - **Nodo válido**: Para `take_snapshot()` confirma que hay un nodo conectado al viewer
-- **Canales válidos**: Verifica que el nodo tiene canales de color (RGB/RGBA) ANTES de cualquier procesamiento
+- **Canales válidos**: Sólo en el motor Write. Verifica que el nodo tiene canales de color (RGB/RGBA) ANTES de cualquier procesamiento. El motor por defecto no renderiza nada, así que no aplica
 - **Permisos de archivo**: Confirma acceso a carpeta temporal para guardar snapshots
 - **Flexibilidad**: `show_snapshot_hold()` funciona con o sin nodo conectado al viewer
 
@@ -115,12 +117,63 @@ Sistema de botones personalizados para el viewer de Nuke que permite tomar snaps
   - Soporte para múltiples formatos de imagen
   - Mensajes informativos para estados vacíos
 
+## Motores de captura
+
+La tool tiene dos motores. El que corre por defecto es el de `capture()`; el del
+Write se mantiene porque es el único que da resolución completa del proyecto, y
+se llega a él con **Ctrl+Click en el botón del viewer**. No se anuncia en
+tooltips ni en el README.
+
+No tiene atajo de teclado, y no por olvido: en Nuke un shortcut necesita un ítem
+de menú, y esconder ese ítem con `MenuItem.setVisible(False)` le da de baja la
+acción de Qt y con ella el shortcut. No se puede tener escondido y con atajo a
+la vez.
+
+| | `_snapshot_con_capture()` | `_snapshot_con_write()` |
+|---|---|---|
+| Resolución | la del viewport, según el zoom | la del formato del proyecto |
+| Look | con viewerProcess, gain y gamma del viewer | el que dé el Write |
+| Encuadre | lo que se está viendo | la imagen entera |
+| Costo | una llamada, sin nodos ni callbacks | crea y borra un Write, dispara render |
+
+### `_snapshot_con_capture(output_path, view_node, input_node)`
+Llama a `view_node.capture(path)`, que escribe el framebuffer del viewer sin
+renderizar nada. Es lo mismo que hace el botón Capture del viewer —ver
+`nukescripts/captureViewer.py` adentro de Nuke—, pero sin tocar el knob `file`
+del Viewer ni pasar por `executeMultiple`. Después le aplica el recorte.
+
+### `_snapshot_con_write(output_path, input_node)`
+El motor histórico: selecciona el nodo conectado al viewer, crea un Write
+temporal, lo ejecuta con `nuke.execute()`, lo borra y restaura la selección
+original. Silencia el wav de RenderComplete mientras dura el render.
+
+## Recorte del viewport
+
+`capture()` devuelve el viewport entero, así que cuando la imagen no lo llena
+quedan bandas de fondo alrededor. `_rect_visible()` las mide y las recorta eje
+por eje: si sobra vacío arriba y abajo se recorta en Y, y si a los costados la
+imagen desborda no se toca X. No hace falta saber si el usuario quiso ver la
+imagen entera o está zoomeando; se recorta el vacío que sobre.
+
+La medición se valida sola, porque el zoom del viewer es un solo número para
+los dos ejes: con banda en los dos, el zoom deducido de cada uno tiene que
+coincidir; con banda en uno solo, ese zoom tiene que predecir que el otro eje
+desborda el viewport. Cuando no cierra —un plate con letterbox quemado, un
+fundido a negro—, no se recorta nada.
+
+Hay dos cortes antes de eso. `_parece_uniforme()` mira una grilla rala y sale
+sin recortar si todo el viewport es de un color, lo que además evita que el
+escaneo fino recorra a mano el 45% de cada borde. Y si alguna banda llega al
+tope de `CROP_LIMITE`, la medición se descarta: no se encontró el borde de la
+imagen, se frenó el escaneo.
+
 ## Funciones Principales
 
-### `take_snapshot(save_to_gallery=False)`
-- **Verificaciones iniciales**: Viewer activo, nodo conectado, canales válidos (ANTES de RenderComplete)
+### `take_snapshot(save_to_gallery=False, use_write=False)`
+- **Verificaciones iniciales**: Viewer activo y nodo conectado
 - **Numeración única**: Genera snapshots con nombres `LGA_snapshot_N.jpg` donde N es ascendente
-- **Proceso**: Crea nodo Write temporal, ejecuta render, guarda en carpeta temporal
+- **Proceso**: Despacha a uno de los dos motores (ver "Motores de captura") y después hace lo mismo en los dos casos: portapapeles, galería y limpieza
+- **Motor**: `use_write=False` (por defecto) captura el viewport; `use_write=True` renderiza con un Write temporal
 - **Galería por defecto**: Si `save_to_gallery=True` (comportamiento por defecto), guarda copia en `snapshot_gallery/proyecto/`
 - **Organización por proyecto**: Crea subcarpetas basadas en nombre del proyecto sin versión
 - **Numeración secuencial**: Archivos en galería usan formato `proyecto_vXX_N.jpg`

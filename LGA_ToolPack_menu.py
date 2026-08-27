@@ -526,6 +526,12 @@ if is_enabled("Snapshot_Tools"):
         icon=icon_VA,
     )
 
+    # El motor viejo (el del Write, a resolucion completa) no tiene atajo a
+    # proposito: se llega con Ctrl+Click en el boton del viewer. En Nuke un
+    # shortcut necesita un item de menu, y un item escondido con setVisible
+    # pierde el shortcut —Qt le da de baja la accion—, asi que no hay forma de
+    # tenerlo con atajo y escondido a la vez. Se eligio escondido.
+
 # Variables para el estado del F9 hold global
 _f9_menu_pressed = False
 _f9_menu_timer = None
@@ -572,9 +578,15 @@ def menu_f9_release():
         _f9_menu_timer.stop()
         _f9_menu_timer = None
 
+
+if is_enabled("Snapshot_Tools"):
+    # Este addCommand estaba indentado adentro de menu_f9_release(), asi que no
+    # se ejecutaba nunca y el atajo F9 no llegaba a registrarse. Ademas el
+    # comando iba como string, que se evalua en __main__ y aca no existe: va la
+    # referencia a la funcion, como el resto de los comandos del archivo.
     n.addCommand(
         "  Show Snapshot (Hold)",
-        "menu_f9_hold()",
+        menu_f9_hold,
         "F9",
         shortcutContext=2,
         icon=icon_VA,

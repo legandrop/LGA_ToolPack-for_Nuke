@@ -1,8 +1,28 @@
 """
 ______________________________________________________________________________
 
-  LGA_viewer_SnapShot v0.65 - Lega
-  Crea un snapshot de la imagen actual del viewer y lo copia al portapapeles
+  LGA_viewer_SnapShot v1.02 | Lega
+
+  Crea un snapshot de lo que se ve en el viewer, lo copia al portapapeles y
+  puede guardarlo en la galeria del proyecto.
+
+  Modulos de esta tool (todos van con la misma version):
+    LGA_viewer_SnapShot.py          <- este, el principal
+    LGA_viewer_SnapShot_Buttons.py
+    LGA_viewer_SnapShot_Gallery.py
+
+  Donde mas se ve esta version, y hay que moverla junto con el header:
+    - El titulo de la seccion "Take/Show Snapshot" del README.md, que es a mano.
+
+  v1.02: El snapshot pasa a tomarse con view_node.capture(), que devuelve el
+         framebuffer del viewer: sale con el viewerProcess, el gain y el gamma
+         aplicados, y respetando el encuadre que tenga el usuario. Antes se
+         renderizaba un Write temporal, que salia lineal y siempre con la
+         imagen entera. Como capture() entrega el viewport completo, se le
+         miden las bandas de fondo y se recortan borde por borde. El motor
+         viejo queda accesible con Ctrl, porque es el unico que da resolucion
+         completa del proyecto. Los tres modulos venian con versiones
+         distintas (0.65 / 1.01 / 0.56) y se unifican aca.
 ______________________________________________________________________________
 
 """
@@ -420,17 +440,256 @@ def get_viewer_info_for_show():
     return viewer, view_node, input_index, input_node
 
 
-def take_snapshot(save_to_gallery=False):
-    # --- Comprobaciones iniciales del viewer de Nuke ---
-    viewer_info = get_viewer_info()
-    if viewer_info is None:
-        nuke.message(
-            "No hay viewer activo o nodo conectado. Por favor, conecta un nodo al viewer antes de tomar un snapshot."
+# ---------------------------------------------------------------------------
+# Motor de captura del viewer
+#
+# view_node.capture(path) escribe el framebuffer del viewport tal como se ve:
+# con el viewerProcess, el gain, el gamma y el encuadre que tenga puesto el
+# usuario, y sin renderizar nada. Es lo mismo que hace el boton Capture del
+# viewer (ver nukescripts/captureViewer.py adentro de Nuke), pero sin tocar el
+# knob 'file' del Viewer ni pasar por executeMultiple: medido, da un archivo
+# identico byte a byte y tarda cinco veces menos.
+#
+# Lo que devuelve es el VIEWPORT entero, asi que cuando la imagen no lo llena
+# quedan bandas de fondo alrededor. Esas bandas se miden y se recortan borde
+# por borde. La regla es una sola y no hay que adivinar si el usuario quiso ver
+# la imagen entera o esta zoomeando: se recorta el vacio que sobre en cada eje.
+# En fit sobra y se recorta; zoomeado no sobra y queda el viewport, que es
+# justo lo que se esta viendo.
+# ---------------------------------------------------------------------------
+
+# Cuanto puede desviarse un canal y seguir contando como fondo.
+CROP_TOLERANCIA = 3
+# Menos de esto es el redondeo del viewer, no una banda de fondo.
+CROP_UMBRAL_BANDA = 3
+# Se mira un pixel cada N a lo largo de la linea.
+CROP_PASO = 4
+# Una banda no puede pasar de esta fraccion de la dimension.
+CROP_LIMITE = 0.45
+# Diferencia admitida entre el zoom deducido en X y el deducido en Y.
+CROP_TOL_ZOOM = 0.02
+
+
+def _rgb(pixel):
+    return ((pixel >> 16) & 255, (pixel >> 8) & 255, pixel & 255)
+
+
+def _mismo_color(a, b):
+    return (
+        abs(a[0] - b[0]) <= CROP_TOLERANCIA
+        and abs(a[1] - b[1]) <= CROP_TOLERANCIA
+        and abs(a[2] - b[2]) <= CROP_TOLERANCIA
+    )
+
+
+def _parece_uniforme(qimage, muestras=24):
+    """
+    Mira una grilla rala: si TODO el viewport es del color del borde, no hay
+    imagen que medir.
+
+    Sirve para dos cosas. Una, evitar el recorte absurdo de un frame plano
+    —fundido a negro, un Constant, el viewer todavia sin renderizar—. La otra
+    es de velocidad: sin este corte, un viewport 4K uniforme obliga al escaneo
+    fino a recorrer el 45% de cada borde a mano, medido casi dos segundos con
+    la UI congelada.
+    """
+    ancho, alto = qimage.width(), qimage.height()
+    fondo = _rgb(qimage.pixel(0, 0))
+    for i in range(muestras):
+        x = int(i * (ancho - 1) / float(muestras - 1)) if muestras > 1 else 0
+        for j in range(muestras):
+            y = int(j * (alto - 1) / float(muestras - 1)) if muestras > 1 else 0
+            if not _mismo_color(_rgb(qimage.pixel(x, y)), fondo):
+                return False
+    return True
+
+
+def _medir_bandas(qimage):
+    """Cuenta las filas y columnas de fondo uniforme pegadas a cada borde."""
+    ancho, alto = qimage.width(), qimage.height()
+    fondo = _rgb(qimage.pixel(0, 0))
+
+    def fila_es_fondo(y):
+        for x in range(0, ancho, CROP_PASO):
+            if not _mismo_color(_rgb(qimage.pixel(x, y)), fondo):
+                return False
+        return True
+
+    def columna_es_fondo(x):
+        for y in range(0, alto, CROP_PASO):
+            if not _mismo_color(_rgb(qimage.pixel(x, y)), fondo):
+                return False
+        return True
+
+    tope_vertical = int(alto * CROP_LIMITE)
+    tope_horizontal = int(ancho * CROP_LIMITE)
+    arriba = abajo = izquierda = derecha = 0
+    while arriba < tope_vertical and fila_es_fondo(arriba):
+        arriba += 1
+    while abajo < tope_vertical and fila_es_fondo(alto - 1 - abajo):
+        abajo += 1
+    while izquierda < tope_horizontal and columna_es_fondo(izquierda):
+        izquierda += 1
+    while derecha < tope_horizontal and columna_es_fondo(ancho - 1 - derecha):
+        derecha += 1
+    return arriba, abajo, izquierda, derecha
+
+
+def _rect_visible(qimage, format_w, format_h, pixel_aspect):
+    """
+    Devuelve el (x, y, ancho, alto) de la imagen adentro del viewport.
+
+    La medicion se valida sola, porque el zoom del viewer es UN solo numero
+    para los dos ejes: si hay banda en los dos, el zoom deducido de cada uno
+    tiene que dar igual; y si hay banda en uno solo, ese zoom tiene que
+    predecir que el otro eje desborda el viewport, que es por lo que ese otro
+    eje no tiene banda.
+
+    Cuando la cuenta no cierra, lo que se midio como vacio era negro del propio
+    material —un plate con letterbox quemado, un fundido a negro— y entonces no
+    se recorta nada, que es el resultado seguro: deja algo de fondo de mas, en
+    vez de comerse media imagen.
+    """
+    ancho, alto = qimage.width(), qimage.height()
+    viewport_entero = (0, 0, ancho, alto)
+
+    if _parece_uniforme(qimage):
+        debug_print("El viewport es de un solo color: no se recorta nada")
+        return viewport_entero
+
+    arriba, abajo, izquierda, derecha = _medir_bandas(qimage)
+    debug_print(
+        f"Bandas de fondo -> arriba {arriba}, abajo {abajo}, "
+        f"izq {izquierda}, der {derecha}"
+    )
+
+    # Si una banda llego al tope, no se encontro el borde de la imagen: se
+    # freno el escaneo. Recortar con esa medida da un recorte inventado, y
+    # ademas puede pasar la validacion de zoom de casualidad cuando el
+    # viewport y el material tienen el mismo aspecto, porque los dos ejes se
+    # cortan en la misma proporcion.
+    tope_vertical = int(alto * CROP_LIMITE)
+    tope_horizontal = int(ancho * CROP_LIMITE)
+    if (
+        arriba >= tope_vertical
+        or abajo >= tope_vertical
+        or izquierda >= tope_horizontal
+        or derecha >= tope_horizontal
+    ):
+        debug_print("Una banda llego al tope: la medicion no sirve, no se recorta")
+        return viewport_entero
+    hay_banda_vertical = arriba >= CROP_UMBRAL_BANDA and abajo >= CROP_UMBRAL_BANDA
+    hay_banda_horizontal = (
+        izquierda >= CROP_UMBRAL_BANDA and derecha >= CROP_UMBRAL_BANDA
+    )
+    if not hay_banda_vertical and not hay_banda_horizontal:
+        debug_print("La imagen desborda el viewport, no se recorta nada")
+        return viewport_entero
+
+    x = izquierda if hay_banda_horizontal else 0
+    y = arriba if hay_banda_vertical else 0
+    rect_ancho = (ancho - izquierda - derecha) if hay_banda_horizontal else ancho
+    rect_alto = (alto - arriba - abajo) if hay_banda_vertical else alto
+
+    if not format_w or not format_h:
+        debug_print("Sin formato del input: se recorta sin poder validar")
+        return (x, y, rect_ancho, rect_alto)
+
+    # Un PAR en cero o negativo es un dato corrupto y dividiria por cero. Se
+    # asume 1.0, que es lo que tiene casi todo, en vez de saltear la validacion.
+    if not pixel_aspect or pixel_aspect <= 0:
+        debug_print(f"PAR invalido ({pixel_aspect}), se asume 1.0")
+        pixel_aspect = 1.0
+
+    zoom_x = rect_ancho / float(format_w * pixel_aspect) if hay_banda_horizontal else None
+    zoom_y = rect_alto / float(format_h) if hay_banda_vertical else None
+
+    if zoom_x is not None and zoom_y is not None:
+        diferencia = abs(zoom_x - zoom_y) / max(zoom_x, zoom_y)
+        debug_print(
+            f"zoom_x {zoom_x:.4f} / zoom_y {zoom_y:.4f} -> difieren {diferencia:.2%}"
         )
-        return
+        if diferencia > CROP_TOL_ZOOM:
+            debug_print("Los dos ejes no dan el mismo zoom: no se recorta")
+            return viewport_entero
+    else:
+        zoom = zoom_x if zoom_x is not None else zoom_y
+        if zoom_x is not None:
+            previsto, real, eje = format_h * zoom, alto, "alto"
+        else:
+            previsto, real, eje = format_w * pixel_aspect * zoom, ancho, "ancho"
+        debug_print(f"zoom {zoom:.4f} -> el {eje} daria {previsto:.0f} de {real}")
+        if previsto < real - 2:
+            debug_print("Ese eje deberia tener banda y no la tiene: no se recorta")
+            return viewport_entero
 
-    viewer, view_node, input_index, input_node = viewer_info
+    return (x, y, rect_ancho, rect_alto)
 
+
+def _snapshot_con_capture(output_path, view_node, input_node):
+    """
+    Motor nuevo: le pide al viewer su propio framebuffer y le saca el vacio.
+
+    Sale a la resolucion del viewport y con el look del viewer. No crea nodos,
+    no toca la seleccion y no dispara ningun callback de render.
+    """
+    safe_path = output_path.replace("\\", "/")
+    try:
+        view_node.capture(safe_path)
+    except Exception as e:
+        error_msg = f"Error al capturar el viewer: {str(e)}"
+        debug_print(f"ERROR: {error_msg}")
+        nuke.message(error_msg)
+        return False
+
+    if not os.path.exists(output_path):
+        nuke.message(
+            "Error: el archivo del snapshot no se generó. Por favor, verifica los permisos o la ruta temporal."
+        )
+        return False
+
+    qimage = QImage(output_path)
+    if qimage.isNull():
+        nuke.message(
+            "Error al leer el snapshot generado. El archivo de imagen temporal está vacío o corrupto."
+        )
+        return False
+
+    format_w = format_h = None
+    pixel_aspect = 1.0
+    try:
+        formato = input_node.format()
+        format_w, format_h = formato.width(), formato.height()
+        pixel_aspect = formato.pixelAspect()
+        debug_print(f"Formato del input: {format_w}x{format_h} PAR {pixel_aspect}")
+    except Exception as e:
+        debug_print(f"No se pudo leer el formato de {input_node.name()}: {e}")
+
+    x, y, ancho, alto = _rect_visible(qimage, format_w, format_h, pixel_aspect)
+    if (ancho, alto) == (qimage.width(), qimage.height()):
+        debug_print(f"Snapshot sin recorte: {ancho} x {alto}")
+        return True
+
+    # Se pisa el mismo archivo con el recorte. Es una segunda pasada de JPEG
+    # sobre lo que capture() ya escribio en JPEG, pero a calidad 95 no se nota,
+    # y evita el PNG intermedio, que medido tarda veinte veces mas.
+    recorte = qimage.copy(x, y, ancho, alto)
+    if not recorte.save(safe_path, "JPEG", 95):
+        nuke.message("Error al guardar el snapshot recortado.")
+        return False
+
+    debug_print(f"Snapshot recortado a {ancho} x {alto} desde ({x}, {y})")
+    return True
+
+
+def _snapshot_con_write(output_path, input_node):
+    """
+    Motor viejo, escondido detras de Ctrl y sin documentar en los tooltips.
+
+    Renderiza con un Write temporal el nodo conectado al viewer. Es mas lento y
+    no respeta el encuadre, pero sale a la resolucion completa del proyecto, y
+    por eso se mantiene.
+    """
     # CRÍTICO: Verificar que el nodo tiene canales válidos ANTES de cualquier procesamiento
     try:
         # Obtener los canales del nodo conectado al viewer
@@ -441,7 +700,7 @@ def take_snapshot(save_to_gallery=False):
             error_msg = f"El nodo {input_node.name()} no tiene canales válidos para generar snapshot"
             debug_print(f"ERROR: {error_msg}")
             nuke.message(error_msg)
-            return
+            return False
 
         # Verificar que hay al menos un canal de color (rgba, rgb, etc.)
         color_channels = [
@@ -456,7 +715,7 @@ def take_snapshot(save_to_gallery=False):
             error_msg = f"El nodo {input_node.name()} no tiene canales de color válidos (RGB/RGBA) para generar snapshot"
             debug_print(f"ERROR: {error_msg}")
             nuke.message(error_msg)
-            return
+            return False
 
         debug_print(f"✅ Canales de color válidos encontrados: {color_channels}")
 
@@ -464,7 +723,7 @@ def take_snapshot(save_to_gallery=False):
         error_msg = f"Error al verificar canales del nodo {input_node.name()}: {str(e)}"
         debug_print(f"ERROR: {error_msg}")
         nuke.message(error_msg)
-        return
+        return False
 
     # --- Una vez que las comprobaciones iniciales son satisfactorias, proceder con la lógica RenderComplete ---
     render_complete_active = check_render_complete_module()
@@ -475,11 +734,6 @@ def take_snapshot(save_to_gallery=False):
         original_wav_path = set_silence_wav_temporarily()
 
     try:
-        # Obtener el siguiente numero para el snapshot
-        snapshot_number = get_next_snapshot_number()
-        temp_dir = tempfile.gettempdir()
-        output_path = os.path.join(temp_dir, f"LGA_snapshot_{snapshot_number}.jpg")
-
         frame = int(nuke.frame())
 
         # Obtener la posicion del nodo de entrada
@@ -532,7 +786,7 @@ def take_snapshot(save_to_gallery=False):
                     nuke.delete(write_node)
 
                 nuke.message(error_msg)
-                return
+                return False
             finally:
                 # Asegurar que el nodo Write se elimine incluso si hay error
                 if nuke.exists(write_node.name()):
@@ -554,46 +808,81 @@ def take_snapshot(save_to_gallery=False):
             nuke.message(
                 "Error: el archivo del snapshot no se generó. Por favor, verifica los permisos o la ruta temporal."
             )
-            return
+            return False
 
-        # Cargar el JPEG como QImage
-        qimage = QtGui.QImage(output_path)
-        if qimage.isNull():
-            nuke.message(
-                "Error al leer el snapshot generado. El archivo de imagen temporal está vacío o corrupto."
-            )
-            return
-
-        debug_print("Snapshot size:", qimage.width(), "×", qimage.height())
-
-        # Copiar al portapapeles
-        app = QApplication.instance()
-        if not app:
-            app = QApplication([])
-
-        clipboard = app.clipboard()
-        clipboard.setImage(qimage)
-
-        debug_print("✅ Imagen copiada al portapapeles.")
-
-        # Si se presiono Shift, guardar en la galeria
-        if save_to_gallery:
-            gallery_path = save_snapshot_to_gallery(output_path)
-            if gallery_path:
-                print(f"✅ Snapshot guardado en galeria con Shift")
-            else:
-                print(f"❌ Error al guardar en galeria")
-
-        # Limpiar snapshots antiguos después del guardado exitoso
-        cleanup_old_snapshots(snapshot_number)
-
-        # NO eliminar el archivo temporal - lo necesitamos para show_snapshot()
-        debug_print(f"Archivo temporal mantenido para show_snapshot: {output_path}")
+        return True
 
     finally:
         # Restaurar el wav original si se cambio temporalmente
         if render_complete_active and original_wav_path:
             restore_original_wav(original_wav_path)
+
+
+def take_snapshot(save_to_gallery=False, use_write=False):
+    """
+    Toma el snapshot, lo copia al portapapeles y, si se pide, lo guarda en la
+    galeria del proyecto.
+
+    use_write=True usa el motor viejo, el del Write temporal: resolucion
+    completa del proyecto en vez de la del viewport. Va escondido detras de
+    Ctrl y no se documenta en los tooltips.
+    """
+    # --- Comprobaciones iniciales del viewer de Nuke ---
+    viewer_info = get_viewer_info()
+    if viewer_info is None:
+        nuke.message(
+            "No hay viewer activo o nodo conectado. Por favor, conecta un nodo al viewer antes de tomar un snapshot."
+        )
+        return
+
+    viewer, view_node, input_index, input_node = viewer_info
+
+    # Obtener el siguiente numero para el snapshot
+    snapshot_number = get_next_snapshot_number()
+    temp_dir = tempfile.gettempdir()
+    output_path = os.path.join(temp_dir, f"LGA_snapshot_{snapshot_number}.jpg")
+    debug_print(f"Motor: {'write' if use_write else 'capture'} -> {output_path}")
+
+    if use_write:
+        generado = _snapshot_con_write(output_path, input_node)
+    else:
+        generado = _snapshot_con_capture(output_path, view_node, input_node)
+    if not generado:
+        return
+
+    # Cargar el JPEG como QImage
+    qimage = QImage(output_path)
+    if qimage.isNull():
+        nuke.message(
+            "Error al leer el snapshot generado. El archivo de imagen temporal está vacío o corrupto."
+        )
+        return
+
+    debug_print("Snapshot size:", qimage.width(), "×", qimage.height())
+
+    # Copiar al portapapeles
+    app = QApplication.instance()
+    if not app:
+        app = QApplication([])
+
+    clipboard = app.clipboard()
+    clipboard.setImage(qimage)
+
+    debug_print("✅ Imagen copiada al portapapeles.")
+
+    # Si se presiono Shift, guardar en la galeria
+    if save_to_gallery:
+        gallery_path = save_snapshot_to_gallery(output_path)
+        if gallery_path:
+            print(f"✅ Snapshot guardado en galeria con Shift")
+        else:
+            print(f"❌ Error al guardar en galeria")
+
+    # Limpiar snapshots antiguos después del guardado exitoso
+    cleanup_old_snapshots(snapshot_number)
+
+    # NO eliminar el archivo temporal - lo necesitamos para show_snapshot()
+    debug_print(f"Archivo temporal mantenido para show_snapshot: {output_path}")
 
 
 def show_snapshot_hold(start):

@@ -415,9 +415,9 @@ Cambia el viewer a Rec709.
 
 
 
-## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.01 | Lega</strong>
+## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.02 | Lega</strong>
 
-Take: Toma un snapshot (jpg), lo guarda en la carpeta de archivos temporales, y también lo guarda en una galería.<br>
+Take: Toma un snapshot (jpg) de lo que se ve en el viewer —con el viewerProcess, el gain y el gamma aplicados, y respetando el encuadre—, lo copia al portapapeles, lo guarda en la carpeta de archivos temporales y también en una galería.<br>
 Show: Muestra el último snapshot tomado, el de la carpeta de archivos temporales.<br>
 Además de los shortcuts en el menú, también se agregan estos botones al viewer:<br>
 ![](Doc_Media/image9.png)

@@ -1,13 +1,16 @@
 """
 ______________________________________________________
 
-  LGA_viewer_SnapShot_Buttons v1.01 | Lega
+  LGA_viewer_SnapShot_Buttons v1.02 | Lega
 
   Crea botones en el viewer para snapshots
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - El titulo de la seccion "Take/Show Snapshot" del README.md, a mano.
 
+  v1.02: El boton de tomar snapshot detecta Ctrl y en ese caso usa el motor
+         viejo, el del Write temporal. Va escondido a proposito: no se nombra
+         en el tooltip. Sin Ctrl usa capture(), que toma lo que se ve.
   v1.01: Se deja de barrer QApplication.allWidgets() a pelo. Los wrappers
          de widgets ya destruidos en C++ hacian crashear a Nuke con heap
          corruption. Ahora se itera con iter_live_widgets() y se leen los
@@ -106,10 +109,13 @@ def launch(_retry=0):
         def take_snapshot(self):
             """Ejecuta la funcion take_snapshot del script LGA_viewer_SnapShot.py"""
             try:
-                # Detectar si se presiono Shift
+                # Detectar si se presiono Shift, y si se presiono Ctrl
                 app = QApplication.instance()
                 modifiers = app.keyboardModifiers()
                 shift_pressed = modifiers & QtCore.Qt.ShiftModifier
+                # Ctrl es el atajo escondido del motor viejo: no se documenta
+                # en el tooltip a proposito.
+                ctrl_pressed = modifiers & QtCore.Qt.ControlModifier
 
                 # Importar y ejecutar el script de snapshot
                 script_path = os.path.join(
@@ -127,7 +133,10 @@ def launch(_retry=0):
 
                         # Llamar a la funcion take_snapshot del script con el parametro shift invertido
                         # Sin shift = guarda en galeria, Con shift = NO guarda en galeria
-                        module.take_snapshot(save_to_gallery=not shift_pressed)
+                        module.take_snapshot(
+                            save_to_gallery=not shift_pressed,
+                            use_write=bool(ctrl_pressed),
+                        )
                     else:
                         nuke.message("Error: No se pudo cargar el modulo de SnapShot")
                 else:
