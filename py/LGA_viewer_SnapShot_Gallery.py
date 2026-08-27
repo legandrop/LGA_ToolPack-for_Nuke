@@ -1213,7 +1213,7 @@ def buscar_ventana_existente(nombre_objeto):
     Devuelve la ventana si existe y esta visible, None en caso contrario.
     """
     # iter_live_widgets descarta los wrappers de widgets ya destruidos en C++:
-    # tocarles el objectName lee memoria liberada y tumba el proceso.
+    # el barrido en si es lo que corrompe el heap y tumba el proceso.
     for widget in iter_live_widgets():
         if (
             isinstance(widget, QWidget)

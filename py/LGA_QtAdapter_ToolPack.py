@@ -68,7 +68,7 @@ def set_layout_margin(layout: QtWidgets.QLayout, margin: int) -> None:
 # QApplication.allWidgets() devuelve wrappers Python de TODOS los widgets del
 # proceso, incluidos los que Qt ya destruyo del lado C++ y los que estan
 # encolados por deleteLater(). Tocar uno de esos (windowTitle(), objectName(),
-# toolTip()) lee memoria liberada: en Windows aparece como heap corruption
+# toolTip()) puede tocar un wrapper ya invalidado: en Windows la llamada
 # (0xc0000374) al abrir un script, o como access violation dentro de
 # QWidget::~QWidget en cualquier garbage collect posterior. Antes de tocar un
 # widget ajeno hay que preguntarle a shiboken si el objeto C++ sigue existiendo.
@@ -116,6 +116,21 @@ def safe_widget_call(widget, method_name: str, default=None):
     except Exception:
         return default
 
+
+
+def widget_property(widget, name, default=""):
+    """
+    Lee una propiedad dinamica de un widget ajeno revalidando antes el objeto
+    C++. safe_widget_call solo cubre metodos sin argumentos, y property() lleva
+    uno.
+    """
+    if not is_widget_alive(widget):
+        return default
+    try:
+        value = widget.property(name)
+    except Exception:
+        return default
+    return default if value is None else str(value)
 
 def iter_live_widgets(only_top_level: bool = False):
     """
@@ -186,6 +201,7 @@ __all__ = [
     "set_layout_margin",
     "is_widget_alive",
     "safe_widget_call",
+    "widget_property",
     "iter_live_widgets",
     "iter_live_children",
 ]

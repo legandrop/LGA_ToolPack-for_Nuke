@@ -2,6 +2,8 @@
 
 ## v2.64
 
+- **La explicacion del fix anterior estaba mal.** Los comentarios decian que leerle `objectName()` a un widget ya destruido lee memoria liberada y que el `try/except` de Python no lo atrapa. Se verifico contra la PySide6 de Nuke 17 que no es asi: shiboken invalida el wrapper y levanta un `RuntimeError` limpio. Lo que corrompe el heap es la llamada a `allWidgets()` en si, que es justamente por lo que no alcanzaba con envolverla en guardas. Se corrigen los comentarios para no dejar instalado el modelo mental equivocado. El adapter suma ademas `widget_property()`, porque `safe_widget_call` solo cubre metodos sin argumentos. [ ToolPack - Corregir la explicacion del fix de allWidgets ]
+
 - **Nuke se cerraba entero al abrir un script.** `Take/Show Snapshot` llamaba a `QApplication.allWidgets()` para encontrar el viewer. Esa llamada materializa de golpe un wrapper de PySide por cada widget del proceso, y al dispararse desde el `addOnCreate` del Viewer cae justo mientras Nuke esta creando y destruyendo widgets: corrompe el heap y el proceso muere con `0xc0000374`. Pasa igual en Nuke 15 con Qt5 y en 16/17 con Qt6.
 
   El adapter suma cuatro helpers —`is_widget_alive`, `safe_widget_call`, `iter_live_widgets` e `iter_live_children`—. `iter_live_widgets` no envuelve a `allWidgets()`: baja desde `topLevelWidgets()`, porque todo widget o es top level o desciende de uno. Mismo conjunto, armado de a poco y validando con shiboken. Ademas el timer que espera al viewer reintentaba cada 500 ms para siempre: ahora corta a los 20 intentos. [ TakeShowSnapshot - Dejar de llamar allWidgets al buscar el viewer ]
