@@ -1,10 +1,16 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.43 | Lega
+  LGA_MediaManager_FileScanner v2.44 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.44: Los QMessageBox estaticos (confirmaciones, avisos y resumenes
+         de tanda) pasan al helper LGA_UI_MessageBox_ToolPack:
+         show_info/show_warning, ask_question para las preguntas y
+         styled_message_box para la caja de overwrite con botones
+         custom. Limitacion conocida: el helper estila con el tema
+         base del pack, no con el tema elegido en el Media Manager.
   v2.43: Suma on_scan_failed: el cartel de que el escaneo se corto por
          un error, con el detalle y la referencia al log.
   v2.42: Sin cambios propios: acompana la version de la tool, que
@@ -308,6 +314,16 @@ QThreadPool = QtCore.QThreadPool
 from LGA_MediaManager_logging import configure_logger, debug_print
 from LGA_UI_Style_ToolPack import Color, Metric, Style
 import LGA_UI_Style_ToolPack as UIStyle
+
+# Carteles estandar del pack. Limitacion conocida: el helper estila con el
+# tema BASE del pack; si el usuario eligio otro tema del Media Manager, los
+# carteles salen igual en tema base.
+from LGA_UI_MessageBox_ToolPack import (
+    show_info,
+    show_warning,
+    ask_question,
+    styled_message_box,
+)
 
 
 def _is_inside(hijo, padre):
@@ -3257,14 +3273,14 @@ class FileScanner(QWidget):
             return
 
         if len(carpetas) > self.REVEAL_MAX_FOLDERS:
-            respuesta = QMessageBox.question(
+            # recommended=False: el original tenia No como default, asi que
+            # el cartel no empuja el Yes (Enter no abre veinte exploradores)
+            if not ask_question(
                 self,
                 "Reveal",
                 "This will open %d explorer windows. Continue?" % len(carpetas),
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            if respuesta != QMessageBox.Yes:
+                recommended=False,
+            ):
                 return
 
         for carpeta in carpetas:
@@ -3373,7 +3389,7 @@ class FileScanner(QWidget):
                 % (len(sin_nodo), "\n".join(sin_nodo[:12]))
             )
         if partes:
-            QMessageBox.information(self, "Relink", "\n\n".join(partes))
+            show_info(self, "Relink", "\n\n".join(partes))
 
     def build_search_patterns(self, file_name):
         """
@@ -3915,7 +3931,11 @@ class FileScanner(QWidget):
         # Esta función ahora solo configura el worker y lo inicia
         project_path = nuke.root().name()
         if not project_path:
-            nuke.message("Please save the script before running this tool.")
+            texto = "Please save the script before running this tool."
+            try:
+                show_warning(None, "Media Manager", texto)
+            except Exception:
+                nuke.message(texto)
             return
 
         # La carpeta del shot y las carpetas a escanear las resuelve el
@@ -3959,7 +3979,7 @@ class FileScanner(QWidget):
         ver que fallo.
         """
         debug_print("El escaneo fallo: %s" % detalle)
-        QMessageBox.warning(
+        show_warning(
             self,
             "Scan failed",
             "The scan stopped because of an error, so the list is "
@@ -4581,9 +4601,7 @@ class FileScanner(QWidget):
         # que mandar a la papelera. Se corta la operacion entera y no solo esa
         # fila, para no borrar la mitad de lo que el usuario pidio.
         if any(self.row_status(fila) == "Offline" for fila in filas):
-            QMessageBox.warning(
-                self, "Cannot Delete", "Cannot delete an offline file."
-            )
+            show_warning(self, "Cannot Delete", "Cannot delete an offline file.")
             return
 
         # El plan: de cada fila salen sus archivos REALES, y de las carpetas
@@ -4642,15 +4660,15 @@ class FileScanner(QWidget):
                 len(en_uso),
                 "is" if len(en_uso) == 1 else "are",
             )
-        respuesta = QMessageBox.question(
+        # recommended=False: el original tenia No como default; un cartel de
+        # borrado no debe empujar el Yes con Enter
+        if not ask_question(
             self,
             "Confirm delete",
             "Send %d file(s) to the trash?\n%d row(s) selected.%s"
             % (total, len(filas), aviso),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if respuesta != QMessageBox.Yes:
+            recommended=False,
+        ):
             return
 
         # Las carpetas van al final: si se borrara la carpeta primero, los
@@ -4695,7 +4713,7 @@ class FileScanner(QWidget):
         self.update_status_counts()
         self.update_button_states()
         if errores or cancelado:
-            QMessageBox.information(
+            show_info(
                 self,
                 "Delete",
                 self._resumen_tanda(
@@ -4728,7 +4746,7 @@ class FileScanner(QWidget):
         # del shot algo que esta afuera, y copiar de nuevo algo que ya esta
         # adentro no significa nada.
         if any(self.row_status(fila) != "Outside" for fila in filas):
-            QMessageBox.warning(
+            show_warning(
                 self,
                 "Copy Not Allowed",
                 "The copy operation is limited to 'Outside' files",
@@ -4741,7 +4759,7 @@ class FileScanner(QWidget):
         resultado = mm_paths.resolve(location.get("path", ""), self.nk_dir())
         etiqueta = location.get("name") or location.get("path", "")
         if len(resultado.folders) > 1:
-            QMessageBox.warning(
+            show_warning(
                 self,
                 "Copy Not Allowed",
                 '"%s" matches %d folders, so there is no single '
@@ -4750,7 +4768,7 @@ class FileScanner(QWidget):
             )
             return
         if not resultado.folders:
-            QMessageBox.warning(
+            show_warning(
                 self,
                 "Copy Not Allowed",
                 '"%s" does not match any existing folder.' % etiqueta,
@@ -4769,7 +4787,7 @@ class FileScanner(QWidget):
             detalle = "\n".join(
                 "%s\n%s\n  -> %s" % (a, b, d) for a, b, d in colisiones[:5]
             )
-            QMessageBox.warning(
+            show_warning(
                 self,
                 "Copy Not Allowed",
                 "%d file(s) from different folders would end up at the same "
@@ -4781,12 +4799,13 @@ class FileScanner(QWidget):
         # UNA sola pregunta por tanda. Preguntando archivo por archivo, con
         # diez filas eran diez carteles seguidos.
         if conflictos:
-            caja = QMessageBox(self)
-            caja.setIcon(QMessageBox.Warning)
-            caja.setWindowTitle("Files already exist")
-            caja.setText(
+            # Cartel a medida del pack: styled_message_box estila la caja y
+            # sus botones custom (regla QMessageBox QPushButton de Style.FORM)
+            caja = styled_message_box(
+                self,
+                "Files already exist",
                 "%d of the selected files already exist in \"%s\"."
-                % (len(conflictos), etiqueta)
+                % (len(conflictos), etiqueta),
             )
             caja.setInformativeText("What do you want to do with them?")
             boton_sobre = caja.addButton("Overwrite all", QMessageBox.AcceptRole)
@@ -4901,7 +4920,7 @@ class FileScanner(QWidget):
         self.update_status_counts()
         self.update_button_states()
         if errores or cancelado:
-            QMessageBox.information(
+            show_info(
                 self,
                 "Copy to",
                 self._resumen_tanda(hechos, salteados, errores, cancelado, "copied"),

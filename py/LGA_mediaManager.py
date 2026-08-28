@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.43 | Lega
+  LGA_mediaManager v2.44 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos y borrado.
@@ -23,6 +23,10 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.44: Los carteles estandar pasan al helper
+         LGA_UI_MessageBox_ToolPack, que los estila con el tema base
+         del pack. El detalle esta en el header de
+         LGA_MediaManager_FileScanner.
   v2.43: El escaneo volvia vacio por un NameError adentro del worker
          que el except se comia. El detalle esta en el header de
          LGA_MediaManager_utils.
@@ -279,6 +283,7 @@ from LGA_MediaManager_utils import (
 )
 from LGA_MediaManager_settings import SettingsWindow
 from LGA_MediaManager_FileScanner import FileScanner
+from LGA_UI_MessageBox_ToolPack import show_warning
 
 
 def main():
@@ -287,7 +292,7 @@ def main():
 
     # Verificar si el script está guardado
     if not nuke.root().name() or nuke.root().name() == "Root":
-        QMessageBox.warning(
+        show_warning(
             None, "Warning", "Please save the Nuke script before running this tool."
         )
         return

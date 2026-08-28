@@ -1,18 +1,30 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Roto v1.14 | Lega
+  LGA_build_Roto v1.15 | Lega
 
   Crea nodos Roto, Blur y Dot conectados al input mask del nodo Merge (llamado Merge2 en Nuke) o al input 1 de cualquier otro nodo.
   Requiere que haya un nodo seleccionado para funcionar.
   Diseñado para añadir rápidamente máscaras a nodos existentes.
 
+  v1.15: El nuke.message pasa al helper LGA_UI_MessageBox_ToolPack
+         (show_warning), con fallback a nuke.message.
   v1.14 - Se agregó regla para nodo dissolve
 _____________________________________________________________________________
 
 """
 
 import nuke
+
+
+def _aviso(texto):
+    """Cartel estilado del pack; si el helper falla cae a nuke.message."""
+    try:
+        from LGA_UI_MessageBox_ToolPack import show_warning
+
+        show_warning(None, "Build Roto", texto)
+    except Exception:
+        nuke.message(texto)
 from LGA_QtAdapter_ToolPack import QtGui, QtWidgets, QtCore
 
 QCursor = QtGui.QCursor
@@ -80,7 +92,7 @@ def create_roto_chain():
     distanciaX, distanciaY, dot_width = get_common_variables()
     selected_node = get_selected_node()
     if not selected_node:
-        nuke.message("Selecciona un nodo primero")
+        _aviso("Selecciona un nodo primero")
         return
 
     for n in nuke.allNodes():

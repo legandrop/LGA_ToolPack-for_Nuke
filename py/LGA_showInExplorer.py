@@ -1,9 +1,12 @@
 """
 __________________________________________________________________________________
 
-  LGA_showInExplorer v1.0 | Lega
+  LGA_showInExplorer v1.01 | Lega
   Reveals the file location of a selected Read or Write node in Windows Explorer
   Reveals the nuke script if no node is selected
+
+  v1.01: Los nuke.message pasan al helper LGA_UI_MessageBox_ToolPack
+         (show_warning), con fallback a nuke.message.
 __________________________________________________________________________________
 
 """
@@ -11,6 +14,16 @@ ________________________________________________________________________________
 import nuke
 import sys
 import os
+
+
+def _aviso(texto):
+    """Cartel estilado del pack; si el helper falla cae a nuke.message."""
+    try:
+        from LGA_UI_MessageBox_ToolPack import show_warning
+
+        show_warning(None, "Show in Explorer", texto)
+    except Exception:
+        nuke.message(texto)
 
 
 def launch(directory):
@@ -22,7 +35,7 @@ def launch(directory):
         elif sys.platform == "darwin":
             os.system('open "' + directory + '"')
     else:
-        nuke.message("Path does not exist:\n" + directory)
+        _aviso("Path does not exist:\n" + directory)
 
 
 def main():
@@ -35,14 +48,14 @@ def main():
             folderPath = selectedNodeFilePath[: selectedNodeFilePath.rfind("/")]
             launch(folderPath)
         except ValueError:
-            nuke.message("No node selected.")
+            _aviso("No node selected.")
         except NameError:
-            nuke.message("You must select a Read node or a Write node.")
+            _aviso("You must select a Read node or a Write node.")
     else:
         # Si no hay nodos seleccionados, abre la ubicacion del proyecto .nk
         projectPath = nuke.root().name()
         if projectPath == "Root":
-            nuke.message("No project file found.")
+            _aviso("No project file found.")
         else:
             projectDirectory = os.path.dirname(projectPath)
             launch(projectDirectory)

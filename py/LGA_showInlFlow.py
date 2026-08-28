@@ -1,8 +1,13 @@
 """
 _____________________________________________________________________________________________________
 
-  LGA_showInFlow v2.51 | Lega
+  LGA_showInFlow v2.52 | Lega
   Abre la URL de la task Comp del shot, tomando la informacion del nombre del script
+
+  v2.52: El error de main() pasa al helper LGA_UI_MessageBox_ToolPack
+         (show_error) con fallback a nuke.message. El aviso de
+         credenciales de threaded_function() se queda en nuke.message:
+         corre en un hilo secundario y ahi no se puede armar un QDialog.
 _____________________________________________________________________________________________________
 """
 
@@ -410,7 +415,13 @@ def main():
     # Verificar si hubo un error devuelto por el hilo
     error_message = result_container["error"]
     if error_message:
-        nuke.message(error_message)  # Mostrar el error en el hilo principal
+        # Mostrar el error en el hilo principal, con el cartel del pack
+        try:
+            from LGA_UI_MessageBox_ToolPack import show_error
+
+            show_error(None, "Show in Flow", error_message)
+        except Exception:
+            nuke.message(error_message)
 
     # El join del comentario original ya no es necesario aquí
     # # Este join lo tuve que agregar en MAC. Volver a probar en mac y si es necesario agregarlo,

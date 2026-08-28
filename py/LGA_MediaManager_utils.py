@@ -1,11 +1,14 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.43 | Lega
+  LGA_MediaManager_utils v2.44 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.44: El warning de "script sin guardar" de main() pasa al helper
+         LGA_UI_MessageBox_ToolPack (show_warning), estilado con el
+         tema base del pack.
   v2.43: El escaneo devolvia la tabla VACIA. Adentro de run() quedo
          un `for node in read_nodes` huerfano cuando v2.40 saco el
          `read_nodes = nuke.allNodes("Read")` de arriba -que era el
@@ -196,6 +199,7 @@ QThreadPool = QtCore.QThreadPool
 from LGA_MediaManager_logging import configure_logger, debug_print, get_log_prefix
 from LGA_UI_Style_ToolPack import Color, PATH_PALETTE
 import LGA_UI_Style_ToolPack as UIStyle
+from LGA_UI_MessageBox_ToolPack import show_warning
 
 
 def resolve_relative_path(file_path, project_folder):
@@ -1961,7 +1965,7 @@ def main():
 
     # Verificar si el script está guardado
     if not nuke.root().name() or nuke.root().name() == "Root":
-        QMessageBox.warning(
+        show_warning(
             None, "Warning", "Please save the Nuke script before running this tool."
         )
         return

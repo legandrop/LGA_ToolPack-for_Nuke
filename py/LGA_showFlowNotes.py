@@ -1,13 +1,18 @@
 ﻿"""
 ____________________________________________________________________
 
-  LGA_showFlowNotes v1.07 | Lega
+  LGA_showFlowNotes v1.08 | Lega
 
   Muestra informacion del shot y notas/versiones desde la DB local de PipeSync.
   El shot se determina priorizando un nodo Read seleccionado en Nuke.
   Si no hay Read seleccionado, usa el nombre del script abierto.
   Si el nombre incluye _roto_ o _cleanup_, usa esa task. Si no, usa comp.
 
+  v1.08: COLORS y SHOT_INFO_QSS migran al modulo de estilo
+         LGA_UI_Style_ToolPack, con los mismos mapeos que la ventana
+         hermana de HieroTools (LGA_NKS_Flow_Shot_info v1.97). Los
+         carteles pasan al helper LGA_UI_MessageBox_ToolPack y los
+         nuke.message caen a helper con fallback.
   v1.03: Usa dependencias locales del ToolPack para naming y configuracion
          segura, evitando depender de HieroTools instalado/cargado.
   v1.04: Normaliza el log a LGA_ToolPack/logs/LGA_showFlowNotes.log y
@@ -37,6 +42,8 @@ from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
 import nuke
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore, QApplication
+from LGA_UI_Style_ToolPack import Style as UIStyleSheets, Color as UIColor
+from LGA_UI_MessageBox_ToolPack import show_warning, show_error
 
 # Usar directamente las clases del adapter (ya manejan compatibilidad PySide2/6)
 QCoreApplication = QApplication  # Para compatibilidad
@@ -219,21 +226,37 @@ VERSION_DUPLICATE_NOTE_WINDOW_SECONDS = 600
 
 
 # --------------------------------------------------------------------------- #
-# Paleta y QSS (port directo de PipeSync 2: mainwindow.cpp + flow_notes.qss)
-# --------------------------------------------------------------------------- #
+# Paleta y QSS. Era un port directo de PipeSync 2 (mainwindow.cpp +
+# flow_notes.qss); ahora los valores salen del modulo de estilo del pack
+# (LGA_UI_Style_ToolPack), con los mismos mapeos que la ventana hermana de
+# HieroTools (LGA_NKS_Flow_Shot_info). Fondos con la jerarquia del pack
+# (WINDOW abajo, SURFACE para las cajas) y el header de version en el violeta
+# de la marca (ACCENT). La pastilla ambar de attachment es informacion, no
+# estilo: queda a mano.
 COLORS = {
-    "bg_principal": "#161616",
-    "bg_popover": "#232323",
-    "bg_version_container": "#1e1e1e",
-    "bg_version_header": "#3C3764",
-    "border_principal": "#303030",
-    "txt_principal": "#B2B2B2",
-    "txt_principal_strong": "#dddddd",
-    "txt_secundario": "#929292",
-    "txt_subtle": "#cccccc",
-    "txt_desc_title": "#d8d8d8",
-    "txt_desc_meta": "#b8b8b8",
-    "txt_body": "#909090",
+    "bg_principal": UIColor.WINDOW,  # sin uso en el QSS; se conserva la clave
+    "bg_popover": UIColor.WINDOW,
+    "bg_version_container": UIColor.SURFACE,
+    "bg_version_header": UIColor.ACCENT,
+    "border_principal": UIColor.BORDER,
+    "border_strong": UIColor.BORDER_STRONG,
+    "border_hover": UIColor.BORDER_HOVER,
+    "hover_bg": UIColor.SURFACE_HOVER,
+    # Scrollbars: mismo mapa que Style.SCROLLBAR (track al fondo de la
+    # ventana, manija en BORDER_STRONG).
+    "scroll_track": UIColor.WINDOW,
+    "scroll_handle": UIColor.BORDER_STRONG,
+    "scroll_handle_hover": UIColor.BORDER_HOVER,
+    "txt_principal": UIColor.TEXT,
+    # Los tres siguientes viven SOLO en el header de version, que ahora es
+    # ACCENT: el numero fuerte va en el blanco sobre acento.
+    "txt_principal_strong": UIColor.TEXT_ON_ACCENT,
+    "txt_secundario": UIColor.TEXT,
+    "txt_subtle": UIColor.TEXT_STRONG,
+    "txt_desc_title": UIColor.TEXT_STRONG,
+    "txt_desc_meta": UIColor.TEXT,
+    "txt_body": UIColor.TEXT,
+    # --- data semantica: NO migrar -----------------------------------------
     "attachment_label_bg": "#2D2A26",
     "attachment_label_fg": "#8B7355",
 }
@@ -244,7 +267,10 @@ QWidget#flowNotesContentWidget {
 }
 QWidget#flowNotesHeaderWidget {
     background-color: %(bg_popover)s;
-    border-bottom: 1px solid rgba(48, 48, 48, 0.7);
+    border-bottom: 1px solid %(border_principal)s;
+}
+QDialog#flowAddCommentDialog {
+    background-color: %(bg_popover)s;
 }
 QLabel#flowNotesTitle {
     color: %(txt_principal)s;
@@ -261,13 +287,13 @@ QWidget#flowNotesScrollContent {
     background-color: transparent;
 }
 QScrollArea#flowNotesScrollArea QScrollBar:vertical {
-    background-color: #252525; width: 8px; margin: 0px; border-radius: 4px;
+    background-color: %(scroll_track)s; width: 8px; margin: 0px; border-radius: 4px;
 }
 QScrollArea#flowNotesScrollArea QScrollBar::handle:vertical {
-    background-color: #2E2E2E; min-height: 30px; border-radius: 4px;
+    background-color: %(scroll_handle)s; min-height: 30px; border-radius: 4px;
 }
 QScrollArea#flowNotesScrollArea QScrollBar::handle:vertical:hover {
-    background-color: #3D3D3D;
+    background-color: %(scroll_handle_hover)s;
 }
 QScrollArea#flowNotesScrollArea QScrollBar::add-line:vertical,
 QScrollArea#flowNotesScrollArea QScrollBar::sub-line:vertical {
@@ -275,7 +301,7 @@ QScrollArea#flowNotesScrollArea QScrollBar::sub-line:vertical {
 }
 QWidget#flowVersionContainer {
     background-color: %(bg_version_container)s;
-    border: 1px solid rgba(48, 48, 48, 0.6);
+    border: 1px solid %(border_principal)s;
     border-radius: 6px;
 }
 QWidget#flowVersionHeader {
@@ -290,20 +316,20 @@ QLabel#flowVersionTimeLogged {
     background-color: transparent; font-size: 13px; font-weight: 400;
 }
 QPushButton#flowVersionAddCommentButton {
-    background-color: rgba(35, 35, 35, 0.85);
-    color: %(txt_principal_strong)s;
-    border: 1px solid rgba(178, 178, 178, 0.28);
+    background-color: %(bg_popover)s;
+    color: %(txt_subtle)s;
+    border: 1px solid %(border_strong)s;
     border-radius: 4px;
     padding: 3px 10px;
     font-size: 12px;
 }
 QPushButton#flowVersionAddCommentButton:hover {
-    background-color: rgba(50, 50, 50, 0.95);
-    border-color: rgba(178, 178, 178, 0.5);
+    background-color: %(hover_bg)s;
+    border-color: %(border_hover)s;
 }
 QPushButton#flowVersionAddCommentButton:disabled {
-    color: %(txt_secundario)s;
-    border-color: rgba(178, 178, 178, 0.12);
+    color: %(txt_principal)s;
+    border-color: %(border_principal)s;
 }
 QLabel#flowVersionDescriptionTitle,
 QLabel#flowVersionDescriptionContent {
@@ -323,7 +349,7 @@ QLabel#flowVersionCommentHeader {
     font-size: 14px; font-weight: 400;
 }
 QLabel#flowVersionCommentContent {
-    background-color: transparent; color: #909090; font-size: 14px;
+    background-color: transparent; color: %(txt_body)s; font-size: 14px;
     border: none; padding: 0; margin: 0;
 }
 QLabel#flowVersionCommentAttachment {
@@ -332,11 +358,11 @@ QLabel#flowVersionCommentAttachment {
     border-radius: 0px; font-size: 13px;
 }
 QPushButton#flowVersionCommentThumbnail {
-    border: 2px solid #404040; border-radius: 8px;
+    border: 2px solid %(border_strong)s; border-radius: 8px;
     background-color: transparent; padding: 2px;
 }
 QPushButton#flowVersionCommentThumbnail:hover {
-    border-color: #606060; background-color: rgba(255, 255, 255, 0.05);
+    border-color: %(border_hover)s; background-color: %(hover_bg)s;
 }
 """ % COLORS
 
@@ -601,16 +627,16 @@ class ThumbnailWidget(QLabel):
         self.setAlignment(Qt.AlignCenter)
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.setStyleSheet(
-            """
-            QLabel {
-                border: 0px solid #444444;
-                background-color: #2a2a2a;
+            f"""
+            QLabel {{
+                border: 0px solid {UIColor.BORDER_STRONG};
+                background-color: {UIColor.SURFACE_RAISED};
                 margin: 2px;
                 padding: 2px;
-            }
-            QLabel:hover {
-                border: 0px solid #007ACC;
-            }
+            }}
+            QLabel:hover {{
+                border: 0px solid {UIColor.ACCENT_HOVER};
+            }}
         """
         )
 
@@ -687,7 +713,7 @@ class ThumbnailContainerWidget(QWidget):
         frame_number = extract_frame_from_filename(self.image_path)
         self.frame_label = QLabel(f"f{frame_number}")
         self.frame_label.setStyleSheet(
-            "color: #cccccc; font-size: 10px; background-color: transparent;"
+            f"color: {UIColor.TEXT}; font-size: 10px; background-color: transparent;"
         )
         self.frame_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.frame_label, alignment=Qt.AlignCenter)
@@ -706,7 +732,7 @@ class ThumbnailButton(QPushButton):
         pix = QPixmap(image_path)
         if pix.isNull():
             pix = QPixmap(150, 80)
-            pix.fill(QColor("#3a3a3a"))
+            pix.fill(QColor(UIColor.SURFACE_RAISED))
         else:
             pix = pix.scaledToWidth(150, Qt.SmoothTransformation)
         self.setIcon(QIcon(pix))
@@ -1315,6 +1341,9 @@ class AddCommentDialog(QDialog):
         self.setModal(True)
         self.setMinimumWidth(560)
         self.setMinimumHeight(390)
+        # El objectName engancha la regla QDialog#flowAddCommentDialog del QSS:
+        # sin ella el dialogo quedaba con el fondo del host, no el del pack.
+        self.setObjectName("flowAddCommentDialog")
         self.setStyleSheet(SHOT_INFO_QSS)
 
         layout = QVBoxLayout(self)
@@ -1333,8 +1362,10 @@ class AddCommentDialog(QDialog):
         self.comment_edit = QTextEdit()
         self.comment_edit.setMinimumHeight(150)
         self.comment_edit.setStyleSheet(
-            "QTextEdit { background-color: #1e1e1e; color: #dddddd; "
-            "border: 1px solid #303030; border-radius: 4px; padding: 8px; }"
+            f"QTextEdit {{ background-color: {UIColor.SURFACE}; "
+            f"color: {UIColor.TEXT_STRONG}; "
+            f"border: 1px solid {UIColor.BORDER_STRONG}; "
+            "border-radius: 4px; padding: 8px; }"
         )
         layout.addWidget(self.comment_edit, 1)
 
@@ -1349,17 +1380,20 @@ class AddCommentDialog(QDialog):
 
         buttons_layout = QHBoxLayout()
         self.attach_button = QPushButton("Adjuntar JPG/PNG")
+        self.attach_button.setStyleSheet(UIStyleSheets.BTN_SECONDARY)
         self.attach_button.clicked.connect(self.select_attachments)
         buttons_layout.addWidget(self.attach_button)
 
         buttons_layout.addStretch(1)
 
         self.cancel_button = QPushButton("Cancelar")
+        self.cancel_button.setStyleSheet(UIStyleSheets.BTN_SECONDARY)
         self.cancel_button.clicked.connect(self.reject)
         buttons_layout.addWidget(self.cancel_button)
 
+        # Boton de accion del dialogo: el unico violeta, ultimo a la derecha
         self.submit_button = QPushButton("Add Comment")
-        self.submit_button.setObjectName("flowVersionAddCommentButton")
+        self.submit_button.setStyleSheet(UIStyleSheets.BTN_PRIMARY)
         self.submit_button.clicked.connect(self.submit)
         buttons_layout.addWidget(self.submit_button)
         layout.addLayout(buttons_layout)
@@ -1403,13 +1437,13 @@ class AddCommentDialog(QDialog):
     def submit(self):
         content = self.comment_edit.toPlainText().strip()
         if not content:
-            QMessageBox.warning(self, "Add Comment", "Escribi un comentario.")
+            show_warning(self, "Add Comment", "Escribi un comentario.")
             return
 
         required = ("project_sg_id", "version_db_id", "version_sg_id")
         missing = [key for key in required if not self.version.get(key)]
         if missing:
-            QMessageBox.warning(
+            show_warning(
                 self,
                 "Add Comment",
                 "Faltan datos de la version: " + ", ".join(missing),
@@ -1441,7 +1475,7 @@ class AddCommentDialog(QDialog):
     def on_error(self, message):
         self._set_busy(False)
         self.status_label.setText("Error")
-        QMessageBox.critical(self, "Add Comment", message)
+        show_error(self, "Add Comment", message)
 
 
 class GUIWindow(QWidget):
@@ -1767,7 +1801,9 @@ class GUIWindow(QWidget):
         if not results:
             no_results_label = QLabel("No se encontraron resultados")
             no_results_label.setAlignment(Qt.AlignCenter)
-            no_results_label.setStyleSheet("color: #888888; font-size: 14px;")
+            no_results_label.setStyleSheet(
+                f"color: {UIColor.TEXT_DIM}; font-size: 14px;"
+            )
             self.scroll_layout.addWidget(no_results_label)
             self.show()
             return
@@ -1808,7 +1844,11 @@ def show_flow_notes():
         debug_print(f"Using PipeSync DB path: {db_path}")
         if not os.path.exists(db_path):
             debug_print(f"DB file not found at path: {db_path}", level="error")
-            nuke.message(f"No se encontro la base de datos de PipeSync:\n{db_path}")
+            texto = f"No se encontro la base de datos de PipeSync:\n{db_path}"
+            try:
+                show_error(None, "Show Flow Notes", texto)
+            except Exception:
+                nuke.message(texto)
             return
 
         debug_print("Creating ShotGridManager and NukeOperations.")
@@ -1835,10 +1875,14 @@ def show_flow_notes():
         debug_print("show_flow_notes() completed.")
     except Exception as exc:
         debug_print("Unhandled error in show_flow_notes():", repr(exc), level="error")
+        texto = f"Show Flow Notes fallo. Revisar log:\n{exc}"
         try:
-            nuke.message(f"Show Flow Notes fallo. Revisar log:\n{exc}")
+            show_error(None, "Show Flow Notes", texto)
         except Exception:
-            pass
+            try:
+                nuke.message(texto)
+            except Exception:
+                pass
         raise
 
 

@@ -1,13 +1,26 @@
 """
 ________________________________________________________________________________
 
-  LGA_fr_Read_to_Project_Res v1.0 | Lega
+  LGA_fr_Read_to_Project_Res v1.01 | Lega
   Copia el frame range y la resolucion del nodo Read seleccionado al proyecto.
+
+  v1.01: Los nuke.message pasan al helper LGA_UI_MessageBox_ToolPack
+         (show_warning), con fallback a nuke.message.
 ________________________________________________________________________________
 
 """
 
 import nuke
+
+
+def _aviso(texto):
+    """Cartel estilado del pack; si el helper falla cae a nuke.message."""
+    try:
+        from LGA_UI_MessageBox_ToolPack import show_warning
+
+        show_warning(None, "Read -> Project (+Res)", texto)
+    except Exception:
+        nuke.message(texto)
 
 
 def main():
@@ -16,7 +29,7 @@ def main():
         selected_node = nuke.selectedNode()
 
         if selected_node.Class() != "Read":
-            nuke.message("Por favor, selecciona un nodo Read.")
+            _aviso("Por favor, selecciona un nodo Read.")
             return
 
         # Obtener el rango de frames del nodo Read seleccionado
@@ -42,7 +55,7 @@ def main():
 
     except Exception as e:
         print(str(e))  # Para debug
-        nuke.message("Por favor, selecciona un nodo Read.")
+        _aviso("Por favor, selecciona un nodo Read.")
 
 
 # Ejecutar la funcion

@@ -1,10 +1,15 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.71 | Lega
+  LGA_Write_Presets_Check v2.72 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 
+  v2.72: El look de PathCheckWindow sale del modulo de estilo
+         LGA_UI_Style_ToolPack (fondo, secciones, spinners y botones;
+         OK pasa a BTN_PRIMARY y Cancel a BTN_SECONDARY). Los colores
+         por tipo de dato del path (niveles, violeta de shot, rojo de
+         extensiones heredadas) son informacion y quedan a mano.
 
   v2.71: bug fixes.
   v2.70: bug fixes.
@@ -50,6 +55,7 @@ import nuke
 import os
 import re
 from LGA_QtAdapter_ToolPack import QtWidgets, QtCore
+from LGA_UI_Style_ToolPack import Style as UIStyle, Color as UIColor
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
@@ -806,7 +812,9 @@ class PathCheckWindow(QDialog):
 
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setWindowTitle("Write Path Review")
-        self.setStyleSheet("background-color: #212121; border-radius: 10px;")
+        self.setStyleSheet(
+            f"background-color: {UIColor.WINDOW}; border-radius: 10px;"
+        )
 
         # Configurar el diálogo para que sea modal
         self.setModal(True)
@@ -831,7 +839,7 @@ class PathCheckWindow(QDialog):
 
             # Titulo con estilo mejorado
             title_label = QLabel(
-                f"<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>{title}</span>"
+                f"<span style='color:{UIColor.TEXT_STRONG}; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>{title}</span>"
             )
             title_label.setStyleSheet("font-size:13px; padding-bottom:2px;")
             content_layout.addWidget(title_label)
@@ -840,17 +848,19 @@ class PathCheckWindow(QDialog):
             if rich:
                 value_label = QLabel(value)
             else:
-                value_label = QLabel(f"<span style='color:#AEAEAE;'>{value}</span>")
+                value_label = QLabel(
+                    f"<span style='color:{UIColor.TEXT};'>{value}</span>"
+                )
             value_label.setStyleSheet("font-size:13px; padding:4px 0px;")
             value_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
             # Fondo sutil para la seccion (sin border)
             content_widget.setStyleSheet(
-                """
-                QWidget {
-                    background-color: #292929;
+                f"""
+                QWidget {{
+                    background-color: {UIColor.SURFACE};
                     border-radius: 6px;
-                }
+                }}
             """
             )
 
@@ -864,11 +874,11 @@ class PathCheckWindow(QDialog):
         # Contenedor principal con fondo (sin border)
         index_container = QWidget()
         index_container.setStyleSheet(
-            """
-            QWidget {
-                background-color: #292929;
+            f"""
+            QWidget {{
+                background-color: {UIColor.SURFACE};
                 border-radius: 6px;
-            }
+            }}
         """
         )
 
@@ -885,7 +895,7 @@ class PathCheckWindow(QDialog):
         if self.has_adjustable:
             # Título Naming Segments
             naming_title = QLabel(
-                "<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>Naming Segments</span>"
+                f"<span style='color:{UIColor.TEXT_STRONG}; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>Naming Segments</span>"
             )
             naming_title.setStyleSheet("font-size:13px;")
             naming_layout.addWidget(naming_title)
@@ -899,10 +909,10 @@ class PathCheckWindow(QDialog):
             naming_display_value = str(self.current_index)
             self.index_label = QLabel(naming_display_value)
             self.index_label.setFixedSize(28, 24)
-            index_label_style = """
-                QLabel {
-                    background-color: #3e3e3e;
-                    color: #CCCCCC;
+            index_label_style = f"""
+                QLabel {{
+                    background-color: {UIColor.SURFACE_RAISED};
+                    color: {UIColor.TEXT_STRONG};
                     border: none;
                     border-top-left-radius: 4px;
                     border-bottom-left-radius: 4px;
@@ -911,7 +921,7 @@ class PathCheckWindow(QDialog):
                     padding: 0px;
                     font-size: 13px;
                     font-weight: bold;
-                }
+                }}
             """
             self.index_label.setStyleSheet(index_label_style)
             self.index_label.setAlignment(Qt.AlignCenter)
@@ -926,10 +936,10 @@ class PathCheckWindow(QDialog):
             # Boton triangulo arriba
             self.up_button = QPushButton("▲")
             self.up_button.setFixedSize(24, 12)
-            up_button_style = """
-                QPushButton {
-                    background-color: #3e3e3e;
-                    color: #CCCCCC;
+            up_button_style = f"""
+                QPushButton {{
+                    background-color: {UIColor.SURFACE_RAISED};
+                    color: {UIColor.TEXT_STRONG};
                     border: none;
                     border-top-left-radius: 0px;
                     border-top-right-radius: 4px;
@@ -938,13 +948,13 @@ class PathCheckWindow(QDialog):
                     font-size: 8px;
                     font-weight: bold;
                     padding: 0px;
-                }
-                QPushButton:hover {
-                    background-color: #4e4e4e;
-                }
-                QPushButton:pressed {
-                    background-color: #2e2e2e;
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: {UIColor.SURFACE_HOVER};
+                }}
+                QPushButton:pressed {{
+                    background-color: {UIColor.SURFACE};
+                }}
             """
             self.up_button.setStyleSheet(up_button_style)
             self.up_button.clicked.connect(self.increment_index)
@@ -953,10 +963,10 @@ class PathCheckWindow(QDialog):
             # Boton triangulo abajo
             self.down_button = QPushButton("▼")
             self.down_button.setFixedSize(24, 12)
-            down_button_style = """
-                QPushButton {
-                    background-color: #3e3e3e;
-                    color: #CCCCCC;
+            down_button_style = f"""
+                QPushButton {{
+                    background-color: {UIColor.SURFACE_RAISED};
+                    color: {UIColor.TEXT_STRONG};
                     border: none;
                     border-top-left-radius: 0px;
                     border-top-right-radius: 0px;
@@ -965,13 +975,13 @@ class PathCheckWindow(QDialog):
                     font-size: 8px;
                     font-weight: bold;
                     padding: 0px;
-                }
-                QPushButton:hover {
-                    background-color: #4e4e4e;
-                }
-                QPushButton:pressed {
-                    background-color: #2e2e2e;
-                }
+                }}
+                QPushButton:hover {{
+                    background-color: {UIColor.SURFACE_HOVER};
+                }}
+                QPushButton:pressed {{
+                    background-color: {UIColor.SURFACE};
+                }}
             """
             self.down_button.setStyleSheet(down_button_style)
             self.down_button.clicked.connect(self.decrement_index)
@@ -1003,7 +1013,7 @@ class PathCheckWindow(QDialog):
 
         # Título Folder Up Levels
         upward_title = QLabel(
-            "<span style='color:#E8E8E8; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>FOLDER UP LEVELS</span>"
+            f"<span style='color:{UIColor.TEXT_STRONG}; font-size:13px; letter-spacing:0.5px; text-transform:uppercase;'>FOLDER UP LEVELS</span>"
         )
         upward_title.setStyleSheet("font-size:13px;")
         upward_layout.addWidget(upward_title)
@@ -1017,10 +1027,10 @@ class PathCheckWindow(QDialog):
         self.upward_level_label = QLabel(str(self.current_dir_level))
         self.upward_level_label.setFixedSize(28, 24)
         self.upward_level_label.setStyleSheet(
-            """
-            QLabel {
-                background-color: #3e3e3e;
-                color: #CCCCCC;
+            f"""
+            QLabel {{
+                background-color: {UIColor.SURFACE_RAISED};
+                color: {UIColor.TEXT_STRONG};
                 border: none;
                 border-top-left-radius: 4px;
                 border-bottom-left-radius: 4px;
@@ -1029,7 +1039,7 @@ class PathCheckWindow(QDialog):
                 padding: 0px;
                 font-size: 13px;
                 font-weight: bold;
-            }
+            }}
         """
         )
         self.upward_level_label.setAlignment(Qt.AlignCenter)
@@ -1045,10 +1055,10 @@ class PathCheckWindow(QDialog):
         self.upward_up_button = QPushButton("▲")
         self.upward_up_button.setFixedSize(24, 12)
         self.upward_up_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #3e3e3e;
-                color: #CCCCCC;
+            f"""
+            QPushButton {{
+                background-color: {UIColor.SURFACE_RAISED};
+                color: {UIColor.TEXT_STRONG};
                 border: none;
                 border-top-left-radius: 0px;
                 border-top-right-radius: 4px;
@@ -1057,13 +1067,13 @@ class PathCheckWindow(QDialog):
                 font-size: 8px;
                 font-weight: bold;
                 padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: #4e4e4e;
-            }
-            QPushButton:pressed {
-                background-color: #2e2e2e;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {UIColor.SURFACE_HOVER};
+            }}
+            QPushButton:pressed {{
+                background-color: {UIColor.SURFACE};
+            }}
         """
         )
         self.upward_up_button.clicked.connect(self.increment_upward_level)
@@ -1073,10 +1083,10 @@ class PathCheckWindow(QDialog):
         self.upward_down_button = QPushButton("▼")
         self.upward_down_button.setFixedSize(24, 12)
         self.upward_down_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #3e3e3e;
-                color: #CCCCCC;
+            f"""
+            QPushButton {{
+                background-color: {UIColor.SURFACE_RAISED};
+                color: {UIColor.TEXT_STRONG};
                 border: none;
                 border-top-left-radius: 0px;
                 border-top-right-radius: 0px;
@@ -1085,13 +1095,13 @@ class PathCheckWindow(QDialog):
                 font-size: 8px;
                 font-weight: bold;
                 padding: 0px;
-            }
-            QPushButton:hover {
-                background-color: #4e4e4e;
-            }
-            QPushButton:pressed {
-                background-color: #2e2e2e;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {UIColor.SURFACE_HOVER};
+            }}
+            QPushButton:pressed {{
+                background-color: {UIColor.SURFACE};
+            }}
         """
         )
         self.upward_down_button.clicked.connect(self.decrement_upward_level)
@@ -1143,26 +1153,26 @@ class PathCheckWindow(QDialog):
             # Construir display con 3 o 4 lineas segun corresponda
             tcl_lines = []
             if tcl_violet:
-                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_violet}</span>")
+                tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_violet}</span>")
             if tcl_middle:
-                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_middle}</span>")
+                tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_middle}</span>")
             if is_seq:
                 # Si es secuencia: mostrar subcarpeta y archivo en lineas separadas
                 if tcl_subfolder:
                     tcl_lines.append(
-                        f"<span style='color:#AEAEAE;'>{tcl_subfolder}</span>"
+                        f"<span style='color:{UIColor.TEXT};'>{tcl_subfolder}</span>"
                     )
                 if tcl_file:
-                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+                    tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_file}</span>")
             else:
                 # Si NO es secuencia: mostrar solo archivo
                 if tcl_file:
-                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+                    tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_file}</span>")
 
             if tcl_lines:
                 tcl_display = "<br>".join(tcl_lines)
             else:
-                tcl_display = f"<span style='color:#AEAEAE;'>{file_pattern}</span>"
+                tcl_display = f"<span style='color:{UIColor.TEXT};'>{file_pattern}</span>"
 
             self.original_label = add_block(
                 "Original TCL Path", tcl_display, rich=True, is_section=True
@@ -1221,8 +1231,8 @@ class PathCheckWindow(QDialog):
             )
         else:
             # Mostrar mensaje informativo cuando no hay path válido
-            error_message = """<span style='color:#ff6b6b; font-weight: bold;'>⚠️ No se puede mostrar el path</span><br>
-<span style='color:#AEAEAE; font-size:11px;'>El file pattern actual no se puede evaluar.<br>
+            error_message = f"""<span style='color:{UIColor.ERROR_TEXT}; font-weight: bold;'>⚠️ No se puede mostrar el path</span><br>
+<span style='color:{UIColor.TEXT}; font-size:11px;'>El file pattern actual no se puede evaluar.<br>
 Verifica que el Write esté conectado correctamente y que el pattern TCL sea válido.</span>"""
             self.normalized_label = add_block(
                 "Final Path", error_message, rich=True, is_section=True
@@ -1233,50 +1243,13 @@ Verifica que el Write esté conectado correctamente y que el pattern TCL sea vá
         buttons_layout.addStretch()
 
         cancel_button = QPushButton("Cancel")
-        cancel_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #2a2a2a;
-                color: #cccccc;
-                border: none;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: bold;
-                padding: 8px 20px;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #443a91;
-            }
-            QPushButton:pressed {
-                background-color: #3a2e2e;
-            }
-        """
-        )
+        cancel_button.setStyleSheet(UIStyle.BTN_SECONDARY)
         cancel_button.clicked.connect(self.reject)
         buttons_layout.addWidget(cancel_button)
 
+        # Boton de accion: el unico violeta, ultimo a la derecha
         ok_button = QPushButton("OK")
-        ok_button.setStyleSheet(
-            """
-            QPushButton {
-                background-color: #2a2a2a;
-                color: #cccccc;
-                border: none;
-                border-radius: 6px;
-                font-size: 13px;
-                font-weight: bold;
-                padding: 8px 20px;
-                min-width: 80px;
-            }
-            QPushButton:hover {
-                background-color: #443a91;
-            }
-            QPushButton:pressed {
-                background-color: #2d265e;
-            }
-        """
-        )
+        ok_button.setStyleSheet(UIStyle.BTN_PRIMARY)
         ok_button.clicked.connect(self.accept)
         buttons_layout.addWidget(ok_button)
 
@@ -1400,27 +1373,27 @@ Verifica que el Write esté conectado correctamente y que el pattern TCL sea vá
             # Construir display con 3 o 4 lineas segun corresponda
             tcl_lines = []
             if tcl_violet:
-                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_violet}</span>")
+                tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_violet}</span>")
             if tcl_middle:
-                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_middle}</span>")
+                tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_middle}</span>")
             if is_seq:
                 # Si es secuencia: mostrar subcarpeta y archivo en lineas separadas
                 if tcl_subfolder:
                     tcl_lines.append(
-                        f"<span style='color:#AEAEAE;'>{tcl_subfolder}</span>"
+                        f"<span style='color:{UIColor.TEXT};'>{tcl_subfolder}</span>"
                     )
                 if tcl_file:
-                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+                    tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_file}</span>")
             else:
                 # Si NO es secuencia: mostrar solo archivo
                 if tcl_file:
-                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+                    tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_file}</span>")
 
             if tcl_lines:
                 tcl_display = "<br>".join(tcl_lines)
             else:
                 tcl_display = (
-                    f"<span style='color:#AEAEAE;'>{self.current_file_pattern}</span>"
+                    f"<span style='color:{UIColor.TEXT};'>{self.current_file_pattern}</span>"
                 )
             self.original_label.setText(tcl_display)
 
@@ -1499,27 +1472,27 @@ Verifica que el Write esté conectado correctamente y que el pattern TCL sea vá
             # Construir display con 3 o 4 lineas segun corresponda
             tcl_lines = []
             if tcl_violet:
-                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_violet}</span>")
+                tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_violet}</span>")
             if tcl_middle:
-                tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_middle}</span>")
+                tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_middle}</span>")
             if is_seq:
                 # Si es secuencia: mostrar subcarpeta y archivo en lineas separadas
                 if tcl_subfolder:
                     tcl_lines.append(
-                        f"<span style='color:#AEAEAE;'>{tcl_subfolder}</span>"
+                        f"<span style='color:{UIColor.TEXT};'>{tcl_subfolder}</span>"
                     )
                 if tcl_file:
-                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+                    tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_file}</span>")
             else:
                 # Si NO es secuencia: mostrar solo archivo
                 if tcl_file:
-                    tcl_lines.append(f"<span style='color:#AEAEAE;'>{tcl_file}</span>")
+                    tcl_lines.append(f"<span style='color:{UIColor.TEXT};'>{tcl_file}</span>")
 
             if tcl_lines:
                 tcl_display = "<br>".join(tcl_lines)
             else:
                 tcl_display = (
-                    f"<span style='color:#AEAEAE;'>{self.current_file_pattern}</span>"
+                    f"<span style='color:{UIColor.TEXT};'>{self.current_file_pattern}</span>"
                 )
             self.original_label.setText(tcl_display)
 
@@ -1595,8 +1568,8 @@ Verifica que el Write esté conectado correctamente y que el pattern TCL sea vá
             self.normalized_label.setText(colored_normalized)
         else:
             # Mostrar mensaje informativo cuando no hay path válido
-            error_message = """<span style='color:#ff6b6b; font-weight: bold;'>⚠️ No se puede mostrar el path</span><br>
-<span style='color:#AEAEAE; font-size:11px;'>El file pattern actual no se puede evaluar.<br>
+            error_message = f"""<span style='color:{UIColor.ERROR_TEXT}; font-weight: bold;'>⚠️ No se puede mostrar el path</span><br>
+<span style='color:{UIColor.TEXT}; font-size:11px;'>El file pattern actual no se puede evaluar.<br>
 Verifica que el Write esté conectado correctamente y que el pattern TCL sea válido.</span>"""
             self.normalized_label.setText(error_message)
 

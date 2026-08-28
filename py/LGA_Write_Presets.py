@@ -1,11 +1,14 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.76 | Lega
+  LGA_Write_Presets v2.77 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
+  v2.77: El error de Write invalido pasa al helper
+         LGA_UI_MessageBox_ToolPack (show_error), con fallback a
+         nuke.message.
   v2.76: El look sale de LGA_UI_Style_ToolPack. La cruz de cerrar pasa de
          20 a 26 px y se pinta al pasar por encima, la tabla deja de ser mas
          oscura que su propia ventana, y el alto se calcula midiendo cada
@@ -1200,11 +1203,15 @@ class SelectedNodeInfo(QWidget):
 
     def show_invalid_write_error(self, write_name):
         """Muestra una ventana de error cuando el Write seleccionado no tiene file pattern válido."""
+        texto = f"Write Node Error: The Write node '{write_name}' does not contain a valid TCL path."
         try:
-            # Usar la función nativa de Nuke para mostrar mensajes
-            nuke.message(
-                f"Write Node Error: The Write node '{write_name}' does not contain a valid TCL path."
-            )
+            # Cartel estilado del pack; nuke.message queda como fallback
+            try:
+                from LGA_UI_MessageBox_ToolPack import show_error
+
+                show_error(None, "Write Presets", texto)
+            except Exception:
+                nuke.message(texto)
         except Exception as e:
             debug_print(f"[Write_Presets] Error mostrando mensaje: {e}")
             # Fallback final: debug print

@@ -1,9 +1,12 @@
 """
 ________________________________________________________________________
 
-  LGA_RnW_ColorSpace_Favs v1.48 | Lega
+  LGA_RnW_ColorSpace_Favs v1.49 | Lega
   Tool for applying OCIO color spaces to selected Read and Write nodes
-  
+
+  v1.49: Los nuke.message pasan al helper LGA_UI_MessageBox_ToolPack
+         (info/warning/error segun el contenido), con fallback a
+         nuke.message si el helper no esta disponible.
   v1.48: El look sale de LGA_UI_Style_ToolPack. La cruz de cerrar pasa
          de 20 a 26 px y se pinta al pasar por encima; la tabla deja de
          ser mas oscura que su propia ventana; y el alto de la ventana
@@ -44,6 +47,18 @@ import platform
 
 # Variable global para controlar el debug
 DEBUG = False  # Poner en False para desactivar los mensajes de debug
+
+
+def _mensaje(texto, tipo="info"):
+    """Cartel estilado del pack; si el helper falla cae a nuke.message."""
+    try:
+        from LGA_UI_MessageBox_ToolPack import show_info, show_warning, show_error
+
+        funciones = {"info": show_info, "warning": show_warning, "error": show_error}
+        funciones[tipo](None, "Color Space Favs", texto)
+    except Exception:
+        nuke.message(texto)
+
 
 DEFAULT_DISPLAY_NAME = "sRGB - Display"
 DEFAULT_VIEW_NAME = "ACES 1.0 - SDR Video"
@@ -561,31 +576,31 @@ class SelectedNodeInfo(QWidget):
                     break
 
         if not target_node:
-            nuke.message("Select a Read or Write node to capture its colorspace.")
+            _mensaje("Select a Read or Write node to capture its colorspace.", "warning")
             return
 
         colorspace_knob = target_node.knob("colorspace")
         if not colorspace_knob:
-            nuke.message("Selected node does not expose a colorspace knob.")
+            _mensaje("Selected node does not expose a colorspace knob.", "warning")
             return
 
         current_value = colorspace_knob.value().strip()
         if not current_value:
-            nuke.message("Selected node has an empty colorspace value.")
+            _mensaje("Selected node has an empty colorspace value.", "warning")
             return
 
         if current_value in self.color_spaces:
-            nuke.message(f"'{current_value}' is already in favorites.")
+            _mensaje(f"'{current_value}' is already in favorites.", "info")
             return
 
         self.color_spaces.append(current_value)
         ini_path = self.ini_path or get_colorspace_ini_path(create_if_missing=True)
         if not save_colorspaces_to_ini(ini_path, self.color_spaces):
-            nuke.message("Failed to save favorites. Check file permissions.")
+            _mensaje("Failed to save favorites. Check file permissions.", "error")
             return
 
         self.load_data()
-        nuke.message(f"Saved '{current_value}' to favorites.")
+        _mensaje(f"Saved '{current_value}' to favorites.", "info")
 
     def change_color_space(self, row, column):
         # Asegurarse de que el indice de fila sea valido
@@ -613,8 +628,9 @@ class SelectedNodeInfo(QWidget):
                             debug_print(
                                 f"  - Error al cambiar colorspace en {node.name()}: {e}"
                             )
-                            nuke.message(
-                                f"Error al aplicar colorspace a {node.name()}:\n{e}"
+                            _mensaje(
+                                f"Error al aplicar colorspace a {node.name()}:\n{e}",
+                                "error",
                             )
                             return  # Salir
 
@@ -678,12 +694,13 @@ def main():
             local_path_for_msg = os.path.join(
                 os.path.dirname(os.path.realpath(__file__)), COLORSPACE_INI_LOCALNAME
             )
-            nuke.message(
+            _mensaje(
                 f"Error: No se pudieron cargar los espacios de color favoritos.\n"
                 f"Verifique que el archivo '{COLORSPACE_INI_APPNAME}' exista en\n"
                 f"'{os.path.dirname(ini_path_for_msg)}'\n"
                 f"o que '{COLORSPACE_INI_LOCALNAME}' exista en\n"
-                f"'{os.path.dirname(local_path_for_msg)}'."
+                f"'{os.path.dirname(local_path_for_msg)}'.",
+                "error",
             )
             return
 
@@ -694,7 +711,7 @@ def main():
         )
         window.show()
     else:
-        nuke.message("Por favor seleccione al menos un nodo Read o Write.")
+        _mensaje("Por favor seleccione al menos un nodo Read o Write.", "warning")
 
 
 if __name__ == "__main__":

@@ -4,11 +4,10 @@ Fuente de verdad de **cómo se ve** una ventana de las tools de LGA. El módulo 
 `py/LGA_UI_Style_ToolPack.py` y existe una copia en cada uno de los otros tres
 repos.
 
-> **Las cuatro copias están divergidas hoy.** El módulo de este repo pasó a
-> temas en `v1.11` y los otros tres siguen en el cuerpo anterior. Todo lo que
-> este documento dice de los temas vale **sólo acá**; lo demás sigue valiendo
-> en los cuatro. Sincronizarlos es una decisión pendiente, no un olvido: ver
-> "Las cuatro copias".
+> **Las cuatro copias vuelven a estar sincronizadas** (v1.20, temas
+> incluidos, agosto 2026). Difieren sólo en los renombres de rigor: nombre
+> del módulo, adapter de Qt y nombre del pack en los textos. Todo lo que
+> este documento dice vale en los cuatro repos.
 
 ## La regla
 
@@ -46,13 +45,12 @@ un usuario puede tener instalado uno solo, así que no pueden importarse entre
 sí. Lo único que difería era el docstring: nombre del módulo, su propio
 historial de versiones y la ruta del ejemplo de import.
 
-**Hoy no lo son.** El de este repo está en `v1.15` con los seis temas y los
-otros tres quedaron en el cuerpo de antes, que es la mitad de largo. La regla
-de "se cambia en las cuatro" sigue siendo la que se quiere, pero aplicarla
-ahora significa portar los temas a los otros tres repos y revisar sus ventanas
-una por una, que es un trabajo aparte y no una copia de archivo. Mientras
-tanto: un valor que se toque en el cuerpo COMÚN se toca igual en las cuatro; lo
-que es propio de los temas vive sólo acá.
+**Hoy vuelven a serlo.** Las tres del ToolPack se sincronizaron en `v1.20` y
+la de HieroTools adoptó ese mismo cuerpo (con la nota del salto `v1.06 →
+v1.20` en su propio historial). La regla operativa vuelve a ser la simple:
+**un cambio en el cuerpo se aplica en las cuatro copias en la misma pasada**,
+ajustando sólo los renombres. La verificación de abajo debe dar los cuatro
+cuerpos idénticos módulo renombres.
 
 **Cómo verificarlo**, comparando el cuerpo a partir de la línea del
 `class Color`:

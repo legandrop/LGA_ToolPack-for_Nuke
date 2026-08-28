@@ -1,9 +1,12 @@
 """
 ____________________________________________________________________________________
 
-  LGA_Write_Focus v1.60 | Lega
+  LGA_Write_Focus v1.61 | Lega
   Script para buscar, enfocar, centrar y hacer zoom a un nodo con nombre definido
   en el archivo de configuracion. Por defecto es Write_Pub.
+
+  v1.61: Los nuke.message pasan al helper LGA_UI_MessageBox_ToolPack
+         (show_warning), con fallback a nuke.message.
 ____________________________________________________________________________________
 """
 
@@ -15,6 +18,16 @@ import platform
 
 # Variable global para activar o desactivar los prints de depuracion
 DEBUG = False  # Cambiar a True para ver los mensajes detallados
+
+
+def _aviso(texto):
+    """Cartel estilado del pack; si el helper falla cae a nuke.message."""
+    try:
+        from LGA_UI_MessageBox_ToolPack import show_warning
+
+        show_warning(None, "Write Focus", texto)
+    except Exception:
+        nuke.message(texto)
 
 
 # Funcion para imprimir mensajes de depuracion
@@ -278,7 +291,7 @@ def main():
     )
     if write_node:
         if write_node.Class() != "Write":
-            nuke.message(
+            _aviso(
                 f"Se encontró un nodo llamado '{write_node.name()}' pero no es del tipo Write."
             )
             tiempo_fin_total = time.time()
@@ -327,7 +340,7 @@ def main():
         debug_print(
             f"Error: Nodo no encontrado. Tiempo total: {(tiempo_fin_total - tiempo_inicio_total) * 1000:.2f} ms"
         )
-        nuke.message(
+        _aviso(
             f"No se encontró ningún nodo Write que coincida con '{node_to_find}' ni '{secondary_node_to_find}' en el script actual."
         )
 
