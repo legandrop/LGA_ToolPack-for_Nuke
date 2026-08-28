@@ -102,7 +102,7 @@ Sistema de botones personalizados para el viewer de Nuke que permite tomar snaps
 
 ### ThumbnailWidget
 - **Función**: Widget personalizado para mostrar un thumbnail de imagen
-- **Acciones**: Click abre el JPG en el visor por defecto, Shift+click lo revela en el explorador y Alt+click lo abre en el ShareX Image Editor
+- **Acciones**: Click abre el JPG en el visor por defecto, Shift+click lo abre en el ShareX Image Editor y Alt+click lo revela en el explorador
 - **Características**:
   - Carga y escala imágenes manteniendo relación de aspecto
   - Redimensionamiento dinámico con el slider
@@ -250,14 +250,16 @@ imagen, se frenó el escaneo.
 
 ## Tira de comparación
 
-`compare=True` pega la captura nueva a la **derecha** del snapshot anterior. Sirve
-para armar de a un shortcut la tira que se le manda al vendor —plate, lo que
-hizo, lo que haría— en vez de montarla a mano en Photoshop.
+`compare=True` genera **dos imágenes**: la captura individual (snapshot N, va a
+la galería pero no al portapapeles) y la compo con el snapshot anterior pegado a
+su izquierda (snapshot N+1, galería y portapapeles). Sirve para armar de a un
+shortcut la tira que se le manda al vendor —plate, lo que hizo, lo que haría— en
+vez de montarla a mano en Photoshop, conservando además cada captura suelta.
 
-El encadenado no necesita ningún archivo de estado. La compo se guarda como el
-snapshot siguiente, así que la próxima vez `get_latest_snapshot_path()` devuelve
-la compo y la tira crece de a una captura por vez. Una captura sin `compare`
-arranca una tira nueva, porque pasa a ser el último snapshot.
+El encadenado no necesita ningún archivo de estado. La compo lleva el número más
+alto, así que la próxima vez `get_latest_snapshot_path()` la devuelve a ella y la
+tira crece de a una captura por vez. Una captura sin `compare` arranca una tira
+nueva, porque pasa a ser el último snapshot.
 
 El alto lo manda la más alta de las dos; la más baja se ancla **abajo**, con el
 relleno negro arriba. No hay separador entre una imagen y otra.
@@ -265,9 +267,9 @@ relleno negro arriba. No hay separador entre una imagen y otra.
 La compo se guarda con calidad JPEG 100: la parte vieja se re-comprime en cada
 paso, y a la tercera o cuarta captura la pérdida acumulada se notaría.
 
-Mientras se compone, la captura nueva va a `LGA_capture_tmp.jpg`, un nombre
-fuera del patrón `LGA_snapshot_N.jpg` para no meterse ni en la numeración ni en
-la limpieza. Se borra apenas se arma la compo.
+No hay archivo temporal: la captura nace como snapshot numerado. Si la compo
+falla —la tira pasó el ancho máximo del JPEG—, la captura ya es un snapshot
+válido, queda sola y arranca una tira nueva; no hay nada que rescatar.
 
 ## Portapapeles
 
@@ -316,8 +318,9 @@ Detalles que importan si se toca ese código:
 
 ## Editor de imágenes
 
-`Alt+click` sobre un thumbnail abre el JPG en el **ShareX Image Editor LGA**, el
-mismo que usa el panel de HieroTools para anotar capturas.
+`Shift+click` sobre un thumbnail abre el JPG en el **ShareX Image Editor LGA**, el
+mismo que usa el panel de HieroTools para anotar capturas — y con el mismo
+modificador que alla.
 
 El ejecutable no es del pack: lo trae HieroTools, que es un repo aparte y puede
 no estar instalado. `get_hierotools_image_editor()` lo busca subiendo dos niveles
@@ -330,13 +333,15 @@ archivo y si no serían dos accesos a disco por cada uno. `open_snapshot_gallery
 invalida esa caché al abrir, así que si las HieroTools se instalan con Nuke
 abierto alcanza con cerrar y reabrir la galería.
 
-De ese resultado dependen las dos puntas: la fila `Alt-click` del tooltip sólo se
-arma si hay editor, y si no lo hay el Alt+click cae en el visor por defecto.
+De ese resultado dependen las dos puntas: la fila `Shift-click` del tooltip sólo
+se arma si hay editor; `Alt-click` (revelar) se lista siempre. Sin editor, el
+Shift+click cae en el visor por defecto.
 
 En `mousePressEvent` Shift se evalúa antes que Alt, así que **Alt+Shift+click
-revela en el explorador**. Ojo con la asimetría: en el menú, `Alt+Shift+F9` es el
-que compone la tira. La misma combinación hace cosas distintas según dónde se
-apriete.
+abre el editor cuando está instalado, y revela en el explorador cuando no** —los
+dos `if` son independientes, la intención de Alt no se pierde—. Ojo con la
+asimetría: en el menú, `Alt+Shift+F9` es el que compone la tira. La misma
+combinación hace cosas distintas según dónde se apriete.
 
 Al editor se le pasa **el archivo como argumento**, igual que hace `ReviewPic` en
 HieroTools. La versión del panel de Hiero manda la imagen por el portapapeles
@@ -350,7 +355,7 @@ portapapeles al usuario.
 - **Numeración única**: Genera snapshots con nombres `LGA_snapshot_N.jpg` donde N es ascendente
 - **Proceso**: Despacha a uno de los dos motores (ver "Motores de captura") y después hace lo mismo en los dos casos: portapapeles, galería y limpieza
 - **Motor**: `use_write=False` (por defecto) captura el viewport; `use_write=True` renderiza con un Write temporal
-- **Tira**: `compare=True` compone con el snapshot anterior (ver "Tira de comparación"). Si no hay anterior, la captura queda sola y arranca la tira
+- **Tira**: `compare=True` genera captura y compo como dos snapshots (ver "Tira de comparación"). Si no hay anterior, la captura queda sola y arranca la tira
 - **Galería por defecto**: Si `save_to_gallery=True` (comportamiento por defecto), guarda copia en `snapshot_gallery/proyecto/`
 - **Organización por proyecto**: Crea subcarpetas basadas en nombre del proyecto sin versión
 - **Numeración secuencial**: Archivos en galería usan formato `proyecto_vXX_N.jpg`

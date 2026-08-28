@@ -1,7 +1,7 @@
 """
 ______________________________________________________________________________
 
-  LGA_viewer_SnapShot v1.06 | Lega
+  LGA_viewer_SnapShot v1.07 | Lega
 
   Crea un snapshot de lo que se ve en el viewer, lo copia al portapapeles y
   puede guardarlo en la galeria del proyecto.
@@ -15,6 +15,11 @@ ______________________________________________________________________________
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - El titulo de la seccion "Take/Show Snapshot" del README.md, que es a mano.
 
+  v1.07: compare=True genera dos imagenes en vez de una: la captura
+         individual queda como snapshot propio (va a la galeria, no al
+         portapapeles) y la compo como el snapshot siguiente (galeria y
+         portapapeles). Desaparece el temporal LGA_capture_tmp.jpg y su
+         rescate: si la compo falla, la captura ya es un snapshot valido.
   v1.05: El snapshot se publica en el portapapeles como CF_DIB con
          SetClipboardData en vez de dejarselo a Qt. Qt lo hace por OLE con
          renderizado diferido, y como justo despues venian el guardado en la
@@ -1113,9 +1118,10 @@ def take_snapshot(save_to_gallery=True, use_write=False, compare=False):
     completa del proyecto en vez de la del viewport. Va escondido detras de
     Ctrl y no se documenta en los tooltips.
 
-    compare=True pega la captura nueva a la derecha del snapshot anterior, para
-    ir armando la tira de comparacion. Como el resultado se guarda como el
-    snapshot siguiente, encadenar es volver a pedir compare: la tira crece de a
+    compare=True genera DOS imagenes: la captura individual (snapshot N, a la
+    galeria pero no al portapapeles) y la compo con el snapshot anterior pegado
+    a su izquierda (snapshot N+1, galeria y portapapeles). Como la compo lleva
+    el numero mas alto, encadenar es volver a pedir compare: la tira crece de a
     una captura por vez. Una captura sin compare arranca una tira nueva.
     """
     # --- Comprobaciones iniciales del viewer de Nuke ---
@@ -1139,72 +1145,49 @@ def take_snapshot(save_to_gallery=True, use_write=False, compare=False):
     if compare and not anterior_path:
         debug_print("No hay snapshot anterior: la captura arranca la tira")
 
-    # Obtener el siguiente numero para el snapshot
+    # La captura es SIEMPRE un snapshot numerado propio. Al componer se generan
+    # DOS imagenes: la captura (snapshot N, va a la galeria pero no al
+    # portapapeles) y la compo (snapshot N+1, galeria y portapapeles). Antes la
+    # captura pasaba por un temporal que se borraba y solo sobrevivia la compo;
+    # asi la captura individual tambien queda en la galeria, y como la compo
+    # lleva el numero mas alto, la tira sigue encadenando contra ella.
     snapshot_number = get_next_snapshot_number()
     temp_dir = tempfile.gettempdir()
-    output_path = os.path.join(temp_dir, f"LGA_snapshot_{snapshot_number}.jpg")
-
-    # Cuando hay que componer, la captura va a un temporal y el numero de
-    # snapshot queda para la compo, que es la que sigue la tira. El nombre esta
-    # fuera del patron LGA_snapshot_N.jpg a proposito, para no meterse ni en la
-    # numeracion ni en la limpieza.
+    captura_path = os.path.join(temp_dir, f"LGA_snapshot_{snapshot_number}.jpg")
     componer = bool(compare and anterior_path)
-    captura_path = (
-        os.path.join(temp_dir, "LGA_capture_tmp.jpg") if componer else output_path
-    )
     debug_print(
         f"Motor: {'write' if use_write else 'capture'}"
-        f"{' + compo' if componer else ''} -> {output_path}"
+        f"{' + compo' if componer else ''} -> {captura_path}"
     )
 
-    # El temporal tiene nombre fijo, asi que puede haber quedado de una corrida
-    # anterior que fallo. Si no se borra, el os.path.exists() de los motores lo
-    # daria por bueno y la tira se armaria con una captura vieja.
-    if componer and os.path.exists(captura_path):
-        try:
-            os.remove(captura_path)
-        except Exception as e:
-            debug_print(f"No se pudo borrar el temporal viejo: {e}")
+    if use_write:
+        generado = _snapshot_con_write(captura_path, input_node)
+    else:
+        generado = _snapshot_con_capture(captura_path, view_node, input_node)
+    if not generado:
+        return
 
-    try:
-        if use_write:
-            generado = _snapshot_con_write(captura_path, input_node)
+    output_path = captura_path
+    if componer:
+        compo_number = snapshot_number + 1
+        compo_path = os.path.join(temp_dir, f"LGA_snapshot_{compo_number}.jpg")
+        if _componer_con_anterior(anterior_path, captura_path, compo_path):
+            # La captura individual va a la galeria ANTES del flujo comun, que
+            # se queda con la compo (portapapeles, galeria y limpieza).
+            if save_to_gallery:
+                if not save_snapshot_to_gallery(captura_path):
+                    print("❌ Error al guardar la captura individual en galeria")
+            output_path = compo_path
+            snapshot_number = compo_number
         else:
-            generado = _snapshot_con_capture(captura_path, view_node, input_node)
-        if not generado:
-            return
-
-        if componer:
-            compuesto = _componer_con_anterior(
-                anterior_path, captura_path, output_path
+            # No se pudo componer —la tira llego a un tamano que el JPEG ya no
+            # banca, o el anterior quedo ilegible—. La captura ya es un
+            # snapshot valido: queda sola y arranca una tira limpia.
+            nuke.message(
+                "No se pudo componer con el snapshot anterior; probablemente la "
+                "tira ya es demasiado ancha.\n\n"
+                "La captura queda sola y empieza una tira nueva."
             )
-            if not compuesto:
-                # No se pudo componer —la tira llego a un tamano que el JPEG ya
-                # no banca, o el anterior quedo ilegible—. La captura no se
-                # tira: pasa a ser el snapshot nuevo y arranca una tira limpia.
-                rescatada = False
-                try:
-                    os.replace(captura_path, output_path)
-                    rescatada = True
-                except Exception as e:
-                    debug_print(f"No se pudo rescatar la captura: {e}")
-                nuke.message(
-                    "No se pudo componer con el snapshot anterior; probablemente la tira ya es demasiado ancha.\n\n"
-                    + (
-                        "La captura queda sola y empieza una tira nueva."
-                        if rescatada
-                        else "Ademas no se pudo guardar la captura."
-                    )
-                )
-                if not rescatada:
-                    return
-    finally:
-        # Pase lo que pase, el temporal no queda dando vueltas.
-        if componer and os.path.exists(captura_path):
-            try:
-                os.remove(captura_path)
-            except Exception as e:
-                debug_print(f"No se pudo borrar la captura temporal: {e}")
 
     # Cargar el JPEG como QImage
     qimage = QImage(output_path)
@@ -1213,11 +1196,16 @@ def take_snapshot(save_to_gallery=True, use_write=False, compare=False):
         # en Qt 6.5), y una tira larga llega ahi antes que a cualquier otro tope.
         # El archivo esta bien: lo que falla es cargarlo de vuelta.
         pesa = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+        extra = (
+            " La captura individual sí quedó guardada en la galería."
+            if componer and save_to_gallery
+            else ""
+        )
         nuke.message(
             "El snapshot se guardó pero no se pudo volver a leer, así que no va "
             "al portapapeles. Si venías encadenando capturas, la tira ya es "
             f"demasiado grande ({pesa / (1024 * 1024):.1f} MB): tomá una captura "
-            "suelta para empezar una tira nueva."
+            "suelta para empezar una tira nueva." + extra
         )
         return
 

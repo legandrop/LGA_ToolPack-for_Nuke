@@ -1,9 +1,13 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v1.06 | Lega
+  LGA_viewer_SnapShot_Gallery v1.07 | Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
+  v1.07 - Se enrocan los modificadores: Shift+click abre el JPG en el
+          ShareX Image Editor (como el panel de HieroTools) y Alt+click lo
+          revela en el explorador. Sin HieroTools, Shift cae al visor por
+          defecto y su fila no aparece en el tooltip.
   v1.04 - Alt+click sobre un thumbnail abre el JPG en el ShareX Image
           Editor que traen las HieroTools. La opcion y su linea en el
           tooltip aparecen solo si ese pack esta instalado; si no, el
@@ -602,12 +606,15 @@ class ThumbnailWidget(QLabel):
 
         acciones = [
             ("Click", TOOLTIP_ACCION_ABRIR),
-            ("Shift-click", TOOLTIP_ACCION_REVELAR.format(destino=reveal_target)),
         ]
         # La fila del editor aparece solo si estan instaladas las HieroTools,
-        # que son las que traen el ejecutable.
+        # que son las que traen el ejecutable. Sin editor, Shift no se lista:
+        # su unica accion seria caer al visor por defecto, que ya es el Click.
         if get_hierotools_image_editor():
-            acciones.append(("Alt-click", TOOLTIP_ACCION_EDITAR))
+            acciones.append(("Shift-click", TOOLTIP_ACCION_EDITAR))
+        acciones.append(
+            ("Alt-click", TOOLTIP_ACCION_REVELAR.format(destino=reveal_target))
+        )
 
         filas = []
         for indice, (accion, detalle) in enumerate(acciones):
@@ -716,20 +723,25 @@ class ThumbnailWidget(QLabel):
             return True
 
     def mousePressEvent(self, event):
-        """Maneja click para abrir, Shift+click para revelar y Alt+click para editar."""
+        """Maneja click para abrir, Shift+click para editar y Alt+click para revelar."""
         if event.button() == Qt.LeftButton:
             self.hide_custom_tooltip()
 
+            # Shift abre el editor de imagenes, igual que en el panel de
+            # HieroTools. Sin editor instalado la rama no consume el click, y
+            # el if de Alt es independiente a proposito: Shift+Alt sin editor
+            # cae a revelar (la intencion de Alt se respeta) en vez de perderse
+            # en el visor por defecto.
             if event.modifiers() & Qt.ShiftModifier:
+                if self.open_in_image_editor():
+                    super().mousePressEvent(event)
+                    return
+
+            if event.modifiers() & Qt.AltModifier:
                 debug_print(f"Revelando imagen en explorador: {self.image_path}")
                 self.reveal_in_file_browser()
                 super().mousePressEvent(event)
                 return
-
-            if event.modifiers() & Qt.AltModifier:
-                if self.open_in_image_editor():
-                    super().mousePressEvent(event)
-                    return
 
             self.open_image_in_default_viewer()
 
