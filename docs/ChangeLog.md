@@ -2,6 +2,8 @@
 
 ## v2.64
 
+- **`LGA_UI_Style_ToolPack v1.22`: los paths coloreados se anclan en el shotname.** Cuando un segmento de la ruta es un nombre de shot (PROYECTO_SEQ_SHOT_VENDOR), todo lo anterior va en un solo color (el de parte comun) y la paleta por nivel arranca recien en el shot; sin shot detectable se sigue coloreando por nivel desde la raiz. La regla quedo en `Docu_UI_Style.md` de LGA_ToolPack; `colorize_path_pair` y la revision de las ventanas quedan en `ROADMAP.md`. [ ToolPack - Paths anclados al shotname ]
+
 - **La tira guarda también cada captura suelta, y la galería enroca sus modificadores.** Shift en el snapshot ahora genera dos imágenes: la captura individual queda como snapshot propio en la galería —sin pasar por el portapapeles— y la compo como el snapshot siguiente, que es el que se copia y encadena. Antes la captura individual se perdía dentro de la compo. De paso desaparece el temporal `LGA_capture_tmp.jpg` con su rescate: si la compo falla, la captura ya es un snapshot válido. En la galería, Shift+click pasa a abrir el JPG en el ShareX Image Editor —mismo modificador que en el panel de HieroTools— y Alt+click lo revela en el explorador; sin HieroTools, Shift cae al visor por defecto. [ TakeShowSnapshot - Guardar la captura suelta ademas de la compo y enrocar la galeria ]
 
 

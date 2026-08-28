@@ -17,10 +17,9 @@ por nivel desde la raiz queda solo para rutas sin shot detectable.
 
 Hay que rechequear y arreglar:
 
-- `py/LGA_UI_Style_ToolPack.py`: `colorize_path()` y `colorize_path_pair()` colorean por nivel
-  desde la raiz siempre; agregar la deteccion de shot y actualizar sus
-  docstrings. El cambio va en las CUATRO copias del modulo de estilo
-  (LGA_ToolPack, LGA_ToolPack-B, LGA_ToolPack-Layout, HieroTools).
+- `colorize_path()` ya quedo anclado al shotname en las cuatro copias del
+  modulo de estilo (v1.22). Falta `colorize_path_pair()`, que tras la
+  parte comun del par sigue coloreando por nivel sin mirar el shot.
 - Todas las ventanas del repo que muestren rutas, revisarlas contra la regla.
 
 Donde mirar ejemplos de como detectar el shot en una ruta:
