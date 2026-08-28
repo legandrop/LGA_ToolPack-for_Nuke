@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.23 | Lega
+  LGA_UI_Style_ToolPack v1.25 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,13 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.25: La deteccion de shotname acepta el naming de 3 bloques. El
+         vendor era obligatorio, asi que PROYECTO_SEQ_SHOT no se
+         reconocia y su path se coloreaba por nivel desde la raiz.
+  v1.24: Style.TABS: la pestana activa lleva el mismo fondo que el panel
+         que abre. Cada tool con pestanas tenia su hoja propia copiada, y
+         la activa salia en SURFACE_HEADER, dos tonos mas clara que su
+         propio contenido.
   v1.23: El shotname va INCLUIDO en el color de parte comun. En v1.22
          arrancaba la paleta y salia de otro color que su prefijo.
   v1.22: colorize_path se ancla en el shotname: si un segmento es un
@@ -425,6 +432,13 @@ class Metric(object):
     FORM_FONT_SIZE = 14
     # El path del pie va un escalon abajo: es dato de referencia, no contenido.
     FORM_PATH_FONT_SIZE = 12
+
+    # --- pestanas -----------------------------------------------------------
+    # La etiqueta de una pestana es un rotulo, no contenido: va un escalon
+    # abajo del cuerpo y con letter-spacing, como los titulos de seccion.
+    TAB_FONT_SIZE = 12
+    TAB_H_PAD = 18
+    TAB_V_PAD = 16
 
     # --- tamano de letra de las TABLAS --------------------------------------
     # Lo elige el usuario. Toca SOLO las tablas y no el resto de la ventana:
@@ -1310,6 +1324,55 @@ QTableWidget::item:selected { background-color: %(selected)s; color: %(text_stro
     # de seleccion en un host claro). La tabla lleva el bloque completo.
     Style.TABLE += Style.CHECKBOX
 
+    # --- pestanas -----------------------------------------------------------
+    # La pestana ACTIVA lleva el MISMO fondo que el panel que abre: la pestana
+    # y su contenido son la misma superficie, y el borde la rodea solo por
+    # arriba y los costados. Cuando la activa sale de otro color -pasaba con
+    # SURFACE_HEADER, dos tonos mas claro que WINDOW- se lee como una caja
+    # apoyada encima del panel en vez de como su continuacion.
+    # Las INACTIVAS van hundidas (FIELD_BG), que es lo que las manda atras.
+    Style.TABS = """
+QTabWidget::pane {
+    background-color: %(window)s;
+    border: 1px solid %(border)s;
+    border-top: none;
+}
+QTabBar {
+    background: %(field)s;
+    qproperty-drawBase: 0;
+}
+QTabBar::tab {
+    background: %(field)s;
+    color: %(dim)s;
+    padding: %(vpad)dpx %(hpad)dpx;
+    border: 1px solid transparent;
+    font-weight: bold;
+    font-size: %(font)dpx;
+    letter-spacing: 1px;
+}
+QTabBar::tab:selected {
+    background: %(window)s;
+    color: %(accent_hover)s;
+    border-top-color: %(border)s;
+    border-left-color: %(border)s;
+    border-right-color: %(border)s;
+}
+QTabBar::tab:hover:!selected { color: %(text)s; background: %(surface)s; }
+QTabBar::tab:disabled { color: %(disabled)s; background: %(field)s; }
+""" % {
+        "window": Color.WINDOW,
+        "field": Color.FIELD_BG,
+        "surface": Color.SURFACE,
+        "border": Color.BORDER_STRONG,
+        "dim": Color.TEXT_DIM,
+        "text": Color.TEXT,
+        "disabled": Color.TEXT_DISABLED,
+        "accent_hover": Color.ACCENT_HOVER,
+        "font": Metric.TAB_FONT_SIZE,
+        "hpad": Metric.TAB_H_PAD,
+        "vpad": Metric.TAB_V_PAD,
+    }
+
     # Bloque de detalle tecnico (traceback, salida de un proceso). Va mas
     # oscuro que la ventana a proposito, para que se lea como un bloque de
     # datos pegado y no como una segunda parte del mensaje.
@@ -1735,11 +1798,14 @@ def _split_path(path):
     return (path or "").replace("\\", "/").split("/")
 
 
-# Nombre de shot tipo PROYECTO_SEQ_SHOT_VENDOR. Deteccion liviana para la
+# Nombre de shot: PROYECTO_SEQ_SHOT, con el bloque de vendor OPCIONAL. El
+# vendor era obligatorio y dejaba afuera el naming simplificado de 3 bloques,
+# que es igual de valido: esos paths caian al coloreo por nivel desde la raiz
+# y la regla del shotname no se les aplicaba. Deteccion liviana para la
 # regla "el color de un path se ancla en el shotname" (Docu_UI_Style.md);
 # la deteccion completa, validada contra PipeSync, vive en HieroTools
 # (LGA_NKS_Flow_NamingUtils) y no se importa desde aca para no acoplar.
-_SHOT_SEGMENT_RE = re.compile(r"^[A-Za-z0-9]+_\d{3,4}_\d{3,4}_[A-Za-z0-9]{2,4}$")
+_SHOT_SEGMENT_RE = re.compile(r"^[A-Za-z0-9]+_\d{3,4}_\d{3,4}(?:_[A-Za-z0-9]{2,4})?$")
 
 
 def _shot_segment_index(segments):
