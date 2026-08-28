@@ -517,11 +517,26 @@ def _take_snapshot_runner():
     LGA_viewer_SnapShot.take_snapshot(save_to_gallery=True)
 
 
+def _take_snapshot_compare_runner():
+    """Pega la captura a la derecha de la anterior, para armar la tira."""
+    import LGA_viewer_SnapShot
+
+    LGA_viewer_SnapShot.take_snapshot(save_to_gallery=True, compare=True)
+
+
 if is_enabled("Snapshot_Tools"):
     n.addCommand(
         "  Take Snapshot",
         _take_snapshot_runner,
         "shift+F9",
+        shortcutContext=2,
+        icon=icon_VA,
+    )
+
+    n.addCommand(
+        "  Take Snapshot and Append",
+        _take_snapshot_compare_runner,
+        "alt+shift+F9",
         shortcutContext=2,
         icon=icon_VA,
     )

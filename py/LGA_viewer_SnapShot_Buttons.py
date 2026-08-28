@@ -1,13 +1,22 @@
 """
 ______________________________________________________
 
-  LGA_viewer_SnapShot_Buttons v1.02 | Lega
+  LGA_viewer_SnapShot_Buttons v1.06 | Lega
 
   Crea botones en el viewer para snapshots
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - El titulo de la seccion "Take/Show Snapshot" del README.md, a mano.
 
+  v1.06: Los tres contenedores pasan de QDialog a QWidget. Un QDialog metido
+         en el layout del toolbar del viewer se sigue portando como dialogo:
+         con el foco puesto, un Escape le dispara reject() y se esconde solo.
+         El widget quedaba vivo y en el layout pero invisible, o sea que el
+         boton "desaparecia" despues de usarlo. Los botones ademas dejan de
+         tomar foco de teclado, asi que ya no se comen los atajos del viewer.
+  v1.03: Shift+Click pasa a componer con el snapshot anterior en vez de
+         saltear la galeria. Sin Shift arranca una tira nueva, y todo lo
+         que se captura va a la galeria.
   v1.02: El boton de tomar snapshot detecta Ctrl y en ese caso usa el motor
          viejo, el del Write temporal. Va escondido a proposito: no se nombra
          en el tooltip. Sin Ctrl usa capture(), que toma lo que se ve.
@@ -32,6 +41,10 @@ from LGA_QtAdapter_ToolPack import (
     safe_widget_call,
 )
 
+# A logs/LGA_viewer_SnapShot.log. La insercion y el borrado de los botones son
+# justo lo que no se podia ver cuando uno desaparecia.
+from LGA_viewer_SnapShot_logging import debug_print, log_error
+
 # Obtener la ruta de los iconos
 KS_DIR = os.path.dirname(__file__)
 icons_path = os.path.join(KS_DIR, "icons")
@@ -41,7 +54,12 @@ QClipboard = QtGui.QClipboard
 QIcon = QtGui.QIcon
 QApplication = QtWidgets.QApplication
 QPushButton = QtWidgets.QPushButton
-QDialog = QtWidgets.QDialog
+# Los tres botones eran QDialog. Un QDialog metido en el layout de un toolbar
+# sigue comportandose como dialogo: con el foco puesto, un Escape le dispara
+# reject() y se esconde solo. Verificado con Qt 6.5.3: el widget queda vivo y
+# en el layout, pero invisible, que es como "desaparecia" el boton del snapshot
+# despues de clickearlo y apretar Escape. QWidget no tiene ese comportamiento.
+QWidget = QtWidgets.QWidget
 QHBoxLayout = QtWidgets.QHBoxLayout
 QSlider = QtWidgets.QSlider
 try:
@@ -54,17 +72,10 @@ BTN_NAME_SHOW = "LGA_Snapshot_Show"
 BTN_NAME_GALLERY = "LGA_Snapshot_Gallery"
 
 
-DEBUG = False
-
 # Tope de reintentos del timer que espera a que el viewer exista.
 # 20 x 500 ms = 10 segundos. Sin tope, cada reintento barria la lista de
 # widgets del proceso para siempre, que es justo lo que terminaba crasheando.
 MAX_LAUNCH_RETRIES = 20
-
-
-def debug_print(*message):
-    if DEBUG:
-        print(*message)
 
 
 def launch(_retry=0):
@@ -74,11 +85,14 @@ def launch(_retry=0):
         def __init__(self, _text, parent=None):
             super(CustomButton, self).__init__()
             self.setText(_text)
+            # Sin foco de teclado: si no, despues de clickearlo se queda con el
+            # foco y se come los atajos que el usuario le manda al viewer.
+            self.setFocusPolicy(QtCore.Qt.NoFocus)
             self.setAcceptDrops(True)
             self.mineData = None
             self._parent = parent
 
-    class Take_SnapShotButton(QDialog):
+    class Take_SnapShotButton(QWidget):
         """Boton para tomar snapshot"""
 
         def __init__(self):
@@ -101,7 +115,7 @@ def launch(_retry=0):
             self.addShortcutButton.clicked.connect(self.take_snapshot)
             self.addShortcutButton.setFixedWidth(30)
             self.addShortcutButton.setToolTip(
-                "(Shift+F9) Take snapshot and save to gallery - Shift+Click to NOT save to gallery"
+                "(Shift+F9) Take snapshot and save to gallery - Shift+Click to append it to the right of the previous one"
             )
             self.addShortcutButton.setFlat(True)
             self.generalLayout.addWidget(self.addShortcutButton)
@@ -131,21 +145,25 @@ def launch(_retry=0):
                         module = importlib.util.module_from_spec(spec)
                         spec.loader.exec_module(module)
 
-                        # Llamar a la funcion take_snapshot del script con el parametro shift invertido
-                        # Sin shift = guarda en galeria, Con shift = NO guarda en galeria
+                        # Shift pega la captura a la derecha de la anterior; sin
+                        # Shift arranca una tira nueva. Las dos van a la galeria.
                         module.take_snapshot(
-                            save_to_gallery=not shift_pressed,
+                            save_to_gallery=True,
                             use_write=bool(ctrl_pressed),
+                            compare=bool(shift_pressed),
                         )
                     else:
                         nuke.message("Error: No se pudo cargar el modulo de SnapShot")
                 else:
                     nuke.message(f"Error: Script no encontrado en {script_path}")
             except Exception as e:
-                nuke.message(f"Error al ejecutar SnapShot: {str(e)}")
-                debug_print(f"Error en take_snapshot: {e}")
+                import traceback
 
-    class Show_SnapShotButton(QDialog):
+                log_error(f"Error en take_snapshot: {e}")
+                log_error(traceback.format_exc())
+                nuke.message(f"Error al ejecutar SnapShot: {str(e)}")
+
+    class Show_SnapShotButton(QWidget):
         """Boton para mostrar snapshot mientras se mantiene presionado"""
 
         def __init__(self):
@@ -225,7 +243,7 @@ def launch(_retry=0):
 
                 debug_print(f"Traceback: {traceback.format_exc()}")
 
-    class Gallery_SnapShotButton(QDialog):
+    class Gallery_SnapShotButton(QWidget):
         """Boton para abrir la galeria de snapshots"""
 
         def __init__(self):
@@ -352,26 +370,33 @@ def launch(_retry=0):
                 gallery_snapshot_btn = Gallery_SnapShotButton()
 
                 # Remover instancias previas de nuestros botones por objectName
+                removidos = []
                 for w in list(parent.children()):
                     if not is_widget_alive(w):
                         continue
                     try:
-                        if safe_widget_call(w, "objectName") in (
+                        nombre = safe_widget_call(w, "objectName")
+                        if nombre in (
                             BTN_NAME_TAKE,
                             BTN_NAME_SHOW,
                             BTN_NAME_GALLERY,
                         ):
                             layout.removeWidget(w)
                             w.deleteLater()
-                    except Exception:
+                            removidos.append(nombre)
+                    except Exception as e:
+                        debug_print(f"No se pudo remover un boton previo: {e}")
                         continue
+                if removidos:
+                    debug_print(f"Botones previos removidos: {removidos}")
 
                 layout.addWidget(take_snapshot_btn)
                 layout.addWidget(show_snapshot_btn)
                 layout.addWidget(gallery_snapshot_btn)
 
                 debug_print(
-                    "✅ Botones LGA SnapShot agregados al viewer (Take, Show y Gallery)"
+                    f"Botones agregados al viewer (Take, Show, Gallery) sobre "
+                    f"{parent.metaObject().className()}"
                 )
                 return c
             except Exception as e:
@@ -379,14 +404,18 @@ def launch(_retry=0):
         return None
 
     # Ejecutar la insercion de botones
+    debug_print(f"launch() intento {_retry}")
     viewer_widget = find_viewer()
     if viewer_widget:
-        find_framerange(viewer_widget)
-        debug_print("✅ Botones agregados exitosamente al viewer")
+        if find_framerange(viewer_widget) is None:
+            log_error(
+                "Se encontro el viewer pero no su frame slider: los botones "
+                "NO se insertaron"
+            )
     elif _retry >= MAX_LAUNCH_RETRIES:
         # Rendirse: seguir reintentando barria la lista de widgets del proceso
         # cada 500 ms para siempre, aun con el viewer cerrado.
-        debug_print(
+        log_error(
             f"⚠️ No se encontro el widget del viewer despues de "
             f"{MAX_LAUNCH_RETRIES} intentos - se abandona"
         )

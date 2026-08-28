@@ -1,9 +1,13 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v1.02 | Lega
+  LGA_viewer_SnapShot_Gallery v1.06 | Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
+  v1.04 - Alt+click sobre un thumbnail abre el JPG en el ShareX Image
+          Editor que traen las HieroTools. La opcion y su linea en el
+          tooltip aparecen solo si ese pack esta instalado; si no, el
+          Alt+click cae en el visor de siempre.
   v0.56 - buscar_ventana_existente() deja de barrer allWidgets() a pelo:
           los wrappers de widgets ya destruidos en C++ hacian crashear a
           Nuke. Ahora itera con iter_live_widgets() y lee objectName e
@@ -34,6 +38,8 @@ from LGA_QtAdapter_ToolPack import (
     safe_widget_call,
 )
 from LGA_UI_Style_ToolPack import SCROLLBAR, Color, Style
+# A logs/LGA_viewer_SnapShot.log, el mismo archivo que el resto de la tool.
+from LGA_viewer_SnapShot_logging import debug_print, log_error
 from LGA_tooltip_helper import (
     TOOLTIP_BG,
     TOOLTIP_PADDING_PX,
@@ -67,9 +73,6 @@ QIcon = QtGui.QIcon
 QPainter = QtGui.QPainter
 QColor = QtGui.QColor
 
-# Variable global para activar o desactivar los prints de depuracion
-debug = False  # Cambiar a False para ocultar los mensajes de debug
-
 # Variables para personalizar el slider
 SLIDER_BAR_WIDTH = 100  # Ancho de la barra del slider
 SLIDER_BAR_HEIGHT = 4  # Alto de la barra del slider
@@ -81,13 +84,83 @@ CONFIG_FILE_NAME = "SnapshotGallery.ini"
 CONFIG_SECTION = "Settings"
 CONFIG_THUMBNAIL_SIZE_KEY = "thumbnail_size"
 
+# Textos del tooltip del thumbnail. Van afuera del widget porque los tooltips
+# van a pasar a ser bilingues y eso tiene que ser un cambio de datos, no un
+# refactor. El de revelar se arma con el nombre del explorador de cada sistema.
+TOOLTIP_ACCION_ABRIR = "Open JPG in your default viewer"
+TOOLTIP_ACCION_REVELAR = "Show in {destino}"
+TOOLTIP_ACCION_EDITAR = "Open JPG in ShareX Image Editor"
+
 app = None
 window = None
 
 
-def debug_print(*message):
-    if debug:
-        print("[LGA_viewer_SnapShot_Gallery]", *message)
+# El editor se busca una sola vez por sesion: la galeria crea un thumbnail por
+# archivo y no tiene sentido ir al disco por cada uno.
+_image_editor_path = None
+_image_editor_buscado = False
+
+
+def get_hierotools_image_editor():
+    """
+    Devuelve la ruta del ShareX ImageEditor LGA que traen las HieroTools, o
+    None si no estan instaladas.
+
+    Las HieroTools son un pack aparte que puede no estar; ademas el editor es
+    un .exe, asi que fuera de Windows no aplica. Por eso la opcion de la
+    galeria aparece solo cuando el archivo existe de verdad. Como solo corre en
+    Windows, se busca unicamente la grafia Python/Startup.
+
+    El pack vive en <.nuke>/LGA_ToolPack/py/, asi que subiendo dos niveles se
+    llega al .nuke donde vive tambien HieroTools. Se prueba igual la carpeta
+    del usuario, por si el pack se instalo en otro lado.
+
+    Se usa abspath y no realpath a proposito: con LGA_ToolPack symlinkeado,
+    realpath saldria del .nuke y la primera ruta no resolveria.
+    """
+    global _image_editor_path, _image_editor_buscado
+    if _image_editor_buscado:
+        return _image_editor_path
+
+    _image_editor_buscado = True
+    if platform.system() != "Windows":
+        debug_print("ShareX ImageEditor LGA solo existe en Windows")
+        return None
+
+    relativo = os.path.join(
+        "Python",
+        "Startup",
+        "LGA_HieroTools",
+        "LGA_NKS_Flow_Panel_py",
+        "ShareX_ImageEditor_LGA",
+        "ShareX_ImageEditor_LGA.exe",
+    )
+    raiz_pack = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+    nuke_home = os.path.join(os.path.expanduser("~"), ".nuke")
+    for base in (raiz_pack, nuke_home):
+        ruta = os.path.join(base, relativo)
+        if os.path.isfile(ruta):
+            debug_print(f"ShareX ImageEditor LGA encontrado en: {ruta}")
+            _image_editor_path = ruta
+            return _image_editor_path
+
+    debug_print("No se encontro ShareX ImageEditor LGA: HieroTools no instaladas")
+    return None
+
+
+def reset_image_editor_cache():
+    """
+    Vuelve a habilitar la busqueda del editor.
+
+    El resultado se cachea por sesion, asi que si alguien instala las
+    HieroTools con Nuke abierto el Alt+click no aparecería hasta reiniciar.
+    La galeria llama a esto al abrirse: cerrarla y volver a abrirla alcanza.
+    """
+    global _image_editor_path, _image_editor_buscado
+    _image_editor_path = None
+    _image_editor_buscado = False
 
 
 def get_user_config_dir():
@@ -527,6 +600,26 @@ class ThumbnailWidget(QLabel):
         if system not in ("Windows", "Darwin"):
             reveal_target = "File Manager"
 
+        acciones = [
+            ("Click", TOOLTIP_ACCION_ABRIR),
+            ("Shift-click", TOOLTIP_ACCION_REVELAR.format(destino=reveal_target)),
+        ]
+        # La fila del editor aparece solo si estan instaladas las HieroTools,
+        # que son las que traen el ejecutable.
+        if get_hierotools_image_editor():
+            acciones.append(("Alt-click", TOOLTIP_ACCION_EDITAR))
+
+        filas = []
+        for indice, (accion, detalle) in enumerate(acciones):
+            # La ultima fila no lleva aire abajo, para no descentrar el popup.
+            abajo = "0px" if indice == len(acciones) - 1 else "3px"
+            filas.append(
+                "<tr>"
+                f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_PRIMARY_TEXT}; padding:0px 12px {abajo} 0px; white-space:nowrap;'>{accion}</td>"
+                f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_SECONDARY_TEXT}; padding:0px 0px {abajo} 0px; white-space:nowrap;'>{detalle}</td>"
+                "</tr>"
+            )
+
         self.tooltip_html = (
             "<table border='0' cellspacing='0' cellpadding='0' style='"
             f"background-color:{TOOLTIP_BG};"
@@ -534,16 +627,7 @@ class ThumbnailWidget(QLabel):
             "border-collapse:collapse;"
             "margin:0px;"
             "padding:0px;"
-            "'>"
-            "<tr>"
-            f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_PRIMARY_TEXT}; padding:0px 12px 3px 0px; white-space:nowrap;'>Click</td>"
-            f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_SECONDARY_TEXT}; padding:0px 0px 3px 0px; white-space:nowrap;'>Open JPG in your default viewer</td>"
-            "</tr>"
-            "<tr>"
-            f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_PRIMARY_TEXT}; padding:0px 12px 0px 0px; white-space:nowrap;'>Shift-click</td>"
-            f"<td style='background-color:{TOOLTIP_BG}; color:{TOOLTIP_SECONDARY_TEXT}; padding:0px; white-space:nowrap;'>Show in {reveal_target}</td>"
-            "</tr>"
-            "</table>"
+            "'>" + "".join(filas) + "</table>"
         )
         self.setMouseTracking(True)
 
@@ -605,8 +689,34 @@ class ThumbnailWidget(QLabel):
                 self, "Error", f"No se pudo abrir la imagen:\n{str(e)}"
             )
 
+    def open_in_image_editor(self):
+        """
+        Abre el JPG en el ShareX ImageEditor LGA de las HieroTools.
+
+        Se le pasa el archivo como argumento, igual que hace ReviewPic, en vez
+        de mandarlo por el portapapeles: la galeria ya tiene el archivo en
+        disco y asi no se le pisa el portapapeles al usuario.
+
+        Devuelve False si no hay editor, para que el click caiga en el
+        comportamiento de siempre.
+        """
+        editor_path = get_hierotools_image_editor()
+        if not editor_path:
+            debug_print("Alt+click sin editor disponible: se abre el visor default")
+            return False
+        try:
+            subprocess.Popen([editor_path, os.path.normpath(self.image_path)])
+            debug_print(f"Abriendo {self.image_path} en {editor_path}")
+            return True
+        except Exception as e:
+            log_error(f"Error al abrir el editor de imagenes: {e}")
+            QMessageBox.warning(
+                self, "Error", f"No se pudo abrir el editor de imágenes:\n{str(e)}"
+            )
+            return True
+
     def mousePressEvent(self, event):
-        """Maneja click para abrir y Shift+click para revelar."""
+        """Maneja click para abrir, Shift+click para revelar y Alt+click para editar."""
         if event.button() == Qt.LeftButton:
             self.hide_custom_tooltip()
 
@@ -615,6 +725,11 @@ class ThumbnailWidget(QLabel):
                 self.reveal_in_file_browser()
                 super().mousePressEvent(event)
                 return
+
+            if event.modifiers() & Qt.AltModifier:
+                if self.open_in_image_editor():
+                    super().mousePressEvent(event)
+                    return
 
             self.open_image_in_default_viewer()
 
@@ -1229,6 +1344,11 @@ def open_snapshot_gallery():
     global app, window
 
     debug_print("Abriendo galeria de snapshots...")
+
+    # Se vuelve a mirar si estan las HieroTools: si se instalaron con Nuke
+    # abierto, cerrar y reabrir la galeria alcanza para que aparezca el
+    # Alt+click, sin reiniciar.
+    reset_image_editor_cache()
 
     # Verificar si ya existe una ventana abierta con el mismo nombre de objeto
     ventana_existente = buscar_ventana_existente("LGA_SnapshotGalleryWindow")

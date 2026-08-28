@@ -1,7 +1,7 @@
 """
 ______________________________________________________________________________
 
-  LGA_viewer_SnapShot v1.02 | Lega
+  LGA_viewer_SnapShot v1.06 | Lega
 
   Crea un snapshot de lo que se ve en el viewer, lo copia al portapapeles y
   puede guardarlo en la galeria del proyecto.
@@ -10,10 +10,27 @@ ______________________________________________________________________________
     LGA_viewer_SnapShot.py          <- este, el principal
     LGA_viewer_SnapShot_Buttons.py
     LGA_viewer_SnapShot_Gallery.py
+    LGA_viewer_SnapShot_logging.py
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - El titulo de la seccion "Take/Show Snapshot" del README.md, que es a mano.
 
+  v1.05: El snapshot se publica en el portapapeles como CF_DIB con
+         SetClipboardData en vez de dejarselo a Qt. Qt lo hace por OLE con
+         renderizado diferido, y como justo despues venian el guardado en la
+         galeria y la limpieza —las dos IO sincronica—, el hilo no volvia al
+         event loop a tiempo: medido, con 0.3 s de bloqueo la entrada del
+         historial de Windows se pierde y el portapapeles queda con los datos
+         en NULL. Con CF_DIB los bytes quedan materializados en 10 ms. El
+         camino de Qt sigue como respaldo, y la copia pasa a ser lo ultimo.
+  v1.03: take_snapshot() suma compare=True, que pega la captura nueva a la
+         derecha del snapshot anterior. Como la compo se guarda como el
+         snapshot siguiente, encadenar es volver a pedir compare y la tira
+         crece de a una captura: sirve para armar de a un shortcut la
+         comparacion plate / trabajo / propuesta que antes se hacia a mano en
+         Photoshop. El alto lo manda la mas alta y la mas baja se ancla abajo.
+         Se va la opcion de capturar sin guardar en galeria: ahora Shift
+         significa componer, y todo lo que se captura va a la galeria.
   v1.02: El snapshot pasa a tomarse con view_node.capture(), que devuelve el
          framebuffer del viewer: sale con el viewerProcess, el gain y el gamma
          aplicados, y respetando el encuadre que tenga el usuario. Antes se
@@ -30,8 +47,14 @@ ______________________________________________________________________________
 import nuke
 import nukescripts
 import os
+import struct
+import sys
 import tempfile
 from LGA_QtAdapter_ToolPack import QtGui, QtCore, QtWidgets
+
+# El debug va a logs/LGA_viewer_SnapShot.log. Antes era un print a consola con
+# DEBUG = False, o sea que cuando algo fallaba no quedaba rastro de nada.
+from LGA_viewer_SnapShot_logging import debug_print, log_error
 
 QImage = QtGui.QImage
 QClipboard = QtGui.QClipboard
@@ -39,15 +62,8 @@ QApplication = QtWidgets.QApplication
 QTimer = QtCore.QTimer
 QEventLoop = QtCore.QEventLoop
 
-DEBUG = False
-
 # Variable global para mantener el estado del snapshot hold
 _lga_snapshot_hold_state = None
-
-
-def debug_print(*message):
-    if DEBUG:
-        print(*message)
 
 
 def get_next_snapshot_number():
@@ -682,6 +698,62 @@ def _snapshot_con_capture(output_path, view_node, input_node):
     return True
 
 
+def _componer_con_anterior(anterior_path, nueva_path, salida_path):
+    """
+    Pega la captura nueva a la DERECHA de la anterior y guarda el resultado.
+
+    Sirve para ir armando de a un shortcut la tira que despues va al vendor:
+    plate, lo que hizo, lo que haria. Como la compo se guarda como el snapshot
+    siguiente, el proximo Shift vuelve a componer contra ella y la tira crece
+    sola, sin ningun archivo de estado aparte.
+
+    El alto lo manda la mas alta de las dos. La mas baja se ancla ABAJO, asi
+    que el relleno negro queda arriba.
+    """
+    anterior = QImage(anterior_path)
+    nueva = QImage(nueva_path)
+    if anterior.isNull() or nueva.isNull():
+        debug_print("No se pudo leer alguna de las dos imagenes a componer")
+        return False
+
+    ancho = anterior.width() + nueva.width()
+    alto = max(anterior.height(), nueva.height())
+    if ancho <= 0 or alto <= 0:
+        debug_print("Medidas invalidas para la compo")
+        return False
+
+    compo = QImage(ancho, alto, QImage.Format_RGB32)
+    compo.fill(QtGui.QColor(0, 0, 0))
+
+    painter = QtGui.QPainter(compo)
+    try:
+        painter.drawImage(0, alto - anterior.height(), anterior)
+        painter.drawImage(anterior.width(), alto - nueva.height(), nueva)
+    finally:
+        # Si el painter sigue activo, el QImage no se puede guardar.
+        painter.end()
+
+    # Calidad 100: la parte vieja se re-comprime en cada paso de la cadena, y
+    # a la tercera o cuarta captura la perdida acumulada ya se notaria.
+    if not compo.save(salida_path.replace("\\", "/"), "JPEG", 100):
+        debug_print(f"No se pudo guardar la compo en {salida_path}")
+        # Qt crea el archivo ANTES de fallar y lo deja en cero bytes. Si queda,
+        # pasa a ser el snapshot mas alto: el Hold intentaria leerlo y la
+        # proxima compo se armaria contra un JPEG vacio. Se borra siempre.
+        try:
+            if os.path.exists(salida_path):
+                os.remove(salida_path)
+        except Exception as e:
+            debug_print(f"No se pudo borrar la compo fallida: {e}")
+        return False
+
+    debug_print(
+        f"Compo: {anterior.width()}x{anterior.height()} + "
+        f"{nueva.width()}x{nueva.height()} -> {ancho}x{alto}"
+    )
+    return True
+
+
 def _snapshot_con_write(output_path, input_node):
     """
     Motor viejo, escondido detras de Ctrl y sin documentar en los tooltips.
@@ -818,7 +890,221 @@ def _snapshot_con_write(output_path, input_node):
             restore_original_wav(original_wav_path)
 
 
-def take_snapshot(save_to_gallery=False, use_write=False):
+# ---------------------------------------------------------------------------
+# Portapapeles
+#
+# Qt publica el portapapeles por OLE con renderizado DIFERIDO: anuncia los
+# formatos pero no materializa los bytes hasta que alguien se los pide, y para
+# contestar necesita que el proceso vuelva al event loop. Si despues de copiar
+# el hilo sigue ocupado —aca mismo venian el guardado en la galeria y la
+# limpieza de temporales, las dos IO sincronica—, el servicio del historial de
+# Windows no llega a leer nada.
+#
+# Medido: con 0.3 s de hilo bloqueado despues del setImage, el snapshot ya no
+# entra al historial, y el portapapeles queda con los formatos anunciados y los
+# datos en NULL. Mientras dura el bloqueo, cualquier otra app que intente pegar
+# recibe ACCESS_DENIED. Eso explicaba que el historial se "borrara" a veces: no
+# se borraba, se rompia la entrada.
+#
+# Publicando CF_DIB con SetClipboardData los bytes quedan materializados en el
+# acto y no dependen de que el proceso conteste nada. Es lo mismo que hace
+# ShareX, que por eso nunca falla. Windows sintetiza CF_BITMAP y CF_DIBV5 solo,
+# asi que alcanza con publicar CF_DIB.
+# ---------------------------------------------------------------------------
+
+GMEM_MOVEABLE = 0x0002
+CF_DIB = 8
+BITMAPINFOHEADER_SIZE = 40
+
+_clipboard_api = None
+_clipboard_api_buscada = False
+
+
+def _get_clipboard_api():
+    """
+    Devuelve (ctypes, user32, kernel32) con las firmas declaradas, o None si
+    no es Windows o algo falla.
+
+    Declarar argtypes/restype no es cosmetico: sin eso ctypes asume int de 32
+    bits y en un Windows de 64 trunca los handles.
+    """
+    global _clipboard_api, _clipboard_api_buscada
+    if _clipboard_api_buscada:
+        return _clipboard_api
+
+    _clipboard_api_buscada = True
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+        user32.OpenClipboard.argtypes = [wintypes.HWND]
+        user32.OpenClipboard.restype = wintypes.BOOL
+        user32.EmptyClipboard.argtypes = []
+        user32.EmptyClipboard.restype = wintypes.BOOL
+        user32.CloseClipboard.argtypes = []
+        user32.CloseClipboard.restype = wintypes.BOOL
+        user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+        user32.SetClipboardData.restype = wintypes.HANDLE
+
+        kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+        kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+        kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalLock.restype = ctypes.c_void_p
+        kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalUnlock.restype = wintypes.BOOL
+        kernel32.GlobalFree.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalFree.restype = wintypes.HGLOBAL
+        kernel32.Sleep.argtypes = [wintypes.DWORD]
+        kernel32.Sleep.restype = None
+
+        _clipboard_api = (ctypes, user32, kernel32)
+    except Exception as e:
+        debug_print(f"No se pudo preparar la API de portapapeles: {e}")
+        _clipboard_api = None
+    return _clipboard_api
+
+
+def _copiar_como_dib(qimage, reintentos=5, espera_ms=20):
+    """
+    Publica el QImage como CF_DIB ya materializado.
+
+    No levanta excepciones: devuelve False y el llamador cae al metodo de Qt.
+    Tarda del orden de 10 ms en HD y 35 ms en 4K, asi que no molesta en la UI.
+
+    Va en el HILO DE GUI. EmptyClipboard le manda un WM_DESTROYCLIPBOARD a la
+    ventana que tenia el portapapeles por OLE, y desde un worker ese SendMessage
+    se puede quedar esperando al hilo principal.
+    """
+    api = _get_clipboard_api()
+    if api is None:
+        return False
+    ctypes, user32, kernel32 = api
+
+    hmem = None
+    try:
+        # A 32 bits opacos: es lo que espera un DIB BI_RGB de 32bpp.
+        if qimage.format() != QImage.Format_RGB32:
+            qimage = qimage.convertToFormat(QImage.Format_RGB32)
+        # El DIB clasico es bottom-up, asi que va espejado en vertical.
+        img = qimage.mirrored(False, True)
+
+        ancho, alto = img.width(), img.height()
+        if ancho <= 0 or alto <= 0:
+            return False
+        stride = ancho * 4
+        bytes_por_linea = img.bytesPerLine()
+        n_pixeles = stride * alto
+
+        hmem = kernel32.GlobalAlloc(
+            GMEM_MOVEABLE, BITMAPINFOHEADER_SIZE + n_pixeles
+        )
+        if not hmem:
+            return False
+        ptr = kernel32.GlobalLock(hmem)
+        if not ptr:
+            kernel32.GlobalFree(hmem)
+            hmem = None
+            return False
+        try:
+            cabecera = struct.pack(
+                "<IiiHHIIiiII",
+                BITMAPINFOHEADER_SIZE,
+                ancho,
+                alto,  # positivo = bottom-up
+                1,  # biPlanes
+                32,  # biBitCount
+                0,  # biCompression = BI_RGB
+                n_pixeles,
+                2835,  # ~72 dpi
+                2835,
+                0,
+                0,
+            )
+            ctypes.memmove(ptr, cabecera, BITMAPINFOHEADER_SIZE)
+
+            crudo = bytes(img.constBits())
+            if bytes_por_linea == stride:
+                ctypes.memmove(ptr + BITMAPINFOHEADER_SIZE, crudo, n_pixeles)
+            else:
+                # Qt puede alinear las filas a 4 bytes. Hoy no pasa, porque
+                # mirrored() devuelve el stride ya normalizado, pero la rama
+                # queda por si eso cambia o si alguien saca el espejado.
+                for y in range(alto):
+                    ctypes.memmove(
+                        ptr + BITMAPINFOHEADER_SIZE + y * stride,
+                        crudo[y * bytes_por_linea : y * bytes_por_linea + stride],
+                        stride,
+                    )
+        finally:
+            kernel32.GlobalUnlock(hmem)
+
+        # Otra app puede tener el portapapeles tomado un instante. El tope de
+        # espera es corto a proposito: esto corre en el hilo de GUI y Sleep no
+        # bombea mensajes, asi que cada ms de mas es Nuke congelado.
+        abierto = False
+        for _ in range(reintentos):
+            if user32.OpenClipboard(None):
+                abierto = True
+                break
+            kernel32.Sleep(espera_ms)
+        if not abierto:
+            debug_print("No se pudo abrir el portapapeles")
+            kernel32.GlobalFree(hmem)
+            hmem = None
+            return False
+
+        try:
+            if not user32.EmptyClipboard():
+                debug_print("EmptyClipboard fallo")
+            if not user32.SetClipboardData(CF_DIB, hmem):
+                kernel32.GlobalFree(hmem)
+                hmem = None
+                return False
+            # Con SetClipboardData OK el duenio del HGLOBAL pasa a ser el
+            # sistema. Se suelta el handle ACA MISMO, y no al salir: si algo de
+            # lo que sigue —un print, el CloseClipboard— llegara a tirar, el
+            # except de abajo lo liberaria y seria un doble free sobre memoria
+            # que ya no es nuestra. La proxima app que pegue leeria memoria
+            # liberada.
+            hmem = None
+            debug_print(f"Portapapeles: CF_DIB de {ancho}x{alto} publicado")
+            return True
+        finally:
+            # Un portapapeles abierto cuelga a las demas apps. Se cierra si o si.
+            user32.CloseClipboard()
+
+    except Exception as e:
+        debug_print(f"Fallo la copia por CF_DIB: {e}")
+        try:
+            if hmem:
+                kernel32.GlobalFree(hmem)
+        except Exception:
+            pass
+        return False
+
+
+def _copiar_al_portapapeles(qimage):
+    """Copia con CF_DIB y, si no se puede, cae al camino de Qt."""
+    if _copiar_como_dib(qimage):
+        debug_print("Portapapeles OK por CF_DIB")
+        return
+
+    log_error(
+        "El camino de CF_DIB fallo: se cae a QClipboard.setImage(), que es "
+        "diferido y puede perder la entrada del historial de Windows"
+    )
+    app = QApplication.instance()
+    if not app:
+        app = QApplication([])
+    app.clipboard().setImage(qimage)
+
+
+def take_snapshot(save_to_gallery=True, use_write=False, compare=False):
     """
     Toma el snapshot, lo copia al portapapeles y, si se pide, lo guarda en la
     galeria del proyecto.
@@ -826,6 +1112,11 @@ def take_snapshot(save_to_gallery=False, use_write=False):
     use_write=True usa el motor viejo, el del Write temporal: resolucion
     completa del proyecto en vez de la del viewport. Va escondido detras de
     Ctrl y no se documenta en los tooltips.
+
+    compare=True pega la captura nueva a la derecha del snapshot anterior, para
+    ir armando la tira de comparacion. Como el resultado se guarda como el
+    snapshot siguiente, encadenar es volver a pedir compare: la tira crece de a
+    una captura por vez. Una captura sin compare arranca una tira nueva.
     """
     # --- Comprobaciones iniciales del viewer de Nuke ---
     viewer_info = get_viewer_info()
@@ -836,50 +1127,118 @@ def take_snapshot(save_to_gallery=False, use_write=False):
         return
 
     viewer, view_node, input_index, input_node = viewer_info
+    debug_print(
+        f"take_snapshot: motor={'write' if use_write else 'capture'} "
+        f"compare={bool(compare)} galeria={bool(save_to_gallery)} "
+        f"viewer={view_node.name()} input={input_node.name()}"
+    )
+
+    # El anterior hay que resolverlo ANTES de generar nada, o el nuevo pasa a
+    # ser el mas reciente y la compo se armaria contra si misma.
+    anterior_path = get_latest_snapshot_path() if compare else None
+    if compare and not anterior_path:
+        debug_print("No hay snapshot anterior: la captura arranca la tira")
 
     # Obtener el siguiente numero para el snapshot
     snapshot_number = get_next_snapshot_number()
     temp_dir = tempfile.gettempdir()
     output_path = os.path.join(temp_dir, f"LGA_snapshot_{snapshot_number}.jpg")
-    debug_print(f"Motor: {'write' if use_write else 'capture'} -> {output_path}")
 
-    if use_write:
-        generado = _snapshot_con_write(output_path, input_node)
-    else:
-        generado = _snapshot_con_capture(output_path, view_node, input_node)
-    if not generado:
-        return
+    # Cuando hay que componer, la captura va a un temporal y el numero de
+    # snapshot queda para la compo, que es la que sigue la tira. El nombre esta
+    # fuera del patron LGA_snapshot_N.jpg a proposito, para no meterse ni en la
+    # numeracion ni en la limpieza.
+    componer = bool(compare and anterior_path)
+    captura_path = (
+        os.path.join(temp_dir, "LGA_capture_tmp.jpg") if componer else output_path
+    )
+    debug_print(
+        f"Motor: {'write' if use_write else 'capture'}"
+        f"{' + compo' if componer else ''} -> {output_path}"
+    )
+
+    # El temporal tiene nombre fijo, asi que puede haber quedado de una corrida
+    # anterior que fallo. Si no se borra, el os.path.exists() de los motores lo
+    # daria por bueno y la tira se armaria con una captura vieja.
+    if componer and os.path.exists(captura_path):
+        try:
+            os.remove(captura_path)
+        except Exception as e:
+            debug_print(f"No se pudo borrar el temporal viejo: {e}")
+
+    try:
+        if use_write:
+            generado = _snapshot_con_write(captura_path, input_node)
+        else:
+            generado = _snapshot_con_capture(captura_path, view_node, input_node)
+        if not generado:
+            return
+
+        if componer:
+            compuesto = _componer_con_anterior(
+                anterior_path, captura_path, output_path
+            )
+            if not compuesto:
+                # No se pudo componer —la tira llego a un tamano que el JPEG ya
+                # no banca, o el anterior quedo ilegible—. La captura no se
+                # tira: pasa a ser el snapshot nuevo y arranca una tira limpia.
+                rescatada = False
+                try:
+                    os.replace(captura_path, output_path)
+                    rescatada = True
+                except Exception as e:
+                    debug_print(f"No se pudo rescatar la captura: {e}")
+                nuke.message(
+                    "No se pudo componer con el snapshot anterior; probablemente la tira ya es demasiado ancha.\n\n"
+                    + (
+                        "La captura queda sola y empieza una tira nueva."
+                        if rescatada
+                        else "Ademas no se pudo guardar la captura."
+                    )
+                )
+                if not rescatada:
+                    return
+    finally:
+        # Pase lo que pase, el temporal no queda dando vueltas.
+        if componer and os.path.exists(captura_path):
+            try:
+                os.remove(captura_path)
+            except Exception as e:
+                debug_print(f"No se pudo borrar la captura temporal: {e}")
 
     # Cargar el JPEG como QImage
     qimage = QImage(output_path)
     if qimage.isNull():
+        # Qt no lee imagenes que superen su limite de memoria por archivo (256 MB
+        # en Qt 6.5), y una tira larga llega ahi antes que a cualquier otro tope.
+        # El archivo esta bien: lo que falla es cargarlo de vuelta.
+        pesa = os.path.getsize(output_path) if os.path.exists(output_path) else 0
         nuke.message(
-            "Error al leer el snapshot generado. El archivo de imagen temporal está vacío o corrupto."
+            "El snapshot se guardó pero no se pudo volver a leer, así que no va "
+            "al portapapeles. Si venías encadenando capturas, la tira ya es "
+            f"demasiado grande ({pesa / (1024 * 1024):.1f} MB): tomá una captura "
+            "suelta para empezar una tira nueva."
         )
         return
 
-    debug_print("Snapshot size:", qimage.width(), "×", qimage.height())
+    debug_print(
+        f"Snapshot final: {qimage.width()}x{qimage.height()} -> {output_path}"
+    )
 
-    # Copiar al portapapeles
-    app = QApplication.instance()
-    if not app:
-        app = QApplication([])
-
-    clipboard = app.clipboard()
-    clipboard.setImage(qimage)
-
-    debug_print("✅ Imagen copiada al portapapeles.")
-
-    # Si se presiono Shift, guardar en la galeria
+    # Guardar en la galeria del proyecto
     if save_to_gallery:
         gallery_path = save_snapshot_to_gallery(output_path)
-        if gallery_path:
-            print(f"✅ Snapshot guardado en galeria con Shift")
-        else:
-            print(f"❌ Error al guardar en galeria")
+        if not gallery_path:
+            print("❌ Error al guardar en galeria")
 
     # Limpiar snapshots antiguos después del guardado exitoso
     cleanup_old_snapshots(snapshot_number)
+
+    # El portapapeles va ULTIMO, despues de toda la IO. Con CF_DIB ya no hace
+    # falta, porque los bytes quedan materializados, pero si por lo que sea se
+    # cae al camino de Qt —que es diferido— dejar IO despues de copiar le
+    # arruina la entrada del historial de Windows.
+    _copiar_al_portapapeles(qimage)
 
     # NO eliminar el archivo temporal - lo necesitamos para show_snapshot()
     debug_print(f"Archivo temporal mantenido para show_snapshot: {output_path}")

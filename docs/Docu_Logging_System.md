@@ -7,7 +7,19 @@
 
 Esta guia documenta el sistema de logging adoptado en `LGA_ToolPack` para herramientas Python que deben escribir por defecto en un archivo `.log` dedicado, sin ensuciar la consola de Nuke.
 
-Los casos implementados con este esquema son `LGA_mediaManager` y `LGA_showFlowNotes`.
+Los casos implementados con este esquema son `LGA_mediaManager`, `LGA_showFlowNotes` y `Take/Show Snapshot`.
+
+`Take/Show Snapshot` se aparta en tres puntos, con motivo:
+
+- **Appendea en vez de truncar.** El caso que motivo su logger se diagnostico al dia siguiente: vaciar el archivo en cada arranque borraria la evidencia justo cuando uno reinicia Nuke para ver si se arregla.
+- **Un archivo por proceso** (`LGA_viewer_SnapShot_<pid>.log`). Dos Nukes sobre el mismo archivo rotan a la vez al cruzar el tamano y uno falla; ese traceback sale por stderr, o sea al Script Editor. Al arrancar se borran las sesiones viejas y quedan las 5 mas recientes.
+- **Rota por tamano** (1 MB x 2 backups), que es la contracara de no truncar nunca.
+
+### Referencias tecnicas
+
+- `py/LGA_MediaManager_logging.py` — implementacion de referencia. `setup_debug_logging()`, `configure_logger()`, `debug_print()`, `cleanup_logging()`, `RelativeTimeFormatter`.
+- `py/LGA_viewer_SnapShot_logging.py` — la variante que appendea y separa por proceso. Suma `get_log_dir()`, `limpiar_sesiones_viejas()` y `log_error()`; `get_log_file_path()` devuelve el archivo con el pid. Lo usan `LGA_viewer_SnapShot.py`, `LGA_viewer_SnapShot_Buttons.py` y `LGA_viewer_SnapShot_Gallery.py`, que importan de ahi `debug_print` y `log_error` en vez de definir los suyos.
+- `py/LGA_showFlowNotes.py` — el otro caso implementado con este esquema.
 
 ## Objetivos del Sistema
 
