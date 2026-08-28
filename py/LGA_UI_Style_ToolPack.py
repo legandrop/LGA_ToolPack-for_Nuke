@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.22 | Lega
+  LGA_UI_Style_ToolPack v1.23 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.23: El shotname va INCLUIDO en el color de parte comun. En v1.22
+         arrancaba la paleta y salia de otro color que su prefijo.
   v1.22: colorize_path se ancla en el shotname: si un segmento es un
          nombre de shot, lo anterior va todo en el color de parte comun
          y la paleta arranca en el shot.
@@ -1752,9 +1754,10 @@ def colorize_path(path):
     """
     Colorea un path anclado en el shotname.
 
-    Si algun segmento es un nombre de shot, TODO lo anterior va en un solo
-    color (el de parte comun) y la paleta por nivel arranca recien en el
-    shot: lo que identifica al path es el shot y su cola, no la raiz.
+    Si algun segmento es un nombre de shot, todo hasta el shot INCLUIDO va
+    en un solo color (el de parte comun) y la paleta por nivel arranca en el
+    segmento siguiente: dentro de un shot, lo que distingue un path de otro
+    es su cola, no la raiz ni el shot que comparten.
     Sin shot detectable se recorre la paleta por nivel desde la raiz,
     arrancando por el lavanda —el mismo color con el que arranca la parte
     comun de un par— asi un path solo y un par se leen con el mismo
@@ -1780,10 +1783,12 @@ def colorize_path(path):
             continue
         if shot_index is None:
             color = colors[index % len(colors)]
-        elif index < shot_index:
+        elif index <= shot_index:
+            # El shot ENTRA en la parte comun: lo que distingue a un path de
+            # otro del mismo shot es lo que viene despues.
             color = Color.PATH_COMMON
         else:
-            color = PATH_PALETTE[(index - shot_index) % len(PATH_PALETTE)]
+            color = PATH_PALETTE[(index - shot_index - 1) % len(PATH_PALETTE)]
         painted.append("<span style='color:%s'>%s</span>" % (color, _escape(segment)))
 
     return separator.join(painted)

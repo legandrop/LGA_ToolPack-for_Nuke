@@ -9,11 +9,11 @@ ya se hizo. Al completar un item se borra de aca y se registra en el changelog.
 
 ### Rutas coloreadas: anclar el color en el shotname
 
-Regla nueva (ver `Docu_UI_Style.md` de LGA_ToolPack y el AGENTS.md de cada
-repo): cuando en una ruta se puede detectar un nombre de shot, todos los
-segmentos ANTERIORES al shot van en un solo color (el de parte comun,
-`PATH_COMMON`) y la paleta por nivel arranca recien en el shotname. Colorear
-por nivel desde la raiz queda solo para rutas sin shot detectable.
+Regla (ver `Docu_UI_Style.md` de LGA_ToolPack y el AGENTS.md de cada repo):
+cuando en una ruta se puede detectar un nombre de shot, todo hasta el shot
+INCLUIDO va en un solo color (el de parte comun, `PATH_COMMON`) y la paleta
+por nivel arranca en el segmento SIGUIENTE al shot. Colorear por nivel desde
+la raiz queda solo para rutas sin shot detectable.
 
 Hay que rechequear y arreglar:
 

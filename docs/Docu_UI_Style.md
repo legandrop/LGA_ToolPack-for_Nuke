@@ -199,13 +199,16 @@ familia `Inter`.
   la advertencia. Si se destaca todo, no se destaca nada.
 - **Todo path va coloreado y en su propia línea**, debajo del texto. Embebido en
   el medio de una oración se corta por donde cae el wrap y se vuelve ilegible.
-- **El color de un path se ancla en el shotname.** Si en la ruta se puede
-  detectar un nombre de shot, TODOS los segmentos anteriores al shot van en un
-  solo color (el de parte común, `PATH_COMMON`) y la paleta por nivel arranca
-  recién en el shotname. Colorear por nivel desde la raíz solo vale cuando no
-  hay shot detectable. Donde un docstring o doc viejo diga otra cosa, esta
-  regla manda. Para detectar el shot en una ruta, mirar los helpers de
-  HieroTools: `LGA_NKS_Shared/LGA_NKS_Flow_NamingUtils.py`
+- **El color de un path se ancla en el shotname, y el shot va INCLUIDO.** Si en
+  la ruta se puede detectar un nombre de shot, todo hasta el shot inclusive
+  —raíz, proyecto, secuencia y el shotname mismo— va en UN SOLO color
+  (`PATH_COMMON`), y la paleta por nivel arranca en el segmento SIGUIENTE al
+  shot. El shotname pintado de otro color que su prefijo está mal: dentro de un
+  shot, lo que distingue un path de otro es su cola, no el shot que comparten.
+  Colorear por nivel desde la raíz solo vale cuando no hay shot detectable.
+  Donde un docstring o doc viejo diga otra cosa, esta regla manda. Para
+  detectar el shot en una ruta, mirar los helpers de HieroTools:
+  `LGA_NKS_Shared/LGA_NKS_Flow_NamingUtils.py`
   (`extract_shot_code_from_path`, `is_shot_folder_name`) y el fallback
   estructural por `_input` de `LGA_NKS_Edit_Panel_py/LGA_NKS_ApplyAMF.py`
   (`resolve_shot_dir`).
