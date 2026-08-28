@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_RnW_PathsToRelative v1.02 | Lega
+  LGA_RnW_PathsToRelative v1.03 | Lega
 
   Convierte a rutas relativas las rutas absolutas de los nodos que
   apuntan a archivos. Nuke resuelve los relativos contra el Project
@@ -10,6 +10,10 @@ ____________________________________________________________________
   Si hay nodos seleccionados actua solo sobre esos; si no, recorre
   todo el script. Nunca toca knobs con expresiones TCL o Python.
 
+  v1.03: La columna del checkbox pasa de 28 a 34 px (el padding de item
+         de Style.TABLE achicaba el rect del cell widget y el cuadrito
+         salia recortado) y el checkbox de Project Directory lleva
+         lgaLabeled para separar el texto del cuadrito.
   v1.02: El look sale de LGA_UI_Style_ToolPack. La barra de estado de
          cada fila se pinta como fondo del item: como cell widget el
          padding de la tabla la dejaba en 0 px de ancho y nunca se vio.
@@ -614,6 +618,9 @@ class PathsToRelativeWindow(QDialog):
         self.project_checkbox = QCheckBox(
             "Set Project Directory to %s" % PROJECT_DIRECTORY_EXPRESSION
         )
+        # Checkbox con texto: lgaLabeled da aire entre el cuadrito y la
+        # etiqueta (el default de la hoja del pack es spacing 0)
+        self.project_checkbox.setProperty("lgaLabeled", True)
         self.project_checkbox.setChecked(checked)
         self.project_checkbox.setStyleSheet(Style.CHECKBOX)
         container_layout.addWidget(self.project_checkbox)
@@ -639,7 +646,9 @@ class PathsToRelativeWindow(QDialog):
         header.setSectionResizeMode(self.COL_BAR, QHeaderView.Fixed)
         table.setColumnWidth(self.COL_BAR, 5)
         header.setSectionResizeMode(self.COL_CHECK, QHeaderView.Fixed)
-        table.setColumnWidth(self.COL_CHECK, 28)
+        # 34px y no 28: el padding de item de Style.TABLE (6px por lado)
+        # achica el rect del cell widget y el checkbox salia recortado
+        table.setColumnWidth(self.COL_CHECK, 34)
         header.setSectionResizeMode(self.COL_NODE, QHeaderView.Interactive)
         table.setColumnWidth(self.COL_NODE, 150)
         header.setSectionResizeMode(self.COL_KNOB, QHeaderView.ResizeToContents)

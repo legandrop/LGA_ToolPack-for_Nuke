@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.20 | Lega
+  LGA_UI_Style_ToolPack v1.21 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,10 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.21: Style.TABLE incluye el bloque del checkbox: un checkbox de
+         celda perdia la regla QCheckBox de la hoja de la ventana
+         (la hoja propia de la tabla corta esa herencia) y el fondo
+         caia al palette del host.
   v1.20: apply_ui_font le pone la fuente a CADA hijo y no solo a la
          ventana. La herencia del QFont no llega cuando hay hoja de
          estilo: al aplicarla, QStyleSheetStyle le fija a cada hijo la
@@ -1293,6 +1297,12 @@ QTableWidget::item:selected { background-color: %(selected)s; color: %(text_stro
         "header_fg": Color.TEXT_HEADER,
         "scrollbar": _scrollbar,
     }
+
+    # Los checkboxes de CELDA perdian la regla QCheckBox de la hoja de la
+    # ventana: la hoja propia de la tabla corta esa herencia y el fondo del
+    # cuadrito cae al palette del host (medido: rect oscuro alrededor, o azul
+    # de seleccion en un host claro). La tabla lleva el bloque completo.
+    Style.TABLE += Style.CHECKBOX
 
     # Bloque de detalle tecnico (traceback, salida de un proceso). Va mas
     # oscuro que la ventana a proposito, para que se lea como un bloque de

@@ -1,9 +1,12 @@
 """
 _____________________________________________________________________________________________________
 
-  LGA_ToolPack_settings v0.47 | Lega
+  LGA_ToolPack_settings v0.48 | Lega
   Configuracion de la herramienta LGA_ToolPack
 
+  v0.48: Los dos checkboxes de Render Complete llevan lgaLabeled: sin
+         la propiedad la hoja del pack deja el texto pegado al cuadrito
+         (spacing 0).
   v0.47: El look sale de LGA_UI_Style_ToolPack. Era la unica ventana
          del pack sin ninguna hoja de estilo, asi que heredaba el tema
          de Nuke y no se parecia a las demas.
@@ -271,6 +274,10 @@ class SettingsWindow(QWidget):
             debug_print(f"Error al cargar config de Render Complete Mail: {e}")
         self.cb_enable_render_time = QCheckBox("Enable render time calculation")
         self.cb_enable_sound = QCheckBox("Enable sound notification")
+        # Checkboxes con texto: lgaLabeled da aire entre el cuadrito y la
+        # etiqueta (el default de la hoja del pack es spacing 0)
+        self.cb_enable_render_time.setProperty("lgaLabeled", True)
+        self.cb_enable_sound.setProperty("lgaLabeled", True)
         try:
             self.cb_enable_render_time.setChecked(get_render_time_enabled_from_config())
         except Exception as e:

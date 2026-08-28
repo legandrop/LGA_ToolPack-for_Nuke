@@ -1,9 +1,12 @@
 """
 _______________________________________________
 
-  LGA_mediaPathReplacer v2.05 | Lega
+  LGA_mediaPathReplacer v2.06 | Lega
   Search and replace for Read and Write nodes
 
+  v2.06 - Los cinco checkboxes con texto llevan lgaLabeled: sin la
+          propiedad la hoja del pack deja el texto pegado al cuadrito
+          (spacing 0).
   v2.05 - El look sale de LGA_UI_Style_ToolPack. La ventana pasa al
           fondo de la app: iba mas clara que su propia tabla, asi que
           la tabla se veia hundida. Textos de UI al ingles.
@@ -498,6 +501,8 @@ class SearchAndReplaceWidget(QWidget):
         self.sr1_replace_input.setPlaceholderText("Replace")
         self.sr1_replace_input.setStyleSheet(line_style)
         self.sr1_case_checkbox = QCheckBox("Case Sensitive")
+        # lgaLabeled: aire entre el cuadrito y el texto (default spacing 0)
+        self.sr1_case_checkbox.setProperty("lgaLabeled", True)
         self.sr1_case_checkbox.setFocusPolicy(Qt.NoFocus)
         self.sr1_case_checkbox.setStyleSheet(Style.CHECKBOX)
         sr1_swap = QPushButton("⇄")
@@ -532,6 +537,8 @@ class SearchAndReplaceWidget(QWidget):
         self.sr2_replace_input.setPlaceholderText("Replace")
         self.sr2_replace_input.setStyleSheet(line_style)
         self.sr2_case_checkbox = QCheckBox("Case Sensitive")
+        # lgaLabeled: aire entre el cuadrito y el texto (default spacing 0)
+        self.sr2_case_checkbox.setProperty("lgaLabeled", True)
         self.sr2_case_checkbox.setFocusPolicy(Qt.NoFocus)
         self.sr2_case_checkbox.setStyleSheet(Style.CHECKBOX)
         sr2_swap = QPushButton("⇄")
@@ -608,6 +615,8 @@ class SearchAndReplaceWidget(QWidget):
         footer.setSpacing(12)
 
         self.filter_checkbox = QCheckBox("Filter List")
+        # lgaLabeled: aire entre el cuadrito y el texto (default spacing 0)
+        self.filter_checkbox.setProperty("lgaLabeled", True)
         self.filter_checkbox.setChecked(self.filter_list_enabled)
         self.filter_checkbox.setToolTip("Filter rows by search text.")
         footer.addWidget(self.filter_checkbox)
@@ -615,11 +624,13 @@ class SearchAndReplaceWidget(QWidget):
         footer.addWidget(_separator("v"))
 
         self.read_checkbox = QCheckBox("Reads")
+        self.read_checkbox.setProperty("lgaLabeled", True)
         self.read_checkbox.setChecked(self.reads_enabled)
         self.read_checkbox.setToolTip("Include Read nodes in search and replace.")
         footer.addWidget(self.read_checkbox)
 
         self.write_checkbox = QCheckBox("Writes")
+        self.write_checkbox.setProperty("lgaLabeled", True)
         self.write_checkbox.setChecked(self.writes_enabled)
         self.write_checkbox.setToolTip("Include Write nodes in search and replace.")
         footer.addWidget(self.write_checkbox)
