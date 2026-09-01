@@ -105,12 +105,11 @@ def reveal_in_file_browser(path):
         return False
     try:
         if sys.platform == "win32":
-            if target:
-                # La coma pegada al path es la sintaxis de explorer, no un
-                # error: con espacio despues de la coma abre Documentos.
-                subprocess.Popen('explorer /select,"%s"' % target.replace("/", "\\"))
-            else:
-                os.startfile(folder)
+            # Siempre la CARPETA y con el explorador POR DEFAULT. Antes, con
+            # target, se llamaba a explorer.exe para seleccionar el archivo:
+            # eso ignora el file manager que tenga puesto el usuario. Se
+            # pierde el "seleccionar" y se gana respetar su explorador.
+            os.startfile(folder)
         elif sys.platform == "darwin":
             subprocess.Popen(["open", "-R", target] if target else ["open", folder])
         else:

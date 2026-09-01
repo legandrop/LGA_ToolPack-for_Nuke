@@ -669,7 +669,10 @@ class ThumbnailWidget(QLabel):
             normalized_path = os.path.normpath(self.image_path)
 
             if platform.system() == "Windows":
-                subprocess.Popen(["explorer", "/select,", normalized_path])
+                # El explorador POR DEFAULT del usuario, sobre la carpeta.
+                # Nombrar explorer.exe para seleccionar el archivo ignora el
+                # file manager que tenga puesto.
+                os.startfile(os.path.dirname(normalized_path))
             elif platform.system() == "Darwin":  # macOS
                 subprocess.Popen(["open", "-R", normalized_path])
             else:  # Linux
