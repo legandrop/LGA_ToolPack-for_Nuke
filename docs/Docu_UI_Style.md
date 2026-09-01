@@ -4,10 +4,12 @@ Fuente de verdad de **cómo se ve** una ventana de las tools de LGA. El módulo 
 `py/LGA_UI_Style_ToolPack.py` y existe una copia en cada uno de los otros tres
 repos.
 
-> **Las cuatro copias vuelven a estar sincronizadas** (v1.20, temas
-> incluidos, agosto 2026). Difieren sólo en los renombres de rigor: nombre
-> del módulo, adapter de Qt y nombre del pack en los textos. Todo lo que
-> este documento dice vale en los cuatro repos.
+> **Las cuatro copias están sincronizadas.** Difieren sólo en los renombres
+> de rigor —nombre del módulo, adapter de Qt y nombre del pack en los textos—
+> y en el changelog embebido en el docstring, que arrastra la historia propia
+> de cada una. Todo lo que este documento dice vale en los cuatro repos. El
+> número de versión vigente NO se anota acá: se lee del archivo, con el
+> comando de verificación de más abajo.
 
 ## La regla
 
@@ -45,9 +47,9 @@ un usuario puede tener instalado uno solo, así que no pueden importarse entre
 sí. Lo único que difería era el docstring: nombre del módulo, su propio
 historial de versiones y la ruta del ejemplo de import.
 
-**Hoy vuelven a serlo.** Las tres del ToolPack se sincronizaron en `v1.20` y
-la de HieroTools adoptó ese mismo cuerpo (con la nota del salto `v1.06 →
-v1.20` en su propio historial). La regla operativa vuelve a ser la simple:
+**Hoy vuelven a serlo.** Las tres del ToolPack se sincronizaron primero y la
+de HieroTools adoptó ese mismo cuerpo, con la nota del salto en su propio
+historial. La regla operativa vuelve a ser la simple:
 **un cambio en el cuerpo se aplica en las cuatro copias en la misma pasada**,
 ajustando sólo los renombres. La verificación de abajo debe dar los cuatro
 cuerpos idénticos módulo renombres.
