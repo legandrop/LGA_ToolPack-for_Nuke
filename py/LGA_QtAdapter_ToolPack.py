@@ -6,7 +6,7 @@ from typing import Optional
 
 try:  # PySide6 primero (Nuke 16)
     from PySide6 import QtWidgets, QtGui, QtCore
-    from PySide6.QtGui import QAction, QGuiApplication
+    from PySide6.QtGui import QAction, QShortcut, QGuiApplication
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
 
@@ -16,9 +16,9 @@ except ImportError:  # PySide2 (Nuke 15)
     from PySide2.QtCore import Qt
 
     try:
-        from PySide2.QtGui import QAction  # Qt5 a veces lo expone aqui
+        from PySide2.QtGui import QAction, QShortcut  # Qt5 a veces lo expone aqui
     except ImportError:
-        from PySide2.QtWidgets import QAction  # fallback QtWidgets
+        from PySide2.QtWidgets import QAction, QShortcut  # fallback QtWidgets
     from PySide2.QtGui import QGuiApplication
     from PySide2.QtWidgets import QApplication
 
@@ -192,6 +192,7 @@ __all__ = [
     "QtGui",
     "QtCore",
     "QAction",
+    "QShortcut",
     "QGuiApplication",
     "Qt",
     "QApplication",
