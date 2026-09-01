@@ -132,22 +132,26 @@ sale con el peso —y el ancho, un 8 a 20% más— de una 700 falsa. Es un modo 
 fallar difícil de ver leyendo el código, porque las hojas dicen `600` y lo que
 está mal es la familia. El Media Manager estuvo así toda la migración.
 
-**Y el peso 600 no se pide con `font-weight: 600`.** Las tres caras de Inter
-**no forman una sola familia** para Qt:
+**Y el peso 600 no se pide a mano con `font-weight: 600`.** Cómo lee Qt las
+tres caras de Inter **depende de la versión de Qt**, no es fijo:
 
-| archivo | familia que ve Qt | subfamilia |
+| archivo | familia en Qt < 6.5 | familia en Qt 6.5+ (Nuke 16) |
 |---|---|---|
-| `Inter-400.ttf` | `Inter` | Regular |
-| `Inter-700.ttf` | `Inter` | Bold |
-| `Inter-600.ttf` | **`Inter SemiBold`** | Regular |
+| `Inter-400.ttf` | `Inter` | `Inter` |
+| `Inter-700.ttf` | `Inter` | `Inter` |
+| `Inter-600.ttf` | **`Inter SemiBold`** | `Inter` |
 
-Es el naming RIBBI: una familia sólo admite Regular, Bold, Italic y
-Bold-Italic, así que todo peso intermedio se publica como familia propia. Por
-eso `font-weight: 600` sobre `Inter` **no** devuelve la SemiBold —no está en
-esa familia— sino la cara más cercana que sí está: la **Bold de 700**. Lo
-mismo pasa con la Medium de JetBrains Mono, que hoy no se usa.
+En Qt viejo es el naming RIBBI: una familia sólo admite Regular, Bold, Italic
+y Bold-Italic, así que la SemiBold se publica como familia propia, y
+`font-weight: 600` sobre `Inter` **no** la devuelve —no está en esa familia—
+sino la cara más cercana que sí está: la **Bold de 700**. En Qt 6.5+ (Nuke 16)
+Qt lee el nombre TIPOGRÁFICO del archivo en vez del clásico, y los tres caen
+en `Inter`: ahí `font-weight: 600` cae al REGULAR en vez de a la Bold, porque
+nombrar la familia deja de distinguir el peso. Lo mismo puede pasar con la
+Medium de JetBrains Mono, que hoy no se usa.
 
-Hay que nombrar la familia, y para eso está el helper:
+La regla no cambia con la versión de Qt: siempre se pide con el helper, nunca
+a mano con `font-weight: 600`.
 
 ```python
 boton.setStyleSheet("QPushButton { color: %s; %s }"
@@ -155,10 +159,13 @@ boton.setStyleSheet("QPushButton { color: %s; %s }"
 ```
 
 Para poner el peso sobre un `QFont` (un delegado, una cabecera dibujada a
-mano) va `UIStyle.semibold(fuente)`, que hace lo mismo: le cambia la familia.
-No sirve `setWeight(QFont.DemiBold)` —además de que ese nombre pelado no está
-garantizado, subirle el peso a un `QFont` de la familia `Inter` tampoco
-encuentra la SemiBold— y el fallback natural, `setBold(True)`, pide 700.
+mano) va `UIStyle.semibold(fuente)`, que resuelve el mismo caso por caso:
+si la SemiBold tiene familia propia le cambia la familia, y si no —Qt 6.5+,
+o las fuentes sin cargar— pide el peso 600 por número. No sirve
+`setWeight(QFont.DemiBold)` a mano —además de que ese nombre pelado no está
+garantizado, subirle el peso a un `QFont` de la familia `Inter` cuando la
+SemiBold SÍ tiene familia propia tampoco la encuentra— y el fallback natural,
+`setBold(True)`, pide 700.
 
 `font-weight: bold` y `700` **sí** funcionan derecho: esa cara está en la
 familia `Inter`.

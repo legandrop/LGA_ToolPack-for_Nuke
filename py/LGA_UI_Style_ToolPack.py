@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.25 | Lega
+  LGA_UI_Style_ToolPack v1.26 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,15 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.26: semibold_css() y semibold() detectan que la SemiBold no tenga
+         familia propia. En Qt 6.5+ (Nuke 16) los tres archivos de Inter
+         reportan la familia "Inter", asi que nombrar la familia dejaba de
+         distinguir el peso y todo lo que el disenio pone en 600 se dibujaba
+         REGULAR. Cuando la familia del semibold coincide con la de la
+         regular se pide el peso por numero, que es el camino que ya existia
+         para cuando las fuentes no cargan. Medido con el boton
+         Style.BTN_PRIMARY renderizado: 242 pixeles con tinta antes, 323
+         despues.
   v1.25: La deteccion de shotname acepta el naming de 3 bloques. El
          vendor era obligatorio, asi que PROYECTO_SEQ_SHOT no se
          reconocia y su path se coloreaba por nivel desde la raiz.
@@ -1668,7 +1677,14 @@ def semibold_css():
         boton.setStyleSheet("QPushButton { %s }" % UIStyle.semibold_css())
     """
     familia = semibold_family()
-    if not familia:
+    # Dos casos caen en el mismo camino: que las fuentes no hayan cargado, y
+    # que hayan cargado pero la SemiBold NO tenga familia propia. El segundo
+    # es el de Qt 6.5+ (Nuke 16), que lee el nombre TIPOGRAFICO de la fuente
+    # en vez del clasico: ahi los tres archivos de Inter reportan "Inter" y
+    # nombrar la familia deja de distinguir el peso. Sin este chequeo la
+    # linea salia como `font-family: 'Inter'; font-weight: normal`, o sea
+    # REGULAR, en todo lo que el disenio pone en 600.
+    if not familia or familia == font_family():
         return "font-weight: 600;"
     # El peso va en normal a proposito: la familia tiene UNA sola cara, la de
     # 600, y pedirle 600 ademas la haria candidata a que Qt le sintetice
@@ -1746,7 +1762,12 @@ def semibold(fuente):
     pide 700, que es un escalon de mas.
     """
     familia = semibold_family()
-    if familia:
+    # Igual que en semibold_css(): nombrar la familia solo sirve si la
+    # SemiBold TIENE familia propia. En Qt 6.5+ los tres archivos de Inter
+    # caen en "Inter", y entonces setFamily + setBold(False) dejaba el QFont
+    # en regular. En ese caso se sigue de largo al pedido por peso, que abajo
+    # resuelve a DemiBold (600).
+    if familia and familia != font_family():
         fuente.setFamily(familia)
         fuente.setBold(False)
         return fuente
