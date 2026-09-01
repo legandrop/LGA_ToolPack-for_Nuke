@@ -1,5 +1,18 @@
 """
-Compatibilidad Qt para Nuke 15/16.
+____________________________________________________________________
+
+  LGA_QtAdapter_ToolPack v1.00 | Lega
+
+  Compatibilidad Qt para Nuke 15/16.
+
+  v1.00: Se empieza a versionar el header. Los cuatro adapters de los
+         packs LGA son la misma API en cuatro copias y no tenian version
+         interna, asi que no habia forma de ver de un vistazo si una
+         copia habia quedado atras. Fue exactamente lo que paso con el
+         de ToolPack-B, que perdio el bloque de guardas de widget vivo
+         sin que nadie lo notara hasta que se compararon los cuatro a
+         mano.
+____________________________________________________________________
 """
 
 from typing import Optional
