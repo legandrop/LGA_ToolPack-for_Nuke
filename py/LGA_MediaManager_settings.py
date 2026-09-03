@@ -1,9 +1,11 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.44 | Lega
+  LGA_MediaManager_settings v2.45 | Lega
   Ventana de ajustes del Media Manager
 
+  v2.45: RESERVED_SHORTCUTS suma la T: Delete pasa a Alt+T porque la D
+         es ahora de Download.
   v2.38: Add location lleva la fila nueva a la vista. Con la tabla ya
          en su alto maximo, la fila nacia abajo del area visible: la
          creaba, le ponia el foco y no se veia, asi que escribir el
@@ -309,10 +311,11 @@ FOOTER_BUTTON_GAP = 12
 DROP_LINE_WIDTH = 2
 DRAG_OPACITY = 0.35
 
-# Las cinco letras que ya usan los botones de la barra principal. Si una
-# location toma una de estas, Qt no dispara NINGUNO de los dos y tira un
+# Las letras que ya usan los botones de la barra principal (la D es de
+# Download, que existe solo si hay con que descargar; la T, de Delete). Si
+# una location toma una de estas, Qt no dispara NINGUNO de los dos y tira un
 # warning de "ambiguous shortcut", asi que se rechazan.
-RESERVED_SHORTCUTS = ("G", "R", "L", "C", "D")
+RESERVED_SHORTCUTS = ("G", "R", "L", "C", "D", "T")
 
 
 # Los tooltips van en castellano y salen de aca, no hardcodeados en el widget,
@@ -2001,7 +2004,7 @@ class SettingsWindow(QWidget):
                     for fila in filas:
                         errores[fila.uid].add(campo)
         for letra, filas in atajos.items():
-            # Las cinco de la barra no se pueden usar aunque no las repita
+            # Las de la barra no se pueden usar aunque no las repita
             # nadie: Qt no dispararia ni el boton ni la location.
             if len(filas) > 1 or letra in RESERVED_SHORTCUTS:
                 for fila in filas:

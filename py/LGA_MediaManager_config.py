@@ -1,9 +1,11 @@
 """
 _______________________________________
 
-  LGA_MediaManager_config v2.44 | Lega
+  LGA_MediaManager_config v2.45 | Lega
   Donde vive la configuracion del Media Manager, y que tiene adentro
 
+  v2.45: RESERVED_SHORTCUTS suma la T: Delete pasa a Alt+T porque la D
+         es ahora de Download.
   v2.28: El tema de fabrica pasa de "lga" a "pack": la herramienta
          abre por primera vez con el aspecto del resto del ToolPack y
          desde ahi el usuario elige. El .ini semilla va igual.
@@ -206,8 +208,9 @@ FONT_SIZE_MAX = 20
 
 # Las letras que ya usan los mnemonicos de la barra de herramientas. Si una
 # location toma una de estas, Qt no dispara ninguno de los dos y avisa por
-# consola con "ambiguous shortcut".
-RESERVED_SHORTCUTS = ("G", "R", "L", "C", "D")
+# consola con "ambiguous shortcut". La D es de Download, que existe solo si
+# hay con que descargar, y la T de Delete.
+RESERVED_SHORTCUTS = ("G", "R", "L", "C", "D", "T")
 
 # Los tres destinos que traia el .ini historico, mapeados a la location de
 # fabrica que los reemplaza. Se comparan por la ruta vieja normalizada porque
@@ -345,7 +348,7 @@ def _assign_shortcut(letra, tomadas):
     """
     Devuelve la letra si se puede usar, o "" si no.
 
-    Se descartan las que ya tomo otra location y las cinco de los mnemonicos
+    Se descartan las que ya tomo otra location y las de los mnemonicos
     de la barra: si dos acciones comparten Alt+X, Qt no dispara NINGUNA y avisa
     por consola. Es mejor quedarse sin atajo -que se ve y se corrige en un
     segundo- que con dos que no andan.

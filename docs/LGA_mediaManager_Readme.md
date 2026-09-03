@@ -21,7 +21,7 @@ ajustes la muestra abajo a la izquierda, leyéndola de ese header.
 - **Clase FileScanner**: Interfaz principal de usuario
 - Gestión de la tabla de archivos y su visualización
 - Funciones de escaneo, filtrado y manipulación de archivos
-- Operaciones de usuario: borrar, copiar, revelar archivos
+- Operaciones de usuario: borrar, copiar, revelar y descargar archivos
 - La barra de herramientas, las pastillas de estado, el buscador y el pie
 - `SortHeaderView`: cabecera dibujada a mano, con el icono de orden después
   del texto y en color de acento en la columna ordenada
@@ -47,6 +47,11 @@ ajustes la muestra abajo a la izquierda, leyéndola de ese header.
 
 #### `LGA_MediaManager_logging.py`
 - El logger a `logs/LGA_mediaManager.log`
+
+#### `LGA_MediaManager_download.py`
+- Detecta si están instalados FileManager S3 y PipeSync studio, y dónde
+- Arma el comando del CLI de FileManager S3 para el botón Download
+- Sin Qt ni `nuke`: se prueba desde `tests/test_media_manager_download.py`
 
 #### `LGA_MediaManager_utils.py`
 - **Clases auxiliares compartidas**:
@@ -233,6 +238,53 @@ hechos / sin hacer / errores.
 queda al usuario si se equivocó de selección. Y las filas se sacan de la tabla
 sólo si su archivo realmente dejó de estar: con una tanda cancelada a la mitad,
 sacarlas todas mostraría como borrado lo que sigue en disco.
+
+## Download: descarga desde Wasabi
+
+El botón **Download** (Alt+D) es el *Download Clip* de HieroTools llevado a la
+tabla, sin el modo *latest*: se le pide a FileManager S3 exactamente la ruta
+que muestra la fila. Todo vive en `LGA_MediaManager_download.py`, que no
+importa Qt ni `nuke`.
+
+**El botón existe sólo si hay con qué descargar.** Al abrir el Media Manager
+se busca —y sólo el hallazgo de FileManager S3 se cachea por sesión: si faltó,
+la próxima apertura vuelve a mirar, para que instalarlo y reabrir alcance—:
+
+1. **FileManager S3.** Si está, el botón descarga.
+2. Si no está, **PipeSync studio** (no la edición Client). Si está, el botón
+   igual aparece, pero lo único que hace es avisar que falta FileManager S3 y
+   abrir PipeSync en su Tools tab (`--open-tab tools`), que es de donde se
+   instala. Ojo: esa fila del Tools tab la ve sólo un usuario con algún rol
+   en PipeSync; para uno sin rol, PipeSync avisa que el tab no está
+   disponible y hay que pedir el instalador.
+3. Sin ninguna de las dos, la barra queda como estaba.
+
+**Cómo se detecta cada app** es lo mismo que hace el card de LGA Updates del
+Tools tab de PipeSync (`UpdateProbe.cpp`), y lo que ya hacía
+`LGA_OpenInShotPlayer.py` para el Shot Player, en este orden:
+
+| fuente | qué se lee | cuándo sirve |
+|---|---|---|
+| registro compartido de LGA | `%APPDATA%/LGA/<App>.json` (`installPath`, `executable`, `version`) | la app se abrió alguna vez: lo escribe ella al arrancar |
+| registro de desinstalación de Windows | `HKCU`/`HKLM`/`WOW6432Node\...\Uninstall\<AppId>_is1` (`DisplayVersion`, `InstallLocation`) | se instaló pero nunca se abrió |
+| carpeta por defecto del instalador | `C:\Portable\LGA\FileManagerS3`, `/Applications/LGA FileManager S3.app`… | ninguno de los dos registros la tiene |
+
+Ninguna fuente se cree sin mirar el disco: la carpeta tiene que tener el
+`.exe` (o `Contents/MacOS` en el bundle) y no ser una salida `build`/`deploy`.
+Una clave huérfana o un JSON viejo no cuentan.
+
+**El plan.** Una fila que es secuencia (`nombre.####.exr[1001-1129]`) se pide
+por su **carpeta** con `--download`; un archivo suelto, por su ruta con
+`--download-file`. Todo va en **una sola invocación** del CLI, sin
+`--context`: sin ese flag FileManager S3 usa el contexto de su edición
+(`edition.ini`), que es lo que tiene que mandar en la máquina del artista. Las
+rutas sin raíz `VFX-` se omiten y se avisan, porque el CLI las rechaza.
+
+**Después del lanzamiento no se espera nada.** La descarga la muestra
+FileManager S3 en su Activity tab; no hay watcher ni reconexión automática
+como en Hiero. Cuando termina, Rescan actualiza la tabla.
+
+**Alt+D era de Delete**, que pasa a **Alt+T**.
 
 ## Las ventanas de progreso
 

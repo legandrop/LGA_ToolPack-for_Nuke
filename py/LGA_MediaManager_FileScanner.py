@@ -1,10 +1,18 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.44 | Lega
+  LGA_MediaManager_FileScanner v2.45 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.45: Boton Download (Alt+D) en la barra, que pide a Wasabi el
+         archivo o la secuencia de cada fila seleccionada con el CLI de
+         FileManager S3, como el Download Clip de HieroTools pero sin
+         buscar versiones mas altas. Aparece solo si al abrir la tool se
+         encontro FileManager S3 o, en su defecto, PipeSync studio; en
+         ese caso lleva al Tools tab de PipeSync, de donde se instala.
+         La deteccion y el comando viven en LGA_MediaManager_download.
+         Delete pasa de Alt+D a Alt+T.
   v2.44: Los QMessageBox estaticos (confirmaciones, avisos y resumenes
          de tanda) pasan al helper LGA_UI_MessageBox_ToolPack:
          show_info/show_warning, ask_question para las preguntas y
@@ -342,6 +350,7 @@ def _is_inside(hijo, padre):
 import LGA_MediaManager_config as mm_config
 import LGA_MediaManager_paths as mm_paths
 from LGA_MediaManager_config import get_read_path
+import LGA_MediaManager_download as mm_download
 
 try:
     from LGA_tooltip_helper import apply_tooltip_stylesheet
@@ -358,6 +367,14 @@ TOOLTIPS = {
     "reveal": "Abre la carpeta en el explorador del sistema",
     "relink": "Busca el archivo y reapunta el Read",
     "copy_to": "Copia a una de las locations con Copy to",
+    "download": (
+        "Descarga desde Wasabi el archivo o la secuencia de cada fila\n"
+        "seleccionada, con FileManager S3"
+    ),
+    "download_install": (
+        "FileManager S3 no esta instalado: abre el Tools tab de PipeSync\n"
+        "para instalarlo"
+    ),
     "delete": "Manda el archivo a la papelera",
     "settings": "Ajustes del Media Manager",
     # La ✕ del buscador.
@@ -877,6 +894,19 @@ class FileScanner(QWidget):
         # Un escaneo por vez: dos ScannerWorker escribiendo sobre la misma
         # tabla se pisan las filas.
         self._scan_running = False
+        # Con que se descarga desde Wasabi, o None si no hay boton Download.
+        # Se resuelve al abrir la tool por primera vez -el modulo lo cachea
+        # por sesion- mirando si esta instalado FileManager S3 y, si no,
+        # PipeSync studio. Son un JSON, una clave del registro y unos pocos
+        # exists(): no vale un worker.
+        self.download_target = None
+        try:
+            self.download_target = mm_download.resolve_download_target()
+        except Exception as error:
+            debug_print(
+                "No se pudo resolver el destino de descarga: %s" % error,
+                level="warning",
+            )
         self.load_settings()  # Cargar settings del archivo .ini
         # El tema y el tamano de letra salen del .ini, asi que se resuelven
         # ANTES de armar la UI: la hoja de la tabla los usa al construirse.
@@ -971,8 +1001,22 @@ class FileScanner(QWidget):
         self.copy_button = self._make_toolbar_button(
             "Copy to…", "folder-input", "Alt + C", TOOLTIPS["copy_to"]
         )
+        # Download existe solo si hay con que descargar: FileManager S3 o, en
+        # su defecto, PipeSync studio -ahi el boton lleva a instalarlo-. En
+        # una maquina sin ninguna de las dos la barra queda como estaba.
+        # Se lleva Alt+D, asi que Delete pasa a Alt+T, por "trash", que es
+        # lo que hace y lo que dibuja su icono.
+        self.download_button = None
+        if self.download_target is not None:
+            if self.download_target.kind == "filemanagers3":
+                tooltip_download = TOOLTIPS["download"]
+            else:
+                tooltip_download = TOOLTIPS["download_install"]
+            self.download_button = self._make_toolbar_button(
+                "Download", "download", "Alt + D", tooltip_download
+            )
         self.delete_button = self._make_toolbar_button(
-            "Delete", "trash-2", "Alt + D", TOOLTIPS["delete"], peligro=True
+            "Delete", "trash-2", "Alt + T", TOOLTIPS["delete"], peligro=True
         )
         self.settings_button = self._make_toolbar_button(
             "Settings", "settings", "", TOOLTIPS["settings"]
@@ -1001,6 +1045,8 @@ class FileScanner(QWidget):
         self.go_to_read_button.clicked.connect(self.go_to_read)
         self.reveal_button.clicked.connect(self.reveal_selected)
         self.relink_button.clicked.connect(self.relink)
+        if self.download_button is not None:
+            self.download_button.clicked.connect(self.download_selected)
         self.delete_button.clicked.connect(self.delete_selected)
         self.settings_button.clicked.connect(self.show_settings_window)
 
@@ -1009,13 +1055,16 @@ class FileScanner(QWidget):
         # ilumine igual que si lo hubieran clickeado, y un QShortcut sobre un
         # boton deshabilitado no dispara nada, que es la misma regla que tenia
         # el mnemonico.
-        for boton, letra in (
+        atajos = [
             (self.go_to_read_button, "G"),
             (self.reveal_button, "R"),
             (self.relink_button, "L"),
             (self.copy_button, "C"),
-            (self.delete_button, "D"),
-        ):
+            (self.delete_button, "T"),
+        ]
+        if self.download_button is not None:
+            atajos.append((self.download_button, "D"))
+        for boton, letra in atajos:
             atajo = QShortcut(QKeySequence("Alt+%s" % letra), self)
             atajo.setContext(Qt.WidgetWithChildrenShortcut)
             atajo.activated.connect(
@@ -1026,6 +1075,8 @@ class FileScanner(QWidget):
         main_buttons_layout.addWidget(self.reveal_button)
         main_buttons_layout.addWidget(self.relink_button)
         main_buttons_layout.addWidget(self.copy_button)
+        if self.download_button is not None:
+            main_buttons_layout.addWidget(self.download_button)
 
         # Delete va del otro lado de un separador: es el unico de la fila que
         # toca archivos en disco.
@@ -2388,6 +2439,10 @@ class FileScanner(QWidget):
         # offline.
         self.relink_button.setEnabled(hay_seleccion)
         self.copy_button.setEnabled(todos_outside and hay_destinos)
+        # Download va con cualquier seleccion: lo tipico es pedir una fila
+        # Offline, pero tambien vale volver a bajar una que esta en disco.
+        if self.download_button is not None:
+            self.download_button.setEnabled(hay_seleccion)
         self.delete_button.setEnabled(ninguno_offline)
 
         self.refresh_toolbar_icons()
@@ -3285,6 +3340,85 @@ class FileScanner(QWidget):
 
         for carpeta in carpetas:
             self.open_folder(carpeta)
+
+    def download_selected(self):
+        """
+        Pide a Wasabi el archivo o la secuencia de cada fila seleccionada.
+
+        Es el Download Clip de HieroTools sin el modo latest: se le manda a
+        FileManager S3 exactamente la ruta que muestra la fila -la carpeta
+        si es una secuencia, el archivo si es suelto- y el CLI resuelve la
+        correspondencia con el bucket a partir de la raiz VFX-. Todo va en
+        una sola llamada, y la descarga la muestra la propia app en su
+        Activity tab; cuando termina, Rescan actualiza la tabla.
+        """
+        filas = self.selected_rows()
+        if not filas:
+            return
+        target = self.download_target
+        if target is None:
+            return
+
+        if target.kind != "filemanagers3":
+            # Solo esta PipeSync studio: no hay con que descargar, pero si
+            # de donde instalarlo. Se avisa nombrando lo que falta y se abre
+            # el Tools tab, que es donde vive el instalador.
+            show_warning(
+                self,
+                "Download",
+                "FileManager S3 is not installed.\n"
+                "Install it from the Tools tab in PipeSync, which opens now.",
+            )
+            try:
+                mm_download.launch(
+                    mm_download.build_open_tools_tab_command(target.app)
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                debug_print("No se pudo abrir PipeSync: %s" % error, level="error")
+                show_warning(self, "Download", "PipeSync could not be opened.")
+            return
+
+        plan = mm_download.plan_download(self.row_path(fila) for fila in filas)
+        for ruta, motivo in plan.skipped:
+            debug_print(
+                "Download: se omite %s (%s)" % (ruta, motivo), level="warning"
+            )
+        comando = mm_download.build_download_command(
+            target.app, plan.folders, plan.files
+        )
+        if comando is None:
+            show_warning(
+                self,
+                "Download",
+                "None of the selected paths can be downloaded: FileManager S3\n"
+                "only resolves paths under a VFX- project root.",
+            )
+            return
+
+        try:
+            mm_download.launch(comando)
+        except (OSError, subprocess.SubprocessError) as error:
+            debug_print(
+                "No se pudo ejecutar FileManager S3: %s" % error, level="error"
+            )
+            show_warning(
+                self,
+                "Download",
+                "FileManager S3 could not be started. Check the installation and try again.",
+            )
+            return
+
+        debug_print(
+            "FileManager S3 iniciado: %d secuencia(s), %d archivo(s), %d omitida(s)"
+            % (len(plan.folders), len(plan.files), len(plan.skipped))
+        )
+        if plan.skipped:
+            show_warning(
+                self,
+                "Download",
+                "%d selected row(s) were skipped: FileManager S3 only resolves\n"
+                "paths under a VFX- project root." % len(plan.skipped),
+            )
 
     def reveal_in_explorer(self, file_path):
         """Abre la carpeta que contiene un archivo."""

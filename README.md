@@ -45,7 +45,7 @@ La elección se guarda **fuera del pack**, en **%APPDATA%\LGA\ToolPack\Enabled.i
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.43 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.45 | Lega
 
 Para revisar y ordenar toda la media del proyecto de forma rápida.<br>
 Al ejecutarlo escanea las carpetas configuradas como scan locations y todas las rutas de los nodos Read del script, mostrando el estado de cada archivo como OK, Offline, Outside o Unused para poder decidir si relinkear, copiar o borrar.<br><br>
@@ -55,10 +55,11 @@ Al ejecutarlo escanea las carpetas configuradas como scan locations y todas las 
 
 **Funciones**
 - <strong>Go to read:</strong> (Alt+G) Muestra en el node graph el read que contiene a la media seleccionada.
-- <strong>Explorer:</strong> (Alt+E) Abre la media en Windows Explorer.
+- <strong>Reveal:</strong> (Alt+R) Abre la carpeta de la media con el explorador de archivos del sistema.
 - <strong>Relink:</strong> (Alt+L) Abre una ventana para elegir una ubicación para buscar un archivo que está marcado como offline. Busca en las carpeta y subcarpetas hasta encontrar un match, y cambia la ruta del Read por la ruta encontrada.
-- <strong>Delete:</strong> Borra los archivos seleccionados. Funciona con selección múltiple de filas.
-- <strong>Copy to:</strong> Copia la media seleccionada al destino elegido y cambia la ruta del Read por la ruta donde fue copiado. Sólo se habilita para archivos marcados como Outside. Los destinos del menú son las locations que tengan tildado <em>Copy to</em> en los Settings, en ese orden, y cada una se dispara con Alt + la letra de su atajo. Si la ruta de un destino tiene comodín y resuelve a ninguna carpeta o a varias, avisa y no copia: elegir una sería adivinar.
+- <strong>Copy to:</strong> (Alt+C) Copia la media seleccionada al destino elegido y cambia la ruta del Read por la ruta donde fue copiado. Sólo se habilita para archivos marcados como Outside. Los destinos del menú son las locations que tengan tildado <em>Copy to</em> en los Settings, en ese orden, y cada una se dispara con Alt + la letra de su atajo. Si la ruta de un destino tiene comodín y resuelve a ninguna carpeta o a varias, avisa y no copia: elegir una sería adivinar.
+- <strong>Download:</strong> (Alt+D) Pide a Wasabi, a través de FileManager S3, el archivo o la secuencia de cada fila seleccionada: la misma ruta que muestra la fila, sin buscar versiones más altas. El botón aparece sólo si FileManager S3 está instalado; si no está pero sí PipeSync, el botón abre el Tools tab de PipeSync, que es de donde se instala. La descarga se sigue desde el Activity tab de FileManager S3, y al terminar un Rescan actualiza la tabla.
+- <strong>Delete:</strong> (Alt+T) Manda los archivos seleccionados a la papelera. Funciona con selección múltiple de filas.
 <br><br>
 
 **Opciones disponibles en los Settings**

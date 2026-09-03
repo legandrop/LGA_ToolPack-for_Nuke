@@ -1,10 +1,10 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.44 | Lega
+  LGA_mediaManager v2.45 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
-  relink, copia de archivos y borrado.
+  relink, copia de archivos, borrado y descarga desde Wasabi.
 
   Modulos de esta tool (todos van con la misma version):
     LGA_mediaManager.py              <- este, el principal
@@ -14,6 +14,8 @@ _______________________________________________________________________
     LGA_MediaManager_config.py       donde vive el .ini del usuario
     LGA_MediaManager_paths.py        resolucion de rutas e inclusiones
     LGA_MediaManager_logging.py      logger a logs/LGA_mediaManager.log
+    LGA_MediaManager_download.py     deteccion de FileManager S3 /
+                                     PipeSync y el comando de descarga
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - La ventana de ajustes, abajo a la izquierda. Esa sale sola: la lee
@@ -23,6 +25,12 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.45: Boton Download (Alt+D): pide a Wasabi las filas seleccionadas
+         con el CLI de FileManager S3, como el Download Clip de
+         HieroTools pero sin buscar versiones mas altas. Aparece solo
+         si al abrir la tool se encontro FileManager S3 o PipeSync
+         studio. Delete pasa a Alt+T. El detalle esta en los headers de
+         LGA_MediaManager_FileScanner y LGA_MediaManager_download.
   v2.44: Los carteles estandar pasan al helper
          LGA_UI_MessageBox_ToolPack, que los estila con el tema base
          del pack. El detalle esta en el header de
