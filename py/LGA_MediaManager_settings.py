@@ -1,9 +1,10 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.45 | Lega
+  LGA_MediaManager_settings v2.46 | Lega
   Ventana de ajustes del Media Manager
 
+  v2.46: La T deja de estar reservada: Delete pasa a Alt+Backspace.
   v2.45: RESERVED_SHORTCUTS suma la T: Delete pasa a Alt+T porque la D
          es ahora de Download.
   v2.38: Add location lleva la fila nueva a la vista. Con la tabla ya
@@ -312,10 +313,11 @@ DROP_LINE_WIDTH = 2
 DRAG_OPACITY = 0.35
 
 # Las letras que ya usan los botones de la barra principal (la D es de
-# Download, que existe solo si hay con que descargar; la T, de Delete). Si
-# una location toma una de estas, Qt no dispara NINGUNO de los dos y tira un
-# warning de "ambiguous shortcut", asi que se rechazan.
-RESERVED_SHORTCUTS = ("G", "R", "L", "C", "D", "T")
+# Download, que existe solo si hay con que descargar; Delete va con
+# Alt+Backspace, que no es una letra). Si una location toma una de estas, Qt
+# no dispara NINGUNO de los dos y tira un warning de "ambiguous shortcut",
+# asi que se rechazan.
+RESERVED_SHORTCUTS = ("G", "R", "L", "C", "D")
 
 
 # Los tooltips van en castellano y salen de aca, no hardcodeados en el widget,

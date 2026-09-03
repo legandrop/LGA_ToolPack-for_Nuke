@@ -1,11 +1,12 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_download v2.45 | Lega
+  LGA_MediaManager_download v2.46 | Lega
 
   Descarga desde Wasabi de las filas seleccionadas del Media Manager,
-  a traves del CLI de FileManager S3. Y la deteccion de que apps LGA
-  hay instaladas, que decide si el boton Download existe.
+  a traves del CLI de FileManager S3 o, si no esta, del de PipeSync,
+  que acepta los mismos flags. Y la deteccion de que apps LGA hay
+  instaladas, que decide si el boton Download existe.
 
   La deteccion es la misma que usa el card de LGA Updates del Tools tab
   de PipeSync, en el mismo orden: primero el registro compartido de LGA
@@ -22,6 +23,8 @@ _______________________________________________________________________
 
   Sin Qt ni nuke a proposito: los helpers se prueban desde tests/.
 
+  v2.46: PipeSync tambien descarga: mismo comando, otro ejecutable. Se
+         va build_open_tools_tab_command.
   v2.45: Version inicial.
 _______________________________________________________________________
 """
@@ -58,10 +61,9 @@ AppSpec = namedtuple(
 # registry, uninstall o default.
 LgaApp = namedtuple("LgaApp", "system name install_path executable version source")
 
-# Con que se descarga. `kind` es "filemanagers3" cuando esta el CLI, o
-# "pipesync" cuando solo esta PipeSync studio: ahi el boton existe pero lo
-# unico que puede hacer es llevar al Tools tab, que es de donde se instala
-# FileManager S3.
+# Con que se descarga. `kind` es "filemanagers3" o "pipesync": las dos apps
+# entienden el mismo CLI (--download / --download-file), asi que el comando
+# se arma igual y solo cambia el ejecutable.
 DownloadTarget = namedtuple("DownloadTarget", "kind app")
 
 # Lo que se le manda al CLI: carpetas de secuencias (--download), archivos
@@ -369,10 +371,8 @@ def resolve_download_target(force=False, **kwargs):
     """
     Con que se descarga, o None si no hay boton que mostrar.
 
-    Primero FileManager S3, que es quien descarga. Si no esta, PipeSync
-    studio: en una maquina del estudio el boton igual aparece, y lo que
-    hace es llevar al Tools tab de PipeSync, de donde se instala
-    FileManager S3. Sin ninguna de las dos no hay boton.
+    Primero FileManager S3 y, si no esta, PipeSync studio: los dos traen el
+    mismo CLI de descarga. Sin ninguna de las dos no hay boton.
     """
     global _cached_target, _cache_resolved
     cache_es_definitivo = (
@@ -479,9 +479,9 @@ def _app_command(app, cli_args):
 
 def build_download_command(app, folders, files):
     """
-    El comando del CLI de FileManager S3, o None si no hay nada que pedir.
-    Todo va en una sola invocacion; sin --context, para que mande la
-    edicion instalada.
+    El comando de descarga, o None si no hay nada que pedir. Sirve para
+    FileManager S3 y para PipeSync, que aceptan los mismos flags. Todo va en
+    una sola invocacion; sin --context, para que mande la edicion instalada.
     """
     cli_args = []
     if folders:
@@ -493,11 +493,6 @@ def build_download_command(app, folders, files):
     if not cli_args:
         return None
     return _app_command(app, cli_args)
-
-
-def build_open_tools_tab_command(app):
-    """PipeSync en su Tools tab, que es de donde se instala FileManager S3."""
-    return _app_command(app, ["--open-tab", "tools"])
 
 
 def launch(command, popen=subprocess.Popen):
@@ -514,7 +509,6 @@ __all__ = [
     "LgaApp",
     "PIPESYNC_STUDIO",
     "build_download_command",
-    "build_open_tools_tab_command",
     "launch",
     "path_has_vfx_root",
     "plan_download",

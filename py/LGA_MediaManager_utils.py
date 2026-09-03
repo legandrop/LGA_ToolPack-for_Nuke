@@ -1,11 +1,16 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.45 | Lega
+  LGA_MediaManager_utils v2.46 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.46: PathDelegate pinta el rango de frames de una secuencia aparte
+         del path: separado por un espacio y con el gradiente
+         violeta-fucsia del browser de FileManager S3
+         (FRAME_RANGE_GRADIENT del modulo de estilo). Suma
+         split_frame_range() y path_display_text().
   v2.44: El warning de "script sin guardar" de main() pasa al helper
          LGA_UI_MessageBox_ToolPack (show_warning), estilado con el
          tema base del pack.
@@ -197,7 +202,7 @@ import logging
 QThreadPool = QtCore.QThreadPool
 
 from LGA_MediaManager_logging import configure_logger, debug_print, get_log_prefix
-from LGA_UI_Style_ToolPack import Color, PATH_PALETTE
+from LGA_UI_Style_ToolPack import Color, PATH_PALETTE, FRAME_RANGE_GRADIENT
 import LGA_UI_Style_ToolPack as UIStyle
 from LGA_UI_MessageBox_ToolPack import show_warning
 
@@ -513,9 +518,41 @@ class ReadCellDelegate(QStyledItemDelegate):
         paint_row_separator(painter, option.rect, C.ROW_LINE)
 
 
+# El rango de frames con que la tabla escribe una secuencia, anclado al final:
+# `nombre.####.exr[1001-1129]`. Acepta signo, como _RANGO_RE de expand_sequence.
+_FRAME_RANGE_DISPLAY_RE = re.compile(r"\[-?\d+--?\d+\]\s*$")
+
+
+def split_frame_range(text):
+    """
+    Parte el texto de una fila en (path sin rango, rango). El rango es ""
+    si no hay: un archivo suelto vuelve entero como primera parte.
+    """
+    texto = text or ""
+    match = _FRAME_RANGE_DISPLAY_RE.search(texto)
+    if not match:
+        return texto, ""
+    return texto[: match.start()].rstrip(), match.group(0).strip()
+
+
+def path_display_text(text):
+    """
+    El texto tal como se DIBUJA: con un espacio entre el nombre y el rango,
+    igual que el browser de FileManager S3. Sirve para medirlo con la misma
+    fuente con que se pinta.
+    """
+    base, rango = split_frame_range(text)
+    return "%s %s" % (base, rango) if rango else base
+
+
 class PathDelegate(QStyledItemDelegate):
     """
     Dibuja el path coloreado de la columna 0, sin un QLabel por celda.
+
+    El rango de frames de una secuencia va aparte del path: separado por un
+    espacio y pintado con el gradiente violeta-fucsia del browser de
+    FileManager S3 (FRAME_RANGE_GRADIENT), que el HTML del documento no puede
+    dar. Se dibuja con QPainter a continuacion del documento.
 
     Antes cada path era un QLabel puesto con setCellWidget(), y eso se rompia
     solo: la tabla ordena por la columna 0, asi que el setItem() de esa misma
@@ -604,7 +641,9 @@ class PathDelegate(QStyledItemDelegate):
         fuente = QFont(option.font)
         fuente.setPixelSize(self.font_size + 1)
         self._doc.setDefaultFont(fuente)
-        self._doc.setHtml(self._html(path))
+        # El rango no entra al documento: se pinta despues, con gradiente.
+        base, rango = split_frame_range(path)
+        self._doc.setHtml(self._html(base))
         # Sin wrap: es una linea, y lo que no entra se recorta contra el
         # ancho de la columna.
         opciones = QTextOption()
@@ -618,6 +657,19 @@ class PathDelegate(QStyledItemDelegate):
             option.rect.top() + max(0, (option.rect.height() - alto) / 2.0),
         )
         self._doc.drawContents(painter)
+        if rango:
+            # Un espacio despues del nombre y el rango con el gradiente de
+            # abajo-izquierda a arriba-derecha, como en FileManager S3. Se mide
+            # con la misma fuente del documento para que quede pegado al texto.
+            metrica = QtGui.QFontMetricsF(fuente)
+            x = self._doc.idealWidth() + metrica.horizontalAdvance(" ")
+            rect = QtCore.QRectF(x, 0, metrica.horizontalAdvance(rango), alto)
+            gradiente = QtGui.QLinearGradient(rect.bottomLeft(), rect.topRight())
+            gradiente.setColorAt(0.0, QColor(FRAME_RANGE_GRADIENT[0]))
+            gradiente.setColorAt(1.0, QColor(FRAME_RANGE_GRADIENT[1]))
+            painter.setFont(fuente)
+            painter.setPen(QtGui.QPen(QtGui.QBrush(gradiente), 0))
+            painter.drawText(rect, Qt.AlignLeft | Qt.AlignVCenter, rango)
         painter.restore()
         paint_row_separator(painter, option.rect, self.UI.Color.ROW_LINE)
 

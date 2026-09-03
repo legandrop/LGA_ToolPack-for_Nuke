@@ -178,9 +178,10 @@ class DownloadTargetTests(_Sandbox):
         _write_json(os.path.join(self.registry, "PipeSync.json"), {"installPath": ps})
         target = dl.resolve_download_target(**self._kwargs())
         self.assertEqual(target.kind, "pipesync")
+        # PipeSync entiende los mismos flags: el comando es identico salvo el exe.
         self.assertEqual(
-            dl.build_open_tools_tab_command(target.app),
-            [os.path.join(ps, "PipeSync.exe"), "--open-tab", "tools"],
+            dl.build_download_command(target.app, [], [r"T:\VFX-A\ref.mov"]),
+            [os.path.join(ps, "PipeSync.exe"), "--download-file", r"T:\VFX-A\ref.mov"],
         )
 
     def test_only_a_filemanagers3_hit_is_cached(self):

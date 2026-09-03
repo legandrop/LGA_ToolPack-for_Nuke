@@ -1,10 +1,17 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.45 | Lega
+  LGA_MediaManager_FileScanner v2.46 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.46: Con PipeSync y sin FileManager S3, Download ya descarga en vez
+         de mandar al Tools tab: PipeSync suma el mismo CLI
+         (--download / --download-file) y el comando es identico salvo
+         el ejecutable. Delete pasa de Alt+T a Alt+Backspace, con el
+         glifo de la tecla en el cartel del atajo. La columna del path
+         se mide con el espacio que ahora precede al rango de frames
+         (ver LGA_MediaManager_utils).
   v2.45: Boton Download (Alt+D) en la barra, que pide a Wasabi el
          archivo o la secuencia de cada fila seleccionada con el CLI de
          FileManager S3, como el Download Clip de HieroTools pero sin
@@ -369,11 +376,7 @@ TOOLTIPS = {
     "copy_to": "Copia a una de las locations con Copy to",
     "download": (
         "Descarga desde Wasabi el archivo o la secuencia de cada fila\n"
-        "seleccionada, con FileManager S3"
-    ),
-    "download_install": (
-        "FileManager S3 no esta instalado: abre el Tools tab de PipeSync\n"
-        "para instalarlo"
+        "seleccionada, con FileManager S3 o PipeSync"
     ),
     "delete": "Manda el archivo a la papelera",
     "settings": "Ajustes del Media Manager",
@@ -493,6 +496,9 @@ WINDOW_MARGIN = 18
 # proposito: el modulo tiene BUTTON_HEIGHT = 30 y RADIUS = 5, y subirlas ahi le
 # cambiaria el look a las nueve tools ya migradas. Cuando Metric se versione con
 # los valores del rediseño (ver §10 de las notas del port) estas se van.
+# El glifo de la tecla Backspace (U+232B), para el cartel del atajo de Delete.
+BACKSPACE_GLYPH = "⌫"
+
 TOOLBAR_BUTTON_HEIGHT = 42
 TOOLBAR_ICON_SIZE = 17
 # Aire a izquierda y derecha del contenido del boton, y separacion entre el
@@ -568,6 +574,7 @@ import send2trash
 # Importar clases auxiliares desde utils
 from LGA_MediaManager_utils import (
     tinted_icon,
+    path_display_text,
     PathDelegate,
     ReadCellDelegate,
     READ_CELL_PADDING,
@@ -1002,21 +1009,18 @@ class FileScanner(QWidget):
             "Copy to…", "folder-input", "Alt + C", TOOLTIPS["copy_to"]
         )
         # Download existe solo si hay con que descargar: FileManager S3 o, en
-        # su defecto, PipeSync studio -ahi el boton lleva a instalarlo-. En
-        # una maquina sin ninguna de las dos la barra queda como estaba.
-        # Se lleva Alt+D, asi que Delete pasa a Alt+T, por "trash", que es
-        # lo que hace y lo que dibuja su icono.
+        # su defecto, PipeSync studio, que entiende el mismo CLI. En una
+        # maquina sin ninguna de las dos la barra queda como estaba.
+        # Se lleva Alt+D, asi que Delete pasa a Alt+Backspace: la tecla de
+        # borrar, escrita con su glifo en el cartel del atajo.
         self.download_button = None
         if self.download_target is not None:
-            if self.download_target.kind == "filemanagers3":
-                tooltip_download = TOOLTIPS["download"]
-            else:
-                tooltip_download = TOOLTIPS["download_install"]
             self.download_button = self._make_toolbar_button(
-                "Download", "download", "Alt + D", tooltip_download
+                "Download", "download", "Alt + D", TOOLTIPS["download"]
             )
         self.delete_button = self._make_toolbar_button(
-            "Delete", "trash-2", "Alt + T", TOOLTIPS["delete"], peligro=True
+            "Delete", "trash-2", "Alt + %s" % BACKSPACE_GLYPH, TOOLTIPS["delete"],
+            peligro=True,
         )
         self.settings_button = self._make_toolbar_button(
             "Settings", "settings", "", TOOLTIPS["settings"]
@@ -1060,7 +1064,7 @@ class FileScanner(QWidget):
             (self.reveal_button, "R"),
             (self.relink_button, "L"),
             (self.copy_button, "C"),
-            (self.delete_button, "T"),
+            (self.delete_button, "Backspace"),
         ]
         if self.download_button is not None:
             atajos.append((self.download_button, "D"))
@@ -3150,7 +3154,8 @@ class FileScanner(QWidget):
             item = self.table.item(row, COL_PATH)
             if item is None:
                 continue
-            ancho = max(ancho, horizontal_advance(metrica, item.text()))
+            # Como se dibuja: con el espacio antes del rango de frames.
+            ancho = max(ancho, horizontal_advance(metrica, path_display_text(item.text())))
         # El aire que el delegado usa de los dos lados sin dibujar texto.
         ancho += PATH_CELL_LEFT + PATH_CELL_RIGHT
         self._path_width = max(COL_PATH_MIN_WIDTH, ancho)
@@ -3346,36 +3351,18 @@ class FileScanner(QWidget):
         Pide a Wasabi el archivo o la secuencia de cada fila seleccionada.
 
         Es el Download Clip de HieroTools sin el modo latest: se le manda a
-        FileManager S3 exactamente la ruta que muestra la fila -la carpeta
-        si es una secuencia, el archivo si es suelto- y el CLI resuelve la
-        correspondencia con el bucket a partir de la raiz VFX-. Todo va en
-        una sola llamada, y la descarga la muestra la propia app en su
-        Activity tab; cuando termina, Rescan actualiza la tabla.
+        FileManager S3 -o a PipeSync, que acepta los mismos flags- exactamente
+        la ruta que muestra la fila -la carpeta si es una secuencia, el
+        archivo si es suelto- y el CLI resuelve la correspondencia con el
+        bucket a partir de la raiz VFX-. Todo va en una sola llamada, y la
+        descarga la muestra la propia app en su Activity tab; cuando
+        termina, Rescan actualiza la tabla.
         """
         filas = self.selected_rows()
         if not filas:
             return
         target = self.download_target
         if target is None:
-            return
-
-        if target.kind != "filemanagers3":
-            # Solo esta PipeSync studio: no hay con que descargar, pero si
-            # de donde instalarlo. Se avisa nombrando lo que falta y se abre
-            # el Tools tab, que es donde vive el instalador.
-            show_warning(
-                self,
-                "Download",
-                "FileManager S3 is not installed.\n"
-                "Install it from the Tools tab in PipeSync, which opens now.",
-            )
-            try:
-                mm_download.launch(
-                    mm_download.build_open_tools_tab_command(target.app)
-                )
-            except (OSError, subprocess.SubprocessError) as error:
-                debug_print("No se pudo abrir PipeSync: %s" % error, level="error")
-                show_warning(self, "Download", "PipeSync could not be opened.")
             return
 
         plan = mm_download.plan_download(self.row_path(fila) for fila in filas)
@@ -3390,8 +3377,8 @@ class FileScanner(QWidget):
             show_warning(
                 self,
                 "Download",
-                "None of the selected paths can be downloaded: FileManager S3\n"
-                "only resolves paths under a VFX- project root.",
+                "None of the selected paths can be downloaded: %s\n"
+                "only resolves paths under a VFX- project root." % target.app.name,
             )
             return
 
@@ -3399,25 +3386,26 @@ class FileScanner(QWidget):
             mm_download.launch(comando)
         except (OSError, subprocess.SubprocessError) as error:
             debug_print(
-                "No se pudo ejecutar FileManager S3: %s" % error, level="error"
+                "No se pudo ejecutar %s: %s" % (target.app.name, error), level="error"
             )
             show_warning(
                 self,
                 "Download",
-                "FileManager S3 could not be started. Check the installation and try again.",
+                "%s could not be started. Check the installation and try again."
+                % target.app.name,
             )
             return
 
         debug_print(
-            "FileManager S3 iniciado: %d secuencia(s), %d archivo(s), %d omitida(s)"
-            % (len(plan.folders), len(plan.files), len(plan.skipped))
+            "%s iniciado: %d secuencia(s), %d archivo(s), %d omitida(s)"
+            % (target.app.name, len(plan.folders), len(plan.files), len(plan.skipped))
         )
         if plan.skipped:
             show_warning(
                 self,
                 "Download",
-                "%d selected row(s) were skipped: FileManager S3 only resolves\n"
-                "paths under a VFX- project root." % len(plan.skipped),
+                "%d selected row(s) were skipped: %s only resolves\n"
+                "paths under a VFX- project root." % (len(plan.skipped), target.app.name),
             )
 
     def reveal_in_explorer(self, file_path):

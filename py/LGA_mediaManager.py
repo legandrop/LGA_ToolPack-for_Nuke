@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.45 | Lega
+  LGA_mediaManager v2.46 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -25,6 +25,11 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.46: Download tambien descarga con PipeSync, que suma el mismo CLI
+         que FileManager S3. Delete pasa a Alt+Backspace. El rango de
+         frames de una secuencia va separado por un espacio y con el
+         gradiente del browser de FileManager S3. El detalle esta en los
+         headers de LGA_MediaManager_FileScanner, _download y _utils.
   v2.45: Boton Download (Alt+D): pide a Wasabi las filas seleccionadas
          con el CLI de FileManager S3, como el Download Clip de
          HieroTools pero sin buscar versiones mas altas. Aparece solo

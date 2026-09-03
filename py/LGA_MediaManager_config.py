@@ -1,9 +1,10 @@
 """
 _______________________________________
 
-  LGA_MediaManager_config v2.45 | Lega
+  LGA_MediaManager_config v2.46 | Lega
   Donde vive la configuracion del Media Manager, y que tiene adentro
 
+  v2.46: La T deja de estar reservada: Delete pasa a Alt+Backspace.
   v2.45: RESERVED_SHORTCUTS suma la T: Delete pasa a Alt+T porque la D
          es ahora de Download.
   v2.28: El tema de fabrica pasa de "lga" a "pack": la herramienta
@@ -209,8 +210,8 @@ FONT_SIZE_MAX = 20
 # Las letras que ya usan los mnemonicos de la barra de herramientas. Si una
 # location toma una de estas, Qt no dispara ninguno de los dos y avisa por
 # consola con "ambiguous shortcut". La D es de Download, que existe solo si
-# hay con que descargar, y la T de Delete.
-RESERVED_SHORTCUTS = ("G", "R", "L", "C", "D", "T")
+# hay con que descargar; Delete va con Alt+Backspace, que no es una letra.
+RESERVED_SHORTCUTS = ("G", "R", "L", "C", "D")
 
 # Los tres destinos que traia el .ini historico, mapeados a la location de
 # fabrica que los reemplaza. Se comparan por la ruta vieja normalizada porque

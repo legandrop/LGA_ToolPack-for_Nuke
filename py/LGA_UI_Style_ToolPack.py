@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.26 | Lega
+  LGA_UI_Style_ToolPack v1.27 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,9 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.27: FRAME_RANGE_GRADIENT, los dos colores del rango de frames de
+         una secuencia -copiados del browser de FileManager S3-, para
+         pintarlo con el mismo gradiente violeta-fucsia en las tablas.
   v1.26: semibold_css() y semibold() detectan que la SemiBold no tenga
          familia propia. En Qt 6.5+ (Nuke 16) los tres archivos de Inter
          reportan la familia "Inter", asi que nombrar la familia dejaba de
@@ -390,6 +393,13 @@ PATH_PALETTE = (
     "#FF9A8A",  # naranja pastel
     "#6BC9FF",  # celeste
 )
+
+# El rango de frames de una secuencia (`[1001-1129]`) se pinta con un
+# gradiente de violeta a fucsia, de abajo-izquierda a arriba-derecha, con
+# el texto separado del nombre por un espacio. Son los dos colores del
+# browser de FileManager S3 (FM_Synchronizer_Helpers.cpp), copiados al pie
+# para que una secuencia se lea igual en Nuke que en la app.
+FRAME_RANGE_GRADIENT = ("#8F61C8", "#A435D7")
 
 
 # ---------------------------------------------------------------------------

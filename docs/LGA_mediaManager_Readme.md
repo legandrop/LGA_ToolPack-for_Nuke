@@ -250,13 +250,10 @@ importa Qt ni `nuke`.
 se busca —y sólo el hallazgo de FileManager S3 se cachea por sesión: si faltó,
 la próxima apertura vuelve a mirar, para que instalarlo y reabrir alcance—:
 
-1. **FileManager S3.** Si está, el botón descarga.
-2. Si no está, **PipeSync studio** (no la edición Client). Si está, el botón
-   igual aparece, pero lo único que hace es avisar que falta FileManager S3 y
-   abrir PipeSync en su Tools tab (`--open-tab tools`), que es de donde se
-   instala. Ojo: esa fila del Tools tab la ve sólo un usuario con algún rol
-   en PipeSync; para uno sin rol, PipeSync avisa que el tab no está
-   disponible y hay que pedir el instalador.
+1. **FileManager S3.** Si está, descarga con su CLI.
+2. Si no está, **PipeSync studio** (no la edición Client). PipeSync acepta
+   los mismos `--download` / `--download-file` (ver `Doc_CLI_DragDrop.md` en
+   su repo), así que el comando es idéntico y sólo cambia el ejecutable.
 3. Sin ninguna de las dos, la barra queda como estaba.
 
 **Cómo se detecta cada app** es lo mismo que hace el card de LGA Updates del
@@ -273,18 +270,42 @@ Ninguna fuente se cree sin mirar el disco: la carpeta tiene que tener el
 `.exe` (o `Contents/MacOS` en el bundle) y no ser una salida `build`/`deploy`.
 Una clave huérfana o un JSON viejo no cuentan.
 
-**El plan.** Una fila que es secuencia (`nombre.####.exr[1001-1129]`) se pide
-por su **carpeta** con `--download`; un archivo suelto, por su ruta con
-`--download-file`. Todo va en **una sola invocación** del CLI, sin
-`--context`: sin ese flag FileManager S3 usa el contexto de su edición
-(`edition.ini`), que es lo que tiene que mandar en la máquina del artista. Las
-rutas sin raíz `VFX-` se omiten y se avisan, porque el CLI las rechaza.
+**El plan.** Una fila que es secuencia (`nombre.####.exr[1001-1129]`, o con un
+`%d` de printf) se pide por su **carpeta** con `--download`; un archivo suelto,
+por su ruta con `--download-file`. Todo va en **una sola invocación** del CLI,
+sin `--context`: sin ese flag cada app usa el contexto de su edición
+(`edition.ini` en FileManager S3, el nombre del exe en PipeSync), que es lo que
+tiene que mandar en la máquina del artista. Las rutas sin raíz `VFX-` se
+omiten y se avisan, porque el CLI las rechaza.
 
-**Después del lanzamiento no se espera nada.** La descarga la muestra
-FileManager S3 en su Activity tab; no hay watcher ni reconexión automática
-como en Hiero. Cuando termina, Rescan actualiza la tabla.
+**Después del lanzamiento no se espera nada.** La descarga la muestra la app
+en su Activity tab; no hay watcher ni reconexión automática como en Hiero.
+Cuando termina, Rescan actualiza la tabla.
 
-**Alt+D era de Delete**, que pasa a **Alt+T**.
+**Alt+D era de Delete**, que pasa a **Alt+Backspace**: la tecla de borrar, escrita
+con su glifo (`⌫`) en el cartel del atajo del botón. Como no es una letra, no
+entra en `RESERVED_SHORTCUTS` y no compite con los atajos de Copy to.
+
+## El rango de frames en la tabla
+
+Una secuencia se escribe `nombre.####.exr [1001-1129]`: el rango va **separado
+por un espacio** y pintado con un **gradiente violeta-fucsia** de
+abajo-izquierda a arriba-derecha, exactamente como en el browser de FileManager
+S3 (`FM_Synchronizer_Helpers.cpp`, `FileItemDelegate::paint`). Los dos colores
+son `FRAME_RANGE_GRADIENT` del módulo de estilo, sincronizado en las cuatro
+copias.
+
+Cómo se dibuja: `PathDelegate.paint()` (`LGA_MediaManager_utils.py`) parte el
+texto con `split_frame_range()`, mete en el `QTextDocument` sólo el path —el
+HTML no sabe de gradientes— y después pinta el rango con `QPainter` y un
+`QLinearGradient` como pen, a continuación del ancho ideal del documento más
+un espacio. `path_column_width()` mide con `path_display_text()`, que es el
+texto con ese espacio, para que la columna no se quede corta. El texto de la
+celda (`row_path()`) no cambia: sigue sin el espacio, que es lo que entienden
+`expand_sequence()` y el resto de las operaciones.
+
+Límite conocido: la búsqueda resalta coincidencias dentro del path, no dentro
+del rango, porque el rango ya no pasa por el HTML.
 
 ## Las ventanas de progreso
 
