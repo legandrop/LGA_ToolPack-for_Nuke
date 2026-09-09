@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_paths v2.46 | Lega
+  LGA_MediaManager_paths v2.47 | Lega
   Como se interpretan las rutas relativas al .nk
 
   El shot folder y las locations se escriben como rutas RELATIVAS a la
@@ -21,6 +21,19 @@ _______________________________________
 
   No importa Qt a proposito: asi se puede probar sin PySide.
 
+  v2.47: Suma la parte sin Nuke ni Qt del inventario de knobs de
+         archivo: folder_paths, folder_paths_by_node y knob_for_path,
+         que contestan cual de los knobs de un nodo corresponde a una
+         fila de la tabla. Los knobs de CARPETA quedan siempre afuera
+         de esa eleccion: la ruta de un dataDirectory ES la carpeta,
+         asi que su dirname coincide con el de todos los archivos de
+         adentro y le ganaba por carpeta al checkpointFile del mismo
+         CopyCat. La fila de una secuencia trae el rango de frames
+         pegado -"nombre.####.exr[1001-1100]"- y la ruta del knob no,
+         asi que se lo saca antes de comparar: sin eso la comparacion
+         exacta fallaba siempre en secuencias y el desempate por
+         carpeta devolvia el knob `file` cuando la fila era la del
+         `proxy`, o sea que relinkear el proxy reescribia el otro.
   v2.27: Modulo nuevo. Sale del prototipo del rediseno, donde esta
          escrito en JS.
 _______________________________________
@@ -462,3 +475,115 @@ def path_html(path, shot_segs=(), common="", palette=(), filename="",
                 partes.append('<span style="color:%s;">%s</span>' % (color, trozo))
         pos = fin
     return "".join(partes)
+
+
+# ---------------------------------------------------------------------------
+#                      Los knobs de archivo de cada nodo
+# ---------------------------------------------------------------------------
+# `read_node_info` es {nombre de nodo: [{knob, path, role, is_folder,
+# node_class}]}, y lo arma get_read_files a partir de LGA_NodeFiles. Estas dos
+# funciones son la parte que no toca Nuke ni Qt, para poder probarlas sueltas.
+
+
+def folder_paths(read_node_info):
+    """
+    Las rutas de los knobs que apuntan a una CARPETA, normalizadas.
+
+    Hoy es el dataDirectory de un CopyCat. Se pregunta al inventario y no al
+    disco porque una carpeta que todavia no existe igual es una carpeta: con
+    os.path.isdir sola, un dataDirectory sin entrenar aparecia como fila.
+    """
+    rutas = set()
+    for entradas in (read_node_info or {}).values():
+        for entrada in entradas:
+            if entrada.get("is_folder"):
+                rutas.add(os.path.normpath(entrada.get("path", "")))
+    return rutas
+
+
+def folder_paths_by_node(read_node_info, normalizar):
+    """
+    {carpeta normalizada: [nombres de nodo]} para el matching por carpeta.
+
+    `normalizar` es la funcion de normalizacion de rutas del FileScanner; se
+    pasa como parametro para no importar Qt desde aca.
+    """
+    carpetas = {}
+    for nombre_nodo, entradas in (read_node_info or {}).items():
+        for entrada in entradas:
+            if not entrada.get("is_folder"):
+                continue
+            clave = normalizar(entrada.get("path", "")).rstrip("/")
+            if clave:
+                carpetas.setdefault(clave, []).append(nombre_nodo)
+    return carpetas
+
+
+# El rango de frames que la TABLA pega al final de una fila de secuencia:
+# "nombre.####.exr[1001-1129]". Anclado al final y aceptando signo, como el
+# _RANGO_RE de expand_sequence; con un split("[") un nombre tipo "take[1]_####"
+# se partiria por el corchete equivocado.
+_RANGO_DE_TABLA = re.compile(r"\[-?\d+--?\d+\]\s*$")
+
+
+def _sin_rango(ruta):
+    """
+    Saca el rango de frames que trae el texto de la celda.
+
+    Las rutas de read_node_info salen del KNOB y nunca lo llevan, asi que sin
+    esto la comparacion por ruta exacta fallaba SIEMPRE en las secuencias y se
+    caia al desempate por carpeta, que no sabe distinguir el `file` del `proxy`
+    de un mismo Read cuando viven en la misma carpeta: relinkear la fila del
+    proxy reescribia el knob file, en silencio.
+    """
+    return _RANGO_DE_TABLA.sub("", (ruta or "").strip()).strip()
+
+
+def _con_padding_en_almohadillas(ruta):
+    """Deja "%04d" y "####" comparables: los dos terminan en almohadillas."""
+    return re.sub(r"%0(\d+)d", lambda m: "#" * int(m.group(1)), ruta or "")
+
+
+def knob_for_path(read_node_info, node_name, ruta, normalizar):
+    """
+    Que knob de ese nodo corresponde a esa fila de la tabla.
+
+    Un nodo puede tener mas de un knob de archivo -file y proxy en un Read,
+    dataDirectory y checkpointFile en un CopyCat- asi que no alcanza con
+    agarrar el primero. Se prueba primero por ruta exacta y despues por
+    carpeta.
+
+    Los knobs de CARPETA quedan afuera siempre. Una fila de la tabla es un
+    archivo, y un dataDirectory nunca es la respuesta: como su ruta ES la
+    carpeta, su dirname coincide con el de todos los archivos que viven
+    adentro, asi que ganaba por carpeta al checkpointFile del mismo CopyCat.
+
+    Devuelve la entrada de read_node_info, o None si el nodo no aporta ninguna
+    que sirva.
+    """
+    entradas = [
+        entrada
+        for entrada in ((read_node_info or {}).get(node_name) or [])
+        if not entrada.get("is_folder")
+    ]
+    if not entradas:
+        return None
+    if len(entradas) == 1:
+        return entradas[0]
+
+    # La fila viene con el rango de frames pegado al final; el knob, no.
+    ruta = _sin_rango(ruta)
+
+    # 1) Ruta exacta, con el padding llevado a la misma forma.
+    objetivo = normalizar(_con_padding_en_almohadillas(ruta))
+    for entrada in entradas:
+        if normalizar(_con_padding_en_almohadillas(entrada.get("path", ""))) == objetivo:
+            return entrada
+
+    # 2) Misma carpeta.
+    carpeta_objetivo = normalizar(os.path.dirname(ruta)).rstrip("/")
+    for entrada in entradas:
+        if normalizar(os.path.dirname(entrada.get("path", ""))).rstrip("/") == carpeta_objetivo:
+            return entrada
+
+    return entradas[0]

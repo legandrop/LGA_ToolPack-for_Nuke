@@ -45,7 +45,7 @@ La elección se guarda **fuera del pack**, en **%APPDATA%\LGA\ToolPack\Enabled.i
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.46 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.47 | Lega
 
 Para revisar y ordenar toda la media del proyecto de forma rápida.<br>
 Al ejecutarlo escanea las carpetas configuradas como scan locations y todas las rutas de los nodos Read del script, mostrando el estado de cada archivo como OK, Offline, Outside o Unused para poder decidir si relinkear, copiar o borrar.<br><br>
@@ -90,7 +90,7 @@ Permite buscar y reemplazar rutas en los nodos Read y Write. Incluye preview en 
 
 
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Paths to Relative v1.0 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Paths to Relative v1.04 | Lega
 
 Para que el proyecto sobreviva a un cambio de disco o de ubicación.<br>
 Convierte a rutas relativas las rutas absolutas de los nodos que apuntan a archivos: Read, Write, DeepRead, DeepWrite, ReadGeo, WriteGeo, Precomp, Vectorfield y OCIOFileTransform, incluyendo el knob `proxy`.<br>

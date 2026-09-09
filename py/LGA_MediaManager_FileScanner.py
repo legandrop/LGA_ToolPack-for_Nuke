@@ -1,10 +1,38 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.46 | Lega
+  LGA_MediaManager_FileScanner v2.47 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.47: El descubrimiento de rutas sale de LGA_NodeFiles, que toma
+         todo nodo con File_Knob en vez de una lista de clases.
+         get_read_files tenia la lista ["Read", "AudioRead", "ReadGeo",
+         "DeepRead"] mas un caso especial para CopyCat, asi que
+         Inference no existia para la tool: su modelFile es el .cat que
+         el comp evalua para renderizar, y no aparecia en ninguna fila.
+         Entran tambien Precomp, Vectorfield y OCIOFileTransform. Solo
+         los roles input y workdir: la salida de un Write no es algo
+         que el script use, y meterla daria por Online a cada render en
+         disco. Las expresiones TCL se evaluan, asi que un Write de
+         Write Presets deja de ensuciar read_files con su texto crudo.
+         El .cat entra a sequence_extensions. Estaba afuera, y por eso
+         find_files lo descartaba ANTES del agrupado de secuencias
+         Training_, que lo acepta explicitamente: el codigo estaba
+         escrito y documentado en el README pero nunca corria, y en la
+         tabla no habia una sola fila .cat. Con la compuerta abierta
+         sobra el filtro que escondia el checkpointFile del CopyCat,
+         que existia solo porque esa fila salia siempre Offline.
+         Relink y repoint_read dejan de asumir un knob "file": el knob
+         sale del inventario nuevo (self.read_node_info). Con el nombre
+         clavado, Copy to sobre un Inference copiaba el archivo y
+         dejaba el nodo apuntando al original sin avisar, y Relink
+         sobre un CopyCat reventaba en el getValue.
+         El matching por carpeta compara solo contra los knobs que SON
+         carpeta, y esa lista se arma una vez por tanda: comparaba cada
+         archivo del escaneo contra todos los read_files, que en un
+         shot de 1253 archivos y 26 rutas eran ~32.000 comparaciones y
+         otras tantas lineas de log (29 MB por escaneo).
   v2.46: Con PipeSync y sin FileManager S3, Download ya descarga en vez
          de mandar al Tools tab: PipeSync suma el mismo CLI
          (--download / --download-file) y el comando es identico salvo
@@ -358,6 +386,7 @@ import LGA_MediaManager_config as mm_config
 import LGA_MediaManager_paths as mm_paths
 from LGA_MediaManager_config import get_read_path
 import LGA_MediaManager_download as mm_download
+import LGA_NodeFiles as node_files
 
 try:
     from LGA_tooltip_helper import apply_tooltip_stylesheet
@@ -857,8 +886,17 @@ class FileScanner(QWidget):
 
         # Inicializar atributos básicos primero
         self.matched_reads = []
+        # {nombre de nodo: [{knob, path, role, is_folder, node_class}]}. Lo
+        # llena get_read_files y lo consumen Relink y el reapuntado de Copy to.
+        self.read_node_info = {}
         self.font_size = DEFAULT_FONT_SIZE
-        self.sequence_extensions = [".exr", ".tif", ".png", ".jpg"]
+        # El .cat entra aca y no en non_sequence_extensions porque los
+        # checkpoints de CopyCat son una serie numerada -Training_<fecha>.<paso>
+        # .cat- y find_files ya sabe agruparlos. Sin el, los .cat se caian del
+        # escaneo antes de llegar a esa logica: el codigo estaba escrito y
+        # documentado pero nunca corria, y ni el checkpointFile del CopyCat ni
+        # el modelFile del Inference tenian fila en la tabla.
+        self.sequence_extensions = [".exr", ".tif", ".png", ".jpg", ".cat"]
         self.non_sequence_extensions = [".mov", ".psd", ".avi", ".mp4"]
 
         # Configurar logger
@@ -3271,12 +3309,11 @@ class FileScanner(QWidget):
         if not read_node_names:
             return
 
-        # Obtener los nodos Read y CopyCat actualmente seleccionados en Nuke
-        selected_reads = [
-            node.name()
-            for node in nuke.selectedNodes()
-            if node.Class() in ["Read", "CopyCat", "AudioRead", "ReadGeo", "DeepRead"]
-        ]
+        # Los nombres de lo que este seleccionado, sin filtrar por clase: el
+        # cruce con read_node_names ya deja solo los nodos de esta fila, y la
+        # lista de clases que habia aca -la cuarta del archivo- solo servia
+        # para que el ciclado no funcionara con un Inference.
+        selected_reads = [node.name() for node in nuke.selectedNodes()]
 
         # Encuentra el indice del nodo Read seleccionado que esta en la lista, si existe
         selected_index = None
@@ -3710,13 +3747,19 @@ class FileScanner(QWidget):
             nodo = nuke.toNode(nombre)
             if nodo is None:
                 continue
+            # El knob sale del inventario. Con "file" clavado, un CopyCat o un
+            # Inference tiraban excepcion en el getValue -no tienen ese knob- y
+            # se llevaban puesto el relink de toda la fila.
+            info = self.knob_for_node_path(nombre, original_file_name)
+            if info is None or info["is_folder"] or nodo.knob(info["knob"]) is None:
+                continue
             # El nombre lo pone el nodo y la carpeta la busqueda: el archivo
             # encontrado puede ser otro frame de la misma secuencia, asi que su
             # nombre no sirve para el knob.
             ruta_nodo = os.path.join(
-                carpeta_nueva, os.path.basename(nodo["file"].getValue())
+                carpeta_nueva, os.path.basename(nodo[info["knob"]].getValue())
             ).replace("\\", "/")
-            nodo["file"].setValue(ruta_nodo)
+            nodo[info["knob"]].setValue(ruta_nodo)
             tocados.append(nodo)
 
         # La fila se actualiza aunque no haya ningun Read: el archivo se
@@ -3770,20 +3813,19 @@ class FileScanner(QWidget):
         logger.debug(f"Total read files a procesar: {len(all_read_files)}")
         logger.debug(f"Nodos ya matched: {self.matched_reads}")
 
-        # FILTRO PARA COPYCAT: Crear lista de checkpointFile paths para filtrarlos
-        copycat_checkpoint_files = set()
-        copycat_nodes = nuke.executeInMainThreadWithResult(
-            lambda: nuke.allNodes("CopyCat")
-        )
-        for node in copycat_nodes:
-            if node.knob("checkpointFile"):
-                checkpoint_file = node["checkpointFile"].getValue().replace("\\", "/")
-                if checkpoint_file:
-                    copycat_checkpoint_files.add(os.path.normpath(checkpoint_file))
+        # Las carpetas de trabajo -hoy solo el dataDirectory de un CopyCat- se
+        # saltean mas abajo: sirven para el matching por carpeta, pero no son
+        # un archivo y no les corresponde una fila.
+        carpetas_de_nodo = self.folder_read_paths()
+        logger.debug(f"[NODE_FILES] Rutas de nodo que son carpetas: {carpetas_de_nodo}")
 
-        logger.debug(
-            f"[READ_COPYCAT] CheckpointFiles encontrados para filtrar: {copycat_checkpoint_files}"
-        )
+        # El checkpointFile del CopyCat SI tiene fila desde v2.47. Antes se lo
+        # filtraba aca, pero no porque no correspondiera mostrarlo: el .cat
+        # estaba fuera de sequence_extensions, asi que el escaneo no lo veia
+        # nunca y la fila salia siempre como Offline aunque el archivo
+        # estuviera. Arreglada la compuerta de extensiones, el filtro solo
+        # escondia una fila legitima -y encima la del archivo que decide que
+        # renderiza el comp.
 
         for read_path, nodes in all_read_files.items():
             read_path = os.path.normpath(read_path)
@@ -3792,18 +3834,15 @@ class FileScanner(QWidget):
             logger.debug(f"  - Nodos del read: {nodes}")
             logger.debug(f"  - Nodos unmatched: {unmatched_nodes}")
 
-            # FILTRO PARA COPYCAT: Si el read_path es una carpeta (dataDirectory) y no existe como archivo,
-            # no lo agregamos a unmatched_reads porque es solo para matching, no para mostrar en tabla
-            if os.path.isdir(read_path) and not os.path.isfile(read_path):
+            # Una carpeta no es un archivo y no le corresponde una fila. Se
+            # pregunta primero al inventario -que sabe que dataDirectory ES un
+            # knob de carpeta- y solo despues al disco, porque si la carpeta
+            # todavia no existe os.path.isdir dice False y la fila aparecia.
+            if read_path in carpetas_de_nodo or (
+                os.path.isdir(read_path) and not os.path.isfile(read_path)
+            ):
                 logger.debug(
-                    f"[READ_COPYCAT] Saltando carpeta dataDirectory (no es archivo): {read_path}"
-                )
-                continue
-
-            # FILTRO PARA COPYCAT: Si el read_path es un checkpointFile, no lo mostramos en tabla
-            if read_path in copycat_checkpoint_files:
-                logger.debug(
-                    f"[READ_COPYCAT] Saltando checkpointFile (solo para referencia): {read_path}"
+                    f"[NODE_FILES] Saltando carpeta de nodo (no es archivo): {read_path}"
                 )
                 continue
 
@@ -3973,12 +4012,30 @@ class FileScanner(QWidget):
         return to_add  # En lugar de llamar a add_file_to_table, devuelve los datos
 
     def get_read_files(self):
-        read_files = {}
-        node_types = ["Read", "AudioRead", "ReadGeo", "DeepRead"]
-        
-        # Importar la función para resolver rutas relativas
+        """
+        Las rutas que el script LEE, y de que nodo sale cada una.
+
+        Devuelve {ruta_resuelta: [nombres de nodo]}, que es lo que consume el
+        matching de la tabla. En paralelo deja `self.read_node_info`, un
+        {nombre de nodo: [{knob, path, role, is_folder, node_class}]}, que es
+        lo que necesitan Relink y el reapuntado de Copy to para saber QUE knob
+        escribir: hasta v2.46 los dos asumian un knob llamado "file", y con eso
+        un CopyCat o un Inference se copiaban pero quedaban apuntando al
+        original.
+
+        Que nodos entran lo decide LGA_NodeFiles y no una lista de clases. La
+        lista de clases era ["Read", "AudioRead", "ReadGeo", "DeepRead"] mas un
+        caso especial para CopyCat, y por eso Inference -cuyo modelFile es el
+        .cat que el comp evalua para renderizar- no aparecia en ningun lado.
+
+        Solo entran los roles input y workdir: la salida de un Write no es algo
+        que el script "use", y meterla aca daria por Online a cada render que
+        exista en disco.
+        """
         from LGA_MediaManager_utils import resolve_relative_path
-        
+
+        logger = configure_logger()
+
         # ------------------------------------------------------------------
         # TODA la API de Nuke se toca adentro del lambda, o sea en el hilo
         # PRINCIPAL, y lo que sale de ahi son datos de Python. Antes solo se
@@ -3991,63 +4048,92 @@ class FileScanner(QWidget):
             """Corre en el hilo principal. Devuelve datos, no nodos."""
             ruta = nuke.root().name()
             carpeta = os.path.dirname(ruta) if ruta else ""
-            lecturas = []
-            for tipo in node_types:
-                for nodo in nuke.allNodes(tipo):
-                    lecturas.append(
-                        (nodo.name(), nodo["file"].getValue().replace("\\", "/"))
-                    )
-            copycats = []
-            for nodo in nuke.allNodes("CopyCat"):
-                copycats.append(
-                    (
-                        nodo.name(),
-                        nodo["dataDirectory"].getValue().replace("\\", "/")
-                        if nodo.knob("dataDirectory")
-                        else "",
-                        nodo["checkpointFile"].getValue().replace("\\", "/")
-                        if nodo.knob("checkpointFile")
-                        else "",
-                    )
+
+            nodos, _ = node_files.collect_nodes(prefer_selection=False)
+            crudas = []
+            for entrada in node_files.entries_from_nodes(nodos):
+                if entrada["role"] == node_files.ROLE_OUTPUT:
+                    continue
+                valor = entrada["raw"]
+                # Una expresion TCL/Python no es una ruta: hay que evaluarla
+                # para saber a que archivo apunta. Se puede porque estamos en
+                # el hilo principal y tenemos el nodo a mano.
+                if entrada["is_expression"]:
+                    try:
+                        valor = (
+                            entrada["node"][entrada["knob"]].evaluate() or ""
+                        ).replace("\\", "/")
+                    except Exception:
+                        valor = ""
+                if not valor:
+                    continue
+                crudas.append(
+                    {
+                        "node_name": entrada["node_name"],
+                        "node_class": entrada["node_class"],
+                        "knob": entrada["knob"],
+                        "role": entrada["role"],
+                        "is_folder": entrada["is_folder"],
+                        "raw": valor,
+                    }
                 )
-            return carpeta, lecturas, copycats
+            return carpeta, crudas
 
-        project_folder, lecturas, copycats = nuke.executeInMainThreadWithResult(
-            foto_del_script
-        )
+        project_folder, crudas = nuke.executeInMainThreadWithResult(foto_del_script)
 
-        for nombre, file_path in lecturas:
-            resolved_path = resolve_relative_path(file_path, project_folder)
-            if resolved_path not in read_files:
-                read_files[resolved_path] = []
-            read_files[resolved_path].append(nombre)
+        read_files = {}
+        self.read_node_info = {}
+        for item in crudas:
+            resuelto = resolve_relative_path(item["raw"], project_folder)
+            if not resuelto:
+                continue
+            resuelto = resuelto.replace("\\", "/")
+            # Sin el chequeo, un Read cuyo `proxy` tiene el mismo valor que su
+            # `file` -pasa cuando el artista copia el path sin cambiarlo- suma
+            # el nodo dos veces y la columna Read dice "Read1, Read1".
+            nodos_de_la_ruta = read_files.setdefault(resuelto, [])
+            if item["node_name"] not in nodos_de_la_ruta:
+                nodos_de_la_ruta.append(item["node_name"])
+            self.read_node_info.setdefault(item["node_name"], []).append(
+                {
+                    "knob": item["knob"],
+                    "path": resuelto,
+                    "role": item["role"],
+                    "is_folder": item["is_folder"],
+                    "node_class": item["node_class"],
+                }
+            )
+            logger.debug(
+                f"[NODE_FILES] {item['node_class']} {item['node_name']}."
+                f"{item['knob']} ({item['role']}) -> {resuelto}"
+            )
 
-        # Los CopyCat ya vienen en la foto: aca solo se resuelven las rutas.
-        logger = configure_logger()
         logger.debug(
-            f"[READ_COPYCAT] Encontrados {len(copycats)} nodos CopyCat en el proyecto"
+            f"[NODE_FILES] Rutas leidas por el script: {len(read_files)} "
+            f"en {len(self.read_node_info)} nodos"
         )
-        for nombre, data_dir, checkpoint_file in copycats:
-            logger.debug(f"[READ_COPYCAT] Procesando nodo CopyCat: {nombre}")
-            for etiqueta, crudo in (
-                ("dataDirectory", data_dir),
-                ("checkpointFile", checkpoint_file),
-            ):
-                if not crudo:
-                    logger.debug(f"[READ_COPYCAT]   - Sin knob {etiqueta}")
-                    continue
-                resuelto = resolve_relative_path(crudo, project_folder)
-                logger.debug(f"[READ_COPYCAT]   - {etiqueta} original: '{crudo}'")
-                logger.debug(f"[READ_COPYCAT]   - {etiqueta} resuelto: '{resuelto}'")
-                if not resuelto:
-                    continue
-                read_files.setdefault(resuelto, []).append(nombre)
-                logger.debug(
-                    f"[READ_COPYCAT]   - Agregado {etiqueta} al read_files: "
-                    f"{resuelto} -> {nombre}"
-                )
-
         return read_files
+
+    # Las tres viven en LGA_MediaManager_paths, que no importa Nuke ni Qt y se
+    # puede probar suelto; aca quedan los envoltorios que le pasan el estado.
+    def folder_read_paths(self):
+        """Las rutas de read_files que son CARPETAS y no archivos."""
+        return mm_paths.folder_paths(getattr(self, "read_node_info", {}))
+
+    def folder_read_paths_by_node(self):
+        """{carpeta normalizada: [nodos]} para el matching por carpeta."""
+        return mm_paths.folder_paths_by_node(
+            getattr(self, "read_node_info", {}), normalize_path_for_comparison
+        )
+
+    def knob_for_node_path(self, node_name, ruta):
+        """Que knob de ese nodo corresponde a esa fila de la tabla."""
+        return mm_paths.knob_for_path(
+            getattr(self, "read_node_info", {}),
+            node_name,
+            ruta,
+            normalize_path_for_comparison,
+        )
 
     def scan_project(self):
         # Esta función ahora solo configura el worker y lo inicia
@@ -4168,6 +4254,14 @@ class FileScanner(QWidget):
         self.logger.debug(
             f"[FIX!!!] Recibiendo {len(files_data)} archivos para procesar"
         )
+
+        # El matching POR CARPETA solo tiene sentido contra los knobs que
+        # apuntan a una carpeta -hoy el dataDirectory de un CopyCat-. Se arma
+        # una sola vez y no una por archivo: antes el bucle comparaba cada
+        # archivo del escaneo contra TODOS los read_files, incluidos los que
+        # son archivos, y con 1253 archivos y 26 rutas eran ~32.000
+        # comparaciones y otras tantas lineas de log por escaneo.
+        carpetas_de_nodo_normalizadas = self.folder_read_paths_by_node()
 
         # Crear un registro de archivos ya procesados en esta sesión
         if not hasattr(self, "_processed_files_session"):
@@ -4321,49 +4415,26 @@ class FileScanner(QWidget):
                             self.matched_reads.extend(nodes)
                             break
 
-                # Si no se encontro match exacto, verificar matching por carpeta para CopyCat
-                if state == "Unused":
-                    file_directory = normalize_path_for_comparison(
+                # Sin match exacto, se prueba el matching POR CARPETA: todo lo
+                # que viva adentro del dataDirectory de un CopyCat es material
+                # suyo. Solo contra los knobs de carpeta, no contra todos los
+                # read_files.
+                if state == "Unused" and carpetas_de_nodo_normalizadas:
+                    file_dir_clean = normalize_path_for_comparison(
                         os.path.dirname(file_path)
-                    )
-                    self.logger.debug(
-                        f"[READ_COPYCAT] Verificando matching por carpeta para archivo: {file_path}"
-                    )
-                    self.logger.debug(
-                        f"[READ_COPYCAT]   - Directorio del archivo: {file_directory}"
-                    )
+                    ).rstrip("/")
 
-                    for read_path, nodes in normalized_read_files.items():
-                        # Verificar si read_path es una carpeta (para CopyCat dataDirectory)
-                        read_path_normalized = normalize_path_for_comparison(read_path)
-                        self.logger.debug(
-                            f"[READ_COPYCAT]   - Comparando con read_path: {read_path_normalized}"
-                        )
-
-                        # Normalizar ambas rutas eliminando barras finales para comparacion consistente
-                        file_dir_clean = file_directory.rstrip("/")
-                        read_path_clean = read_path_normalized.rstrip("/")
-
-                        self.logger.debug(
-                            f"[READ_COPYCAT]   - Comparacion normalizada: '{file_dir_clean}' vs '{read_path_clean}'"
-                        )
-
-                        if (
-                            file_dir_clean == read_path_clean
-                            or file_dir_clean.startswith(read_path_clean + "/")
+                    for carpeta, nodes in carpetas_de_nodo_normalizadas.items():
+                        if file_dir_clean == carpeta or file_dir_clean.startswith(
+                            carpeta + "/"
                         ):
                             status = ", ".join(nodes)
                             state = "Online"
                             self.matched_reads.extend(nodes)
                             self.logger.debug(
-                                f"[READ_COPYCAT]   - ¡MATCH ENCONTRADO! Archivo {file_path} asociado a nodo(s): {nodes}"
+                                f"[NODE_FILES] Match por carpeta: {file_path} -> {nodes}"
                             )
                             break
-
-                    if state == "Unused":
-                        self.logger.debug(
-                            f"[READ_COPYCAT]   - Sin match por carpeta para: {file_path}"
-                        )
 
                 # Ajustar y establecer el valor para la columna "Read"
                 read_item = QTableWidgetItem(status)
@@ -5097,11 +5168,23 @@ class FileScanner(QWidget):
         carpeta = registro["carpeta"]
         nombre_nodo = registro["nodo"]
 
+        # El knob sale del inventario y no se asume "file": un Inference
+        # apunta con modelFile y un CopyCat con checkpointFile, asi que con el
+        # nombre clavado se copiaba el archivo y el nodo quedaba mirando al
+        # original, sin ningun aviso. Una carpeta de trabajo no se reapunta:
+        # Copy to copia archivos, no directorios de nodo.
         nodo = nuke.toNode(nombre_nodo) if nombre_nodo else None
-        if nodo is not None and nodo.Class() == "Read":
-            original = nodo["file"].getValue()
+        info = self.knob_for_node_path(nombre_nodo, registro["ruta"])
+        if (
+            nodo is not None
+            and info is not None
+            and not info["is_folder"]
+            and info["role"] != node_files.ROLE_WORKDIR
+            and nodo.knob(info["knob"]) is not None
+        ):
+            original = nodo[info["knob"]].getValue()
             nuevo = os.path.join(carpeta, os.path.basename(original))
-            nodo["file"].setValue(nuevo.replace("\\", "/"))
+            nodo[info["knob"]].setValue(nuevo.replace("\\", "/"))
         else:
             nodo = None
 

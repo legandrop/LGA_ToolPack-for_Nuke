@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.46 | Lega
+  LGA_mediaManager v2.47 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -25,6 +25,13 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.47: Que nodos aportan rutas lo decide LGA_NodeFiles y no una lista
+         de clases, asi que entran Inference -su modelFile es el .cat
+         que el comp evalua-, Precomp, Vectorfield y OCIOFileTransform.
+         El .cat entra al escaneo: estaba fuera de las extensiones y su
+         agrupado de secuencias nunca corria. Relink y el reapuntado de
+         Copy to dejan de asumir un knob "file". El detalle esta en el
+         header de LGA_MediaManager_FileScanner.
   v2.46: Download tambien descarga con PipeSync, que suma el mismo CLI
          que FileManager S3. Delete pasa a Alt+Backspace. El rango de
          frames de una secuencia va separado por un espacio y con el
