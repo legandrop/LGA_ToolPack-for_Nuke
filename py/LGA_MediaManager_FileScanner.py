@@ -1,10 +1,31 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.47 | Lega
+  LGA_MediaManager_FileScanner v2.48 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.48: Boton Collect, a la derecha de la barra y sin atajo: es la
+         operacion mas cara -copia el shot, reescribe todos los knobs y
+         hace un Save As- y un Alt+letra al lado de las que se usan a
+         cada rato invita a dispararla sin querer. Es el unico boton
+         que no mira la seleccion: trabaja sobre el script entero.
+         El orden importa y es al reves del que parece: NO se pasa a
+         relativo y despues se guarda. Una ruta relativa se calcula
+         contra un ancla, asi que convertir primero deja los "../.."
+         apuntando contra la carpeta VIEJA. La secuencia es inventario
+         -> plan -> copia en worker -> reescritura de knobs ->
+         project_directory -> Save As, y los tres ultimos pasos van en
+         _on_collect_finished, en el hilo principal.
+         Si la copia se cancela NO se reescribe ni un knob: dejar el
+         script apuntando a un destino a medio copiar es peor que no
+         haber hecho nada. Por el mismo motivo, un archivo que fallo al
+         copiarse deja su knob apuntando al original -se mira si el
+         primer destino existe antes de reescribirlo- y un Save As que
+         falla revierte el bloque de undo entero: sin eso el script
+         ABIERTO quedaba con todos sus knobs en relativo contra una
+         carpeta donde nunca se guardo, o sea offline completo por un
+         fallo que no fue del usuario.
   v2.47: El descubrimiento de rutas sale de LGA_NodeFiles, que toma
          todo nodo con File_Knob en vez de una lista de clases.
          get_read_files tenia la lista ["Read", "AudioRead", "ReadGeo",
@@ -387,6 +408,7 @@ import LGA_MediaManager_paths as mm_paths
 from LGA_MediaManager_config import get_read_path
 import LGA_MediaManager_download as mm_download
 import LGA_NodeFiles as node_files
+import LGA_MediaManager_collect as mm_collect
 
 try:
     from LGA_tooltip_helper import apply_tooltip_stylesheet
@@ -408,6 +430,11 @@ TOOLTIPS = {
         "seleccionada, con FileManager S3 o PipeSync"
     ),
     "delete": "Manda el archivo a la papelera",
+    "collect": (
+        "Copia el script y toda su media a una carpeta nueva,\n"
+        "con las rutas relativas y ordenada por location.\n"
+        "Trabaja sobre el script entero, no sobre la seleccion"
+    ),
     "settings": "Ajustes del Media Manager",
     # La ✕ del buscador.
     "search_clear": "Limpiar",
@@ -1060,6 +1087,13 @@ class FileScanner(QWidget):
             "Delete", "trash-2", "Alt + %s" % BACKSPACE_GLYPH, TOOLTIPS["delete"],
             peligro=True,
         )
+        # Collect va SIN atajo, como Settings. No es por falta de letras: es
+        # la operacion mas cara de la barra -copia el shot entero, reescribe
+        # todos los knobs y hace un Save As- y un Alt+letra al lado de las que
+        # se usan a cada rato invita a dispararla sin querer.
+        self.collect_button = self._make_toolbar_button(
+            "Collect…", "folder", "", TOOLTIPS["collect"]
+        )
         self.settings_button = self._make_toolbar_button(
             "Settings", "settings", "", TOOLTIPS["settings"]
         )
@@ -1090,6 +1124,7 @@ class FileScanner(QWidget):
         if self.download_button is not None:
             self.download_button.clicked.connect(self.download_selected)
         self.delete_button.clicked.connect(self.delete_selected)
+        self.collect_button.clicked.connect(self.collect)
         self.settings_button.clicked.connect(self.show_settings_window)
 
         # Los atajos, ahora que el texto no lleva mnemonico. Van con
@@ -1131,8 +1166,11 @@ class FileScanner(QWidget):
         main_buttons_layout.addWidget(self.toolbar_separator)
         main_buttons_layout.addWidget(self.delete_button)
 
-        # Espacio flexible que empuja Settings hacia la derecha
+        # Espacio flexible que empuja Collect y Settings hacia la derecha
         main_buttons_layout.addStretch(1)
+        # Collect no opera sobre la seleccion sino sobre el script entero, asi
+        # que no va con las que si dependen de las filas elegidas.
+        main_buttons_layout.addWidget(self.collect_button)
 
         # La version ya no vive en la barra: estaba escrita a mano y se
         # desincronizaba del header. Ahora la muestra la ventana de ajustes,
@@ -2486,6 +2524,10 @@ class FileScanner(QWidget):
         if self.download_button is not None:
             self.download_button.setEnabled(hay_seleccion)
         self.delete_button.setEnabled(ninguno_offline)
+        # Collect no mira la seleccion: trabaja sobre el script entero. Solo
+        # pide que el script este guardado, porque el destino de cada archivo
+        # se decide contra la carpeta del .nk.
+        self.collect_button.setEnabled(bool(self.nk_dir()))
 
         self.refresh_toolbar_icons()
 
@@ -5018,6 +5060,304 @@ class FileScanner(QWidget):
         self._copy_reapuntar = reapuntar
         worker = CopyWorker(plan)
         self._run_batch(worker, "Copying...", self._on_copy_finished)
+
+    # ------------------------------------------------------------ collect ---
+    def collect_locations(self):
+        """
+        Las scan locations con su ruta ya resuelta a disco: [(nombre, ruta)].
+
+        Un comodin puede abrir varias carpetas y todas valen como origen: el
+        bucket se decide por cual de ellas CONTIENE al archivo, no por elegir
+        una. Lo que si es uno solo es el nombre del bucket en el destino.
+        """
+        base = self.nk_dir()
+        resueltas = []
+        for location in self.locations or ():
+            ruta = location.get("path") or ""
+            if not ruta:
+                continue
+            for carpeta in mm_paths.resolve(ruta, base).folders:
+                resueltas.append((location.get("name") or ruta, carpeta))
+        return resueltas
+
+    def collect(self):
+        """
+        Copia el script y toda su media a una carpeta nueva, con rutas
+        relativas y ordenada por location.
+
+        El orden importa y es al reves del que parece. NO se pasa a relativo y
+        despues se hace Save As: una ruta relativa se calcula contra un ancla,
+        asi que convertir primero deja los "../.." apuntando contra la carpeta
+        VIEJA. Primero se decide el destino de cada archivo, y la relativa se
+        calcula contra la raiz del collect, que es donde va a quedar el .nk.
+
+        La secuencia completa es: inventario -> plan -> copia (worker) ->
+        reescritura de knobs -> project_directory -> Save As. Los tres ultimos
+        pasos estan en _on_collect_finished, que corre en el hilo principal.
+
+        Trabaja sobre el script ENTERO y no sobre la seleccion: un collect a
+        medias no sirve para nada.
+        """
+        if self.operacion_en_curso() is not None:
+            debug_print("Hay una operacion en curso: se ignora el Collect")
+            return
+
+        if not self.nk_dir():
+            show_warning(self, "Collect", "Please save the script first.")
+            return
+
+        # El script tiene que estar guardado ANTES: lo que se guarda al final
+        # es el script CON las rutas ya reescritas, y si quedaban cambios sin
+        # guardar el original se quedaria sin ellos.
+        if nuke.root().modified():
+            if not ask_question(
+                self,
+                "Collect",
+                "The script has unsaved changes.\n\n"
+                "Collect rewrites every file path and then saves a copy in the "
+                "destination folder. Save the script first?",
+                yes_text="Save",
+            ):
+                return
+            try:
+                nuke.scriptSave()
+            except Exception as problema:
+                show_warning(self, "Collect", "Could not save the script:\n%s" % problema)
+                return
+
+        destino = QFileDialog.getExistingDirectory(self, "Collect to folder")
+        if not destino:
+            return
+        destino = destino.replace("\\", "/").rstrip("/")
+
+        # Coleccionar adentro del propio shot mezcla el collect con el trabajo
+        # y deja rutas que apuntan a si mismas.
+        if self.project_folder and mm_collect.dentro_de(destino, self.project_folder):
+            show_warning(
+                self,
+                "Collect",
+                "The destination is inside the shot folder.\n\n"
+                "Choose a folder outside it, so the collected script and the "
+                "original do not end up mixed.",
+            )
+            return
+
+        anchor, project_dir_vacio = mm_collect.anchor_del_script()
+        entradas = mm_collect.inventario(anchor)
+        plan, salteadas = mm_collect.armar_plan(
+            entradas, destino, self.collect_locations(), self.project_folder
+        )
+        if not plan:
+            show_warning(self, "Collect", "No file paths were found in this script.")
+            return
+
+        pares, sin_archivos = self._plan_collect_files(plan)
+        if not self._confirmar_collect(
+            destino, plan, pares, salteadas, sin_archivos, project_dir_vacio
+        ):
+            return
+
+        errores_carpetas = mm_collect.crear_carpetas(mm_collect.carpetas_a_crear(plan))
+        self._collect_estado = {
+            "destino": destino,
+            "plan": plan,
+            "errores": list(errores_carpetas),
+            "sin_archivos": sin_archivos,
+            "salteadas": salteadas,
+        }
+
+        if not pares:
+            # Nada que copiar -un script de puros Write- pero igual hay que
+            # reescribir los knobs y guardar.
+            self._on_collect_finished(0, 0, [], False)
+            return
+
+        worker = CopyWorker(pares)
+        self._run_batch(worker, "Collecting...", self._on_collect_finished)
+
+    def _plan_collect_files(self, plan):
+        """
+        Los archivos reales de cada item del plan.
+
+        Devuelve (pares, sin_archivos): los (origen, destino) a copiar, y los
+        items que no encontraron ni un archivo en disco. Un item sin archivos
+        NO frena el collect -el knob igual se reapunta, y en el destino va a
+        quedar offline como ya estaba en el origen- pero se informa: es la
+        diferencia entre "no se copio" y "no habia nada que copiar".
+
+        Toca disco: un os.listdir por secuencia. Es el mismo costo que ya paga
+        _plan_copy, que tambien planifica en el hilo principal.
+        """
+        pares = []
+        sin_archivos = []
+        vistos = set()
+        for item in plan:
+            archivos = mm_collect.archivos_de(item)
+            if item["accion"] == mm_collect.ACTION_COPY and not archivos:
+                sin_archivos.append(item)
+                item["testigo"] = ""
+                continue
+            # El PRIMER destino de cada item queda guardado como testigo: al
+            # terminar la copia se mira si existe, y si no existe ese knob no
+            # se reapunta. Sin esto, un archivo que fallaba al copiarse -sin
+            # permiso, disco lleno- dejaba igual el knob apuntando adentro del
+            # collect, donde no hay nada: el error se listaba en el cartel pero
+            # el script ya habia quedado roto.
+            item["testigo"] = archivos[0][1] if archivos else ""
+            for origen, destino_archivo in archivos:
+                # Dos nodos sobre la misma media dan el mismo par: se copia una
+                # sola vez.
+                if destino_archivo in vistos:
+                    continue
+                vistos.add(destino_archivo)
+                pares.append((origen, destino_archivo))
+        return pares, sin_archivos
+
+    def _confirmar_collect(
+        self, destino, plan, pares, salteadas, sin_archivos, project_dir_vacio
+    ):
+        """El resumen de lo que va a pasar, antes de tocar nada."""
+        cuentas = mm_collect.buckets_del_plan(plan)
+        detalle = ", ".join(
+            "%s (%d)" % (bucket, cantidad) for bucket, cantidad in sorted(cuentas.items())
+        )
+        texto = [
+            "%d file(s) will be copied to:" % len(pares),
+            destino,
+            "",
+            "Folders: %s" % (detalle or "none"),
+            "%d node path(s) will be rewritten as relative." % len(
+                mm_collect.a_reapuntar(plan)
+            ),
+        ]
+        if sin_archivos:
+            texto.append(
+                "%d path(s) have no file on disk and will be repointed anyway."
+                % len(sin_archivos)
+            )
+        if salteadas:
+            texto.append(
+                "%d path(s) with expressions will be left untouched." % len(salteadas)
+            )
+        if project_dir_vacio:
+            texto.append("The Project Directory will be set to the script folder.")
+        texto.append("")
+        nombre = os.path.basename(nuke.root().name()) or "collected.nk"
+        if os.path.exists(os.path.join(destino, nombre)):
+            # Se avisa en el MISMO cartel y no en uno aparte: es una condicion
+            # del destino elegido, igual que las de arriba.
+            texto.append('"%s" already exists there and will be overwritten.' % nombre)
+        else:
+            texto.append('The script will then be saved there as "%s".' % nombre)
+        return ask_question(self, "Collect", "\n".join(texto), yes_text="Collect")
+
+    def _on_collect_finished(self, hechos, salteados, errores, cancelado):
+        """
+        Reescribe los knobs y guarda el script. Corre en el hilo principal.
+
+        Si la copia se cancelo NO se reescribe nada: dejar los knobs apuntando
+        a un destino a medio copiar es peor que no haber hecho nada, porque el
+        script queda roto y sin aviso de que archivos faltan.
+        """
+        estado = getattr(self, "_collect_estado", None)
+        self._collect_estado = None
+        if not estado:
+            return
+
+        errores = list(estado["errores"]) + list(errores or [])
+
+        if cancelado:
+            show_warning(
+                self,
+                "Collect",
+                "Collect was cancelled after copying %d file(s).\n\n"
+                "The node paths were NOT rewritten and the script was not "
+                "saved, so the open script is untouched." % hechos,
+            )
+            return
+
+        # Solo se reapunta lo que de verdad quedo en el destino. Un item cuya
+        # copia fallo se deja apuntando al original: sigue funcionando, y el
+        # cartel lo dice.
+        plan_a_escribir = []
+        no_llegaron = []
+        for item in estado["plan"]:
+            testigo = item.get("testigo")
+            if testigo and not os.path.exists(testigo):
+                no_llegaron.append(item)
+                continue
+            plan_a_escribir.append(item)
+
+        aplicadas, errores_knobs = mm_collect.aplicar_rutas(plan_a_escribir)
+        errores.extend(errores_knobs)
+
+        nombre = os.path.basename(nuke.root().name()) or "collected.nk"
+        ruta_guardada, error_guardado = mm_collect.guardar_como(
+            estado["destino"], nombre
+        )
+        if error_guardado:
+            # Si el guardado falla, el script ABIERTO ya tiene todos sus knobs
+            # en relativo contra una carpeta donde nunca se guardo: el
+            # project_directory evalua a la carpeta VIEJA y no resuelve una
+            # sola ruta. Queda offline entero por un fallo que no fue del
+            # usuario, asi que se vuelve atras. Es el mismo criterio que la
+            # cancelacion: a medio camino, se revierte.
+            revertido = mm_collect.deshacer()
+            show_warning(
+                self,
+                "Collect",
+                "%d file(s) were copied, but the script could not be saved:\n"
+                "%s\n\n%s"
+                % (
+                    hechos,
+                    error_guardado,
+                    "The node paths were rolled back, so the open script is "
+                    "as it was."
+                    if revertido
+                    else "The node paths could NOT be rolled back. Undo with "
+                    "Ctrl+Z before doing anything else, or the open script "
+                    "will stay offline.",
+                ),
+            )
+            return
+
+        # La tool queda mirando el script nuevo, que vive en otra carpeta: lo
+        # que hay en la tabla ya no describe nada.
+        self.rescan()
+
+        resumen = [
+            "%d file(s) copied." % hechos,
+            "%d node path(s) rewritten as relative." % aplicadas,
+        ]
+        if estado["sin_archivos"]:
+            resumen.append(
+                "%d path(s) had no file on disk." % len(estado["sin_archivos"])
+            )
+        if no_llegaron:
+            resumen.append(
+                "%d path(s) failed to copy and were left pointing at the "
+                "original." % len(no_llegaron)
+            )
+        if estado["salteadas"]:
+            resumen.append(
+                "%d path(s) with expressions were left untouched."
+                % len(estado["salteadas"])
+            )
+        if ruta_guardada:
+            resumen.append("")
+            resumen.append("Script saved as:")
+            resumen.append(ruta_guardada)
+        if errores:
+            resumen.append("")
+            resumen.append("%d error(s):" % len(errores))
+            resumen.extend(errores[:8])
+            if len(errores) > 8:
+                resumen.append("...")
+
+        if errores:
+            show_warning(self, "Collect", "\n".join(resumen))
+        else:
+            show_info(self, "Collect", "\n".join(resumen))
 
     def _plan_copy(self, filas, destino_base):
         """

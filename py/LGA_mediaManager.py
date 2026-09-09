@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.47 | Lega
+  LGA_mediaManager v2.48 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -16,6 +16,8 @@ _______________________________________________________________________
     LGA_MediaManager_logging.py      logger a logs/LGA_mediaManager.log
     LGA_MediaManager_download.py     deteccion de FileManager S3 /
                                      PipeSync y el comando de descarga
+    LGA_MediaManager_collect.py      el plan de un Collect: que archivo
+                                     va a que carpeta y con que ruta
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - La ventana de ajustes, abajo a la izquierda. Esa sale sola: la lee
@@ -25,6 +27,11 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.48: Boton Collect: copia el script y toda su media a una carpeta
+         nueva, ordenada por location -input, assets, prerenders,
+         publish, shot y outside-, deja cada knob con su ruta relativa
+         a esa raiz y guarda el .nk adentro. El plan vive en
+         LGA_MediaManager_collect.
   v2.47: Que nodos aportan rutas lo decide LGA_NodeFiles y no una lista
          de clases, asi que entran Inference -su modelFile es el .cat
          que el comp evalua-, Precomp, Vectorfield y OCIOFileTransform.
