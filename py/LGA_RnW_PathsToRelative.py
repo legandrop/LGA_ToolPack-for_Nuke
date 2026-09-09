@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_RnW_PathsToRelative v1.03 | Lega
+  LGA_RnW_PathsToRelative v1.04 | Lega
 
   Convierte a rutas relativas las rutas absolutas de los nodos que
   apuntan a archivos. Nuke resuelve los relativos contra el Project
@@ -10,6 +10,26 @@ ____________________________________________________________________
   Si hay nodos seleccionados actua solo sobre esos; si no, recorre
   todo el script. Nunca toca knobs con expresiones TCL o Python.
 
+  Que nodos entran lo decide LGA_NodeFiles, compartido con el resto
+  del pack.
+
+  v1.04: El barrido sale de LGA_NodeFiles y deja de filtrar por una
+         lista de clases: entra todo nodo con File_Knob. Con la lista
+         quedaban afuera CopyCat -dataDirectory y checkpointFile- e
+         Inference -modelFile-, que en un shot con entrenamiento son
+         las rutas que mas importan, y tambien OCIOCDLTransform,
+         LiveGroup y BlinkScript. Con mas clases en la tabla hace falta
+         saber que es cada fila, asi que Node y Knob llevan tooltip con
+         la clase y con el rol de la ruta; y a los knobs de carpeta,
+         como dataDirectory, se les conserva la barra final. El kernel
+         de un BlinkScript aparece destildado: es codigo de pipeline y
+         vive fuera del shot, asi que relativizarlo casi nunca sirve.
+         Cambia ademas el alcance de la seleccion. Antes, si lo
+         seleccionado no incluia ninguna de las diez clases -un Dot, un
+         Backdrop, o el Group que CONTIENE a los Reads- la seleccion se
+         ignoraba en silencio y se procesaba el script entero. Ahora se
+         baja adentro del Group seleccionado, y solo se cae al script
+         entero cuando la seleccion no aporta ningun knob de archivo.
   v1.03: La columna del checkbox pasa de 28 a 34 px (el padding de item
          de Style.TABLE achicaba el rect del cell widget y el cuadrito
          salia recortado) y el checkbox de Project Directory lleva
@@ -28,10 +48,10 @@ ____________________________________________________________________
 """
 
 import os
-import re
 
 import nuke
 
+import LGA_NodeFiles as node_files
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore
 from LGA_UI_Style_ToolPack import Color, Metric, Style, colorize_path
 
@@ -63,20 +83,26 @@ def debug_print(*message):
 # ---------------------------------------------------------------------------
 #                               Configuracion
 # ---------------------------------------------------------------------------
-# Clases sobre las que trabaja la tool. Dentro de cada nodo se recorren todos
-# sus File_Knob, asi que quedan cubiertos "file", "proxy" y equivalentes.
-TARGET_CLASSES = (
-    "Read",
-    "Write",
-    "DeepRead",
-    "DeepWrite",
-    "ReadGeo",
-    "ReadGeo2",
-    "WriteGeo",
-    "Precomp",
-    "Vectorfield",
-    "OCIOFileTransform",
-)
+# Que nodos y que knobs entran lo decide LGA_NodeFiles, que es el mismo
+# inventario que usa el resto del pack. Aca ya no hay lista de clases: la
+# habia, y por tenerla se le escapaban CopyCat e Inference.
+
+# Los tooltips van en castellano y salen de aca, no hardcodeados en el widget,
+# para que la migracion a bilingue sea un cambio de datos.
+KNOB_ROLE_TOOLTIP = {
+    node_files.ROLE_INPUT: "El nodo lee este archivo",
+    node_files.ROLE_OUTPUT: "El nodo escribe aca; el archivo puede no existir todavia",
+    node_files.ROLE_WORKDIR: "Carpeta de trabajo del nodo, no un archivo",
+    node_files.ROLE_TOOLING: (
+        "Recurso de pipeline, no media del shot. Viene destildado porque suele "
+        "vivir en una carpeta de herramientas compartida y pasarlo a relativo "
+        "da una ruta que solo sirve desde este shot"
+    ),
+}
+
+# Los roles que NO vienen tildados. La fila se muestra y se puede tildar a
+# mano: no esta bloqueada, solo no es lo que se quiere por default.
+ROLES_SIN_TILDAR = (node_files.ROLE_TOOLING,)
 
 # A partir de cuantos "../" se marca la ruta como profunda (amarillo)
 DEEP_LEVEL_WARNING = 3
@@ -127,51 +153,11 @@ BTN_SMALL = Style.BTN_SMALL
 # ---------------------------------------------------------------------------
 #                            Helpers de rutas
 # ---------------------------------------------------------------------------
-# Unidad de Windows al principio del path (T:/ o T:\)
-DRIVE_RE = re.compile(r"^[a-zA-Z]:[\\/]")
-
-
-def is_expression_value(value):
-    """
-    True si el knob tiene una expresion TCL/Python en vez de una ruta literal.
-    Los Writes creados con Write Presets caen aca y no se tocan nunca.
-    """
-    return "[" in value or "]" in value
-
-
-def is_absolute_path(value):
-    """True si la ruta es absoluta en cualquiera de las dos plataformas."""
-    if not value:
-        return False
-    if DRIVE_RE.match(value):
-        return True
-    if value.startswith("//") or value.startswith("\\\\"):
-        return True
-    return os.path.isabs(value)
-
-
-def to_relative(path, anchor_dir):
-    """
-    Convierte una ruta absoluta en relativa al directorio ancla.
-
-    Retorna (relative_path, up_levels). Si no existe ruta relativa posible
-    (otra unidad o mount) retorna (None, 0).
-    """
-    try:
-        relative = os.path.relpath(path, anchor_dir)
-    except ValueError:
-        return None, 0
-
-    relative = relative.replace("\\", "/")
-
-    up_levels = 0
-    for part in relative.split("/"):
-        if part == "..":
-            up_levels += 1
-        else:
-            break
-
-    return relative, up_levels
+# Los tres viven en LGA_NodeFiles porque los comparte todo el pack. Los alias
+# quedan para que el resto del archivo se siga leyendo igual.
+is_expression_value = node_files.is_expression_value
+is_absolute_path = node_files.is_absolute_path
+to_relative = node_files.to_relative
 
 
 def get_project_directory_knob():
@@ -229,84 +215,21 @@ def set_project_directory():
     return True
 
 
-def knob_raw_value(knob):
-    """Devuelve el texto crudo del knob, sin evaluar expresiones."""
-    try:
-        value = knob.getValue()
-    except Exception:
-        value = knob.value()
-    return (value or "").strip()
-
-
-def file_knobs(node):
-    """Devuelve [(nombre, knob)] de todos los File_Knob del nodo."""
-    result = []
-    try:
-        knobs = node.knobs()
-    except Exception as error:
-        debug_print("No se pudieron leer los knobs de %s: %s" % (node.name(), error))
-        return result
-
-    for knob_name, knob in knobs.items():
-        try:
-            if isinstance(knob, nuke.File_Knob):
-                result.append((knob_name, knob))
-        except Exception:
-            continue
-
-    result.sort(key=lambda item: item[0])
-    return result
-
-
-def node_location(node):
-    """Devuelve donde vive el nodo: "Root" o la ruta del Group que lo contiene."""
-    try:
-        full_name = node.fullName()
-    except Exception:
-        return "Root"
-    if "." in full_name:
-        return full_name.rsplit(".", 1)[0].replace(".", "/")
-    return "Root"
-
-
-def collect_nodes():
+def collect_entries():
     """
-    Junta los nodos a procesar. Si hay seleccion, trabaja solo sobre ella.
+    El inventario del script, via LGA_NodeFiles.
 
-    No entra en Precomps ni LiveGroups: sus nodos internos vienen de otro .nk
-    y modificarlos aca no tiene efecto real. El nodo Precomp si se procesa,
-    porque su propio knob apunta a un archivo.
+    Retorna (entries, from_selection). Con seleccion trabaja solo sobre ella.
     """
-    selected = [
-        node for node in nuke.selectedNodes() if node.Class() in TARGET_CLASSES
-    ]
-    if selected:
-        debug_print("Trabajando sobre la seleccion: %d nodos" % len(selected))
-        return selected, True
-
-    collected = []
-    _walk_group(nuke.root(), collected)
-    debug_print("Trabajando sobre todo el script: %d nodos" % len(collected))
-    return collected, False
+    entries, from_selection = node_files.collect_entries()
+    debug_print(
+        "Inventario: %d knobs de archivo%s"
+        % (len(entries), " (seleccion)" if from_selection else "")
+    )
+    return entries, from_selection
 
 
-def _walk_group(group, collected):
-    """Recorre el grupo y sus Groups anidados juntando nodos objetivo."""
-    try:
-        children = group.nodes()
-    except Exception as error:
-        debug_print("No se pudo recorrer el grupo: %s" % error)
-        return
-
-    for node in children:
-        node_class = node.Class()
-        if node_class in TARGET_CLASSES:
-            collected.append(node)
-        if node_class == "Group":
-            _walk_group(node, collected)
-
-
-def build_rows(nodes, anchor_dir):
+def build_rows(entries, anchor_dir):
     """
     Arma las filas de la tabla y cuenta lo que queda afuera.
 
@@ -315,46 +238,55 @@ def build_rows(nodes, anchor_dir):
     rows = []
     skipped = {SKIP_RELATIVE: 0, SKIP_EXPRESSION: 0, SKIP_EMPTY: 0}
 
-    for node in nodes:
-        for knob_name, knob in file_knobs(node):
-            value = knob_raw_value(knob)
+    for entry in entries:
+        value = entry["raw"]
 
-            if not value:
-                skipped[SKIP_EMPTY] += 1
-                continue
+        if not value:
+            skipped[SKIP_EMPTY] += 1
+            continue
 
-            if is_expression_value(value):
-                skipped[SKIP_EXPRESSION] += 1
-                continue
+        if entry["is_expression"]:
+            skipped[SKIP_EXPRESSION] += 1
+            continue
 
-            if not is_absolute_path(value):
-                skipped[SKIP_RELATIVE] += 1
-                continue
+        if not is_absolute_path(value):
+            skipped[SKIP_RELATIVE] += 1
+            continue
 
-            relative, up_levels = to_relative(value, anchor_dir)
+        relative, up_levels = to_relative(value, anchor_dir)
 
-            if relative is None:
-                status = STATUS_BLOCKED
-                target = "path is on another drive"
-            elif up_levels >= DEEP_LEVEL_WARNING:
-                status = STATUS_DEEP
-                target = relative
-            else:
-                status = STATUS_CONVERT
-                target = relative
+        # Un knob de carpeta -dataDirectory de CopyCat- viene con barra final y
+        # relpath la come. Se la devolvemos: el valor que se escribe tiene que
+        # ser el mismo que habia, solo que relativo.
+        if relative is not None and value.endswith("/") and not relative.endswith("/"):
+            relative += "/"
 
-            rows.append(
-                {
-                    "node": node,
-                    "knob": knob_name,
-                    "location": node_location(node),
-                    "current": value.replace("\\", "/"),
-                    "relative": relative,
-                    "target_text": target,
-                    "up_levels": up_levels,
-                    "status": status,
-                }
-            )
+        if relative is None:
+            status = STATUS_BLOCKED
+            target = "path is on another drive"
+        elif up_levels >= DEEP_LEVEL_WARNING:
+            status = STATUS_DEEP
+            target = relative
+        else:
+            status = STATUS_CONVERT
+            target = relative
+
+        rows.append(
+            {
+                "node": entry["node"],
+                "node_name": entry["node_name"],
+                "node_class": entry["node_class"],
+                "knob": entry["knob"],
+                "role": entry["role"],
+                "is_folder": entry["is_folder"],
+                "location": entry["location"],
+                "current": value,
+                "relative": relative,
+                "target_text": target,
+                "up_levels": up_levels,
+                "status": status,
+            }
+        )
 
     return rows, skipped
 
@@ -685,10 +617,12 @@ class PathsToRelativeWindow(QDialog):
         bar_item.setBackground(QColor(bar_color))
         table.setItem(row_index, self.COL_BAR, bar_item)
 
-        # Col 1: checkbox; las filas imposibles quedan deshabilitadas
+        # Col 1: checkbox; las filas imposibles quedan deshabilitadas y las de
+        # rol tooling -un kernel de BlinkScript- vienen destildadas pero
+        # tildables: son rutas de pipeline, no media del shot.
         checkbox = QCheckBox()
         checkbox.setStyleSheet(Style.CHECKBOX)
-        checkbox.setChecked(not blocked)
+        checkbox.setChecked(not blocked and row["role"] not in ROLES_SIN_TILDAR)
         checkbox.setEnabled(not blocked)
         checkbox.stateChanged.connect(self._update_status)
         self.checkboxes[row_index] = checkbox
@@ -702,12 +636,18 @@ class PathsToRelativeWindow(QDialog):
 
         text_color = QColor(COLOR_TEXT_DIM if blocked else COLOR_TEXT)
 
-        node_item = QTableWidgetItem(row["node"].name())
+        # La clase y el rol van de tooltip y no de columna: desde que el
+        # barrido dejo de filtrar por clase la tabla puede traer CopyCat,
+        # Inference o un gizmo, y con el nombre solo no se sabe que es cada
+        # fila ni si esa ruta se lee, se escribe o es carpeta de trabajo.
+        node_item = QTableWidgetItem(row["node_name"])
         node_item.setForeground(text_color)
+        node_item.setToolTip(row["node_class"])
         table.setItem(row_index, self.COL_NODE, node_item)
 
         knob_item = QTableWidgetItem(row["knob"])
         knob_item.setForeground(QColor(COLOR_TEXT_DIM))
+        knob_item.setToolTip(KNOB_ROLE_TOOLTIP.get(row["role"], ""))
         table.setItem(row_index, self.COL_KNOB, knob_item)
 
         location_item = QTableWidgetItem(row["location"])
@@ -875,8 +815,8 @@ def main():
     debug_print("Directorio del script:", script_dir)
     debug_print("Ancla de los relativos:", anchor_dir, "| estado:", project_state)
 
-    nodes, from_selection = collect_nodes()
-    if not nodes:
+    entries, from_selection = collect_entries()
+    if not entries:
         show_info(
             "Paths to Relative",
             "<span style='color:%s;'>No nodes with file paths were found.</span>"
@@ -884,7 +824,7 @@ def main():
         )
         return
 
-    rows, skipped = build_rows(nodes, anchor_dir)
+    rows, skipped = build_rows(entries, anchor_dir)
 
     if not rows:
         _handle_nothing_to_convert(skipped, project_state, project_raw)
