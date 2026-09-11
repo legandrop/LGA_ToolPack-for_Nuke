@@ -8,6 +8,9 @@ ____________________________________________________________________
   Si no hay Read seleccionado, usa el nombre del script abierto.
   Si el nombre incluye _roto_ o _cleanup_, usa esa task. Si no, usa comp.
 
+  v1.09: Se elimina el desvio al Shot Info del Playlist Panel de HieroTools,
+         copiado de LGA_NKS_Flow_Shot_info: nadie lo llamaba, importaba un
+         modulo de otro repo y ese panel ya no existe.
   v1.08: COLORS y SHOT_INFO_QSS migran al modulo de estilo
          LGA_UI_Style_ToolPack, con los mismos mapeos que la ventana
          hermana de HieroTools (LGA_NKS_Flow_Shot_info v1.97). Los
@@ -756,101 +759,6 @@ class ThumbnailButton(QPushButton):
 
 app = None
 window = None
-
-
-def find_project_for_sequence(target_sequence):
-    """Busca el proyecto que contiene la secuencia activa."""
-    if not target_sequence:
-        return None
-
-    for project in hiero.core.projects():
-        try:
-            for sequence in project.sequences():
-                if sequence == target_sequence:
-                    return project
-        except Exception:
-            continue
-    return None
-
-
-def get_playlist_panel_registration_state():
-    """Chequea si el Playlist Panel fue registrado en esta sesion."""
-    try:
-        playlist_panel_module = sys.modules.get("LGA_NKS_Playlist_Panel")
-        if playlist_panel_module is None:
-            return False
-        return getattr(playlist_panel_module, "playlistPanel", None) is not None
-    except Exception as exc:
-        debug_print("Error chequeando registro del Playlist Panel:", str(exc), level="warning")
-        return False
-
-
-def should_redirect_to_playlist_shot_info():
-    """Determina si Flow Shot Info debe delegar al Shot Info de playlist."""
-    if not HAS_CLIP_UTILS:
-        return False
-
-    sequence = hiero.ui.activeSequence()
-    project = find_project_for_sequence(sequence)
-    clip = get_clip_to_process(track_name=None, prioritize_multiple_selection=False)
-
-    if not sequence or not project or not clip or isinstance(clip, list):
-        debug_print(
-            "Vendor dispatch skipped due to missing context.",
-            f"sequence_present={bool(sequence)}",
-            f"project_present={bool(project)}",
-            f"clip_present={bool(clip)}",
-            level="debug",
-        )
-        return False
-
-    try:
-        clip_name = clip.name()
-    except Exception:
-        clip_name = ""
-
-    project_prefix = project.name().split("_")[0] if project.name() else ""
-    clip_prefix = clip_name.split("_")[0] if clip_name else ""
-    is_vendor = bool(project_prefix and clip_prefix and project_prefix != clip_prefix)
-
-    playlist_panel_registered = get_playlist_panel_registration_state()
-    current_user_is_master = False
-
-    if not playlist_panel_registered:
-        try:
-            from LGA_NKS_Playlist_Panel_py.LGA_NKS_Playlist_Panel_Permissions import (
-                is_current_user_master,
-            )
-
-            current_user_is_master = is_current_user_master()
-        except Exception as exc:
-            debug_print(
-                "No se pudo chequear Master para vendor dispatch:",
-                str(exc),
-                level="warning",
-            )
-
-    debug_print(
-        "Vendor dispatch context:",
-        f"sequence_name='{sequence.name()}'",
-        f"timeline_project_name='{project.name()}'",
-        f"clip_name='{clip_name}'",
-        f"project_prefix='{project_prefix}'",
-        f"clip_prefix='{clip_prefix}'",
-        f"is_vendor={is_vendor}",
-        f"playlist_panel_registered={playlist_panel_registered}",
-        f"current_user_is_master={current_user_is_master}",
-    )
-
-    return is_vendor and (playlist_panel_registered or current_user_is_master)
-
-
-def run_playlist_shot_info():
-    """Ejecuta el Shot Info del Playlist Panel."""
-    module = importlib.import_module(
-        "LGA_NKS_Playlist_Panel_py.LGA_NKS_FlowPlaylist_Shot_info"
-    )
-    module.main()
 
 
 class ShotGridManager:
