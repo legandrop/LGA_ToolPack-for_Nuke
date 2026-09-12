@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_paths v2.56 | Lega
+  LGA_MediaManager_paths v2.57 | Lega
   Como se interpretan las rutas relativas al .nk
 
   El shot folder y las locations se escriben como rutas RELATIVAS a la
@@ -21,6 +21,10 @@ _______________________________________
 
   No importa Qt a proposito: asi se puede probar sin PySide.
 
+  v2.57: Suma nivel_de_espacio, la franja del punto de color del
+         espacio libre. El umbral es una decision del dominio y vive
+         aca para poder probarse sin Qt; a que color corresponde cada
+         franja lo decide el tema.
   v2.56: Suma nombre_de_volumen y formatear_tamano, que arman el
          "71 GB free on N:" de la barra de estado. El nombre del disco
          sale de la letra en Windows, del share en UNC y del punto de
@@ -686,3 +690,36 @@ def formatear_tamano(bytes_libres):
                 return "%.1f %s" % (escalado, nombre)
             return "%d %s" % (round(escalado), nombre)
     return "%d KB" % round(valor / 1024.0)
+
+
+# Cuanto espacio libre alcanza. Un shot de comp con EXRs se come decenas de GB,
+# asi que menos de 100 GB en el disco del proyecto es un problema hoy, y entre
+# 100 y 200 es un aviso.
+ESPACIO_OK = 200 * 1024 ** 3
+ESPACIO_AVISO = 100 * 1024 ** 3
+
+NIVEL_OK = "ok"
+NIVEL_AVISO = "aviso"
+NIVEL_BAJO = "bajo"
+NIVEL_DESCONOCIDO = "desconocido"
+
+
+def nivel_de_espacio(bytes_libres):
+    """
+    En que franja cae el espacio libre: ok, aviso, bajo o desconocido.
+
+    Separado del color a proposito: el umbral es una decision del dominio -y se
+    puede probar sin Qt-, y a que color corresponde cada franja lo decide el
+    tema.
+    """
+    try:
+        valor = float(bytes_libres)
+    except (TypeError, ValueError):
+        return NIVEL_DESCONOCIDO
+    if valor < 0:
+        return NIVEL_DESCONOCIDO
+    if valor >= ESPACIO_OK:
+        return NIVEL_OK
+    if valor >= ESPACIO_AVISO:
+        return NIVEL_AVISO
+    return NIVEL_BAJO

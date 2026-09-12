@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_download v2.56 | Lega
+  LGA_MediaManager_download v2.57 | Lega
 
   Descarga desde Wasabi de las filas seleccionadas del Media Manager,
   a traves del CLI de FileManager S3 o, si no esta, del de PipeSync,

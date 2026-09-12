@@ -204,5 +204,38 @@ class TestVolumenYTamano(unittest.TestCase):
         # 0 libres es un dato, no un fallo: tiene que mostrarse.
         self.assertTrue(mm_paths.formatear_tamano(0))
 
+class TestNivelDeEspacio(unittest.TestCase):
+    """
+    La franja del punto de color: verde >= 200 GB, amarillo entre 100 y 200,
+    rojo abajo de 100. Los limites se prueban EXACTOS porque un ">=" cambiado
+    por ">" mueve la frontera un byte y nadie lo nota mirando.
+    """
+
+    GB = 1024 ** 3
+
+    def test_verde_desde_200_gb(self):
+        self.assertEqual(mm_paths.nivel_de_espacio(200 * self.GB), mm_paths.NIVEL_OK)
+        self.assertEqual(mm_paths.nivel_de_espacio(2 * 1024 ** 4), mm_paths.NIVEL_OK)
+
+    def test_amarillo_entre_100_y_200(self):
+        self.assertEqual(mm_paths.nivel_de_espacio(100 * self.GB), mm_paths.NIVEL_AVISO)
+        self.assertEqual(mm_paths.nivel_de_espacio(150 * self.GB), mm_paths.NIVEL_AVISO)
+        self.assertEqual(
+            mm_paths.nivel_de_espacio(200 * self.GB - 1), mm_paths.NIVEL_AVISO
+        )
+
+    def test_rojo_abajo_de_100(self):
+        self.assertEqual(
+            mm_paths.nivel_de_espacio(100 * self.GB - 1), mm_paths.NIVEL_BAJO
+        )
+        self.assertEqual(mm_paths.nivel_de_espacio(0), mm_paths.NIVEL_BAJO)
+
+    def test_sin_dato(self):
+        for valor in (None, "no es un numero", -1):
+            self.assertEqual(
+                mm_paths.nivel_de_espacio(valor), mm_paths.NIVEL_DESCONOCIDO
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

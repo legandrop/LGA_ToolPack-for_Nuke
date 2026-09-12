@@ -1,10 +1,22 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.56 | Lega
+  LGA_MediaManager_FileScanner v2.57 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.57: El espacio libre se leia mal: iba en TEXT_DIM sobre el fondo
+         de la ventana. Pasa al gris de las pastillas, se separa mas
+         del bloque de contadores y suma un punto de color con el mismo
+         lenguaje que ellas -verde, amarillo, rojo-. El punto se
+         repinta en update_disk_free y no solo en la pasada de estilo:
+         esa funcion es la que cambia el valor del que sale el color, y
+         dejarlo para despues lo deja un ciclo atrasado.
+         Suma el boton Reload, a la izquierda de Rescan y con su misma
+         hoja: es el "reload all reads" de ToolPack-B. No mira la clase
+         Read sino cualquier nodo con knob `reload`, baja a los Group,
+         y termina con un rescan porque recargar puede hacer aparecer o
+         desaparecer archivos.
   v2.56: La barra de estado suma, del otro lado de un separador, el
          espacio libre del disco donde vive el .nk. Es un stat y no un
          recorrido, asi que no va a un worker; si falla, la etiqueta y
@@ -525,6 +537,10 @@ TOOLTIPS = {
     # La ✕ del buscador.
     "search_clear": "Limpiar",
     "rescan": "Vuelve a escanear el proyecto desde cero",
+    "reload_reads": (
+        "Le dice a Nuke que relea de disco todos los nodos que leen "
+        "archivos, y vuelve a escanear"
+    ),
     "path_scroll": (
         "Corre el path para ver el final.\n"
         "Aparece cuando el mas largo no entra en su columna"
@@ -660,6 +676,14 @@ PILL_HEIGHT = 32
 PILL_PADDING = 13
 PILL_RADIUS = 16
 PILL_GAP = 8
+# El aire a cada lado del separador del espacio libre. Mas que el de las
+# pastillas: es otra cosa -el estado del disco, no un contador de la tabla- y
+# pegado al bloque de contadores se leia como una pastilla mas.
+DISK_GAP = 14
+
+# Los umbrales del punto viven en LGA_MediaManager_paths.nivel_de_espacio: son
+# una decision del dominio y se prueban sin Qt. Aca solo se traduce la franja
+# que devuelve a un color del tema.
 PILL_DOT_SIZE = 9
 PILL_ICON_SIZE = 14
 PILL_FONT_SIZE = 13
@@ -1772,11 +1796,22 @@ class FileScanner(QWidget):
 
         # El espacio libre del disco donde vive el .nk, del otro lado de un
         # separador: no es un contador de la tabla, es el estado del disco al
-        # que va a parar todo lo que se copie.
+        # que va a parar todo lo que se copie. Lleva su propio punto de color,
+        # con el mismo lenguaje que las pastillas: el numero solo obliga a
+        # leerlo y compararlo con un umbral que el usuario no tiene por que
+        # recordar; el color se ve sin leer.
+        fila.addSpacing(DISK_GAP)
         self.disk_separator = self._make_separator(PILL_HEIGHT - 10)
         fila.addWidget(self.disk_separator)
+        fila.addSpacing(DISK_GAP)
+
+        self.disk_dot = QLabel(self)
+        self.disk_dot.setFixedSize(PILL_DOT_SIZE, PILL_DOT_SIZE)
         self.disk_label = QLabel("", self)
-        self.disk_label.setToolTip(TOOLTIPS["disk_free"])
+        for widget in (self.disk_dot, self.disk_label):
+            widget.setToolTip(TOOLTIPS["disk_free"])
+        fila.addWidget(self.disk_dot, 0, Qt.AlignVCenter)
+        fila.addSpacing(PILL_GAP)
         fila.addWidget(self.disk_label)
         self.update_disk_free()
 
@@ -1874,12 +1909,22 @@ class FileScanner(QWidget):
         # despues de la pasada de la barra de herramientas.
         self.pintar_separadores()
 
-        # El espacio libre va atenuado: es dato de contexto, no un contador
-        # que el usuario tenga que leer en cada escaneo.
+        # El espacio libre se lee con el mismo gris que el nombre de una
+        # pastilla, no con el atenuado: con TEXT_DIM sobre el fondo de la
+        # ventana no se leia. Su punto va con el color del umbral.
         if getattr(self, "disk_label", None) is not None:
             self.disk_label.setStyleSheet(
                 "QLabel { background: transparent; border: none; color: %s; }"
-                % Paleta.TEXT_DIM
+                % Paleta.TEXT
+            )
+            # El tamano por QFont y no por `font-size` en la hoja, que es lo
+            # que pide el modulo de estilo.
+            UIStyle.apply_ui_font(self.disk_label, PILL_FONT_SIZE)
+        if getattr(self, "disk_dot", None) is not None:
+            self.disk_dot.setStyleSheet(
+                "QLabel { background-color: %s; border: none;"
+                " border-radius: %dpx; }"
+                % (self.disk_dot_color(), PILL_DOT_SIZE // 2)
             )
 
         for datos in self.status_pills:
@@ -2153,9 +2198,9 @@ class FileScanner(QWidget):
         etiqueta = getattr(self, "disk_label", None)
         if etiqueta is None:
             return
-        separador = getattr(self, "disk_separator", None)
 
         texto = ""
+        self._disk_free_bytes = None
         base = self.nk_dir()
         if base:
             try:
@@ -2164,13 +2209,52 @@ class FileScanner(QWidget):
                 tamano = mm_paths.formatear_tamano(libres)
                 if volumen and tamano:
                     texto = "%s free on %s" % (tamano, volumen)
+                    self._disk_free_bytes = libres
             except (OSError, ValueError) as problema:
                 debug_print("No se pudo leer el espacio libre: %s" % problema)
 
         etiqueta.setText(texto)
-        etiqueta.setVisible(bool(texto))
-        if separador is not None:
-            separador.setVisible(bool(texto))
+        # La etiqueta, su punto y su separador viven y mueren juntos: sin dato
+        # no queda un separador suelto ni un punto sin texto al lado.
+        for widget in (
+            etiqueta,
+            getattr(self, "disk_dot", None),
+            getattr(self, "disk_separator", None),
+        ):
+            if widget is not None:
+                widget.setVisible(bool(texto))
+
+        # El punto se repinta ACA y no solo en la pasada de estilo: esta
+        # funcion es la que acaba de cambiar el valor del que sale el color, y
+        # dejarlo para despues significa que el color queda un ciclo atrasado
+        # -o gris para siempre si nadie vuelve a pintar la barra-.
+        punto = getattr(self, "disk_dot", None)
+        if punto is not None:
+            punto.setStyleSheet(
+                "QLabel { background-color: %s; border: none;"
+                " border-radius: %dpx; }"
+                % (self.disk_dot_color(), PILL_DOT_SIZE // 2)
+            )
+
+    def disk_dot_color(self):
+        """
+        El color del punto del espacio libre, con el mismo lenguaje que las
+        pastillas: verde arriba de 200 GB, amarillo entre 100 y 200, rojo
+        abajo de 100.
+
+        Los colores son los de ESTADO del tema -los mismos de Online, Unused y
+        Offline-, no hexes nuevos: es la misma escala de "esto esta bien / mira
+        esto / esto es un problema" que el usuario ya lee en la tabla.
+        """
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        nivel = mm_paths.nivel_de_espacio(getattr(self, "_disk_free_bytes", None))
+        if nivel == mm_paths.NIVEL_OK:
+            return self.status_dot("Online")
+        if nivel == mm_paths.NIVEL_AVISO:
+            return self.status_dot("Unused")
+        if nivel == mm_paths.NIVEL_BAJO:
+            return self.status_dot("Offline")
+        return UI.Color.TEXT_DIM
 
     def update_status_counts(self):
         """
@@ -2340,6 +2424,56 @@ class FileScanner(QWidget):
     # ----------------------------------------------------------------------
     #                                 Pie
     # ----------------------------------------------------------------------
+    def reload_all_reads(self):
+        """
+        Le dice a Nuke que relea de disco todos los nodos que leen archivos.
+
+        Es el `Reload all reads` de ToolPack-B traido a la tabla. Sirve para lo
+        de siempre: termino un render y el Read sigue mostrando el cache viejo,
+        o los frames que faltaban ya estan y el nodo los sigue dando por
+        ausentes.
+
+        Dos diferencias con el original, y las dos a proposito:
+          - No mira solo la clase Read: toca CUALQUIER nodo que tenga un knob
+            `reload`, asi que entran DeepRead, ReadGeo y los que sumen mas
+            adelante. Preguntar por el knob es mas barato de mantener que una
+            lista de clases, que es la leccion de LGA_NodeFiles.
+          - Baja adentro de los Group, como el resto de la herramienta.
+
+        Despues recarga la tabla: un archivo que aparecio cambia de Offline a
+        Online, y dejar la tabla diciendo lo viejo seria peor que no recargar.
+        """
+        if self.operacion_en_curso() is not None:
+            self.logger.debug("[RELOAD] CORTA: hay una operacion en curso")
+            return
+
+        def recargar():
+            """Corre en el hilo principal: toca la API de Nuke."""
+            nodos = []
+            node_files.walk_group(nuke.root(), nodos)
+            tocados = 0
+            errores = 0
+            for nodo in nodos:
+                try:
+                    if nodo.knob("reload") is None:
+                        continue
+                    nodo["reload"].execute()
+                    tocados += 1
+                except Exception:
+                    # Un nodo que se queja no puede frenar a los demas: lo que
+                    # el usuario pidio es recargar TODO lo que se pueda.
+                    errores += 1
+            return tocados, errores
+
+        tocados, errores = nuke.executeInMainThreadWithResult(recargar)
+        self.logger.debug(
+            "[RELOAD] %d nodo(s) recargado(s), %d con error" % (tocados, errores)
+        )
+        # Rescan y no solo update_status_counts: recargar puede hacer aparecer
+        # o desaparecer archivos en disco, y eso cambia las filas, no solo sus
+        # estados.
+        self.rescan()
+
     def build_footer(self):
         """
         La leyenda de los estados y el boton Rescan.
@@ -2387,6 +2521,29 @@ class FileScanner(QWidget):
         caja_rescan.addWidget(self.rescan_icon, 0, Qt.AlignVCenter)
         caja_rescan.addStretch(1)
         self.rescan_button.clicked.connect(self.rescan)
+
+        # Reload va a la IZQUIERDA de Rescan y con el mismo aspecto: son los
+        # dos botones de "volve a mirar", pero miran cosas distintas. Reload le
+        # dice a Nuke que relea los archivos -para cuando un render termino y
+        # el Read sigue mostrando el cache viejo- y Rescan vuelve a recorrer el
+        # disco para rearmar la tabla.
+        self.reload_button = QPushButton("Reload", self)
+        self.reload_button.setToolTip(TOOLTIPS["reload_reads"])
+        self.reload_button.setFixedHeight(RESCAN_HEIGHT)
+        self.reload_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.reload_button.setFocusPolicy(Qt.NoFocus)
+        self.reload_icon = QLabel(self.reload_button)
+        self.reload_icon.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.reload_icon.setFixedSize(RESCAN_ICON_SIZE, RESCAN_ICON_SIZE)
+        caja_reload = QHBoxLayout(self.reload_button)
+        caja_reload.setContentsMargins(RESCAN_PADDING, 0, RESCAN_PADDING, 0)
+        caja_reload.setSpacing(0)
+        caja_reload.addWidget(self.reload_icon, 0, Qt.AlignVCenter)
+        caja_reload.addStretch(1)
+        self.reload_button.clicked.connect(self.reload_all_reads)
+        fila.addWidget(self.reload_button)
+        fila.addSpacing(PILL_GAP)
+
         fila.addWidget(self.rescan_button)
 
         return fila
@@ -2460,6 +2617,28 @@ class FileScanner(QWidget):
             # si el escaneo sigue corriendo, el giro se retoma solo.
             if getattr(self, "_rescan_timer", None) is not None:
                 self._pintar_rescan()
+
+            # Reload comparte la hoja de Rescan: son el mismo control, y dos
+            # bloques QSS gemelos es como empiezan a diferenciarse solos.
+            if getattr(self, "reload_button", None) is not None:
+                self.reload_button.setStyleSheet(self.rescan_button.styleSheet())
+                self.reload_icon.setStyleSheet(
+                    "QLabel { background: transparent; border: none; }"
+                )
+                # Mismo icono que Rescan a proposito: los dos son "volve a
+                # mirar", y lo que los distingue es la etiqueta. Poner un icono
+                # distinto por poner sugeriria que hacen cosas de familias
+                # distintas, que no es el caso.
+                self.reload_icon.setPixmap(
+                    tinted_icon(
+                        "refresh-cw",
+                        Paleta.TEXT if self.reload_button.isEnabled() else Paleta.TEXT_DIM,
+                        RESCAN_ICON_SIZE,
+                    ).pixmap(RESCAN_ICON_SIZE, RESCAN_ICON_SIZE)
+                )
+                self.reload_button.setFixedWidth(
+                    self.reload_button.sizeHint().width()
+                )
 
         # El pie puede ser mas ancho que la barra, asi que el minimo de la
         # ventana se recalcula aca tambien: cuando la barra lo fijo, el pie

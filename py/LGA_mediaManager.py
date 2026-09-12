@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.56 | Lega
+  LGA_mediaManager v2.57 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -27,6 +27,11 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.57: El espacio libre de la barra se lee -estaba en el gris
+         atenuado- y suma un punto de color: verde de 200 GB para
+         arriba, amarillo entre 100 y 200, rojo abajo. Y aparece un
+         boton Reload a la izquierda de Rescan, el "reload all reads"
+         de ToolPack-B.
   v2.56: La barra de estado muestra el espacio libre del disco donde
          vive el script. Download queda del otro lado de un separador,
          como Delete: no opera sobre lo que ya esta en el shot, trae
