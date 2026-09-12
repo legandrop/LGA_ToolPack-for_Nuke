@@ -1,10 +1,20 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.49 | Lega
+  LGA_MediaManager_FileScanner v2.50 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.50: Copy to, Delete y Collect se caian ANTES de arrancar el
+         worker. _run_batch hacia `senal.connect(ventana, lambda ...)`,
+         copiando la forma de Qt C++ que pasa un objeto de CONTEXTO
+         para que la conexion muera con el. En PySide esa firma no
+         existe y tira TypeError en el connect. Como la excepcion sale
+         por la consola de Nuke y no por el log de la tool, el sintoma
+         era que no pasaba absolutamente nada: ni copia, ni ventana de
+         progreso, ni cartel de error. Ahora se conecta el bound method
+         ProgressWindow.set_item, que da la misma proteccion -Qt lo
+         desconecta cuando la ventana muere- y es la forma valida.
   v2.49: _on_collect_finished no soltaba la tanda. Quien pone
          _batch_worker en None es el CALLBACK y no _run_batch -asi lo
          hacen _on_copy_finished y _on_delete_finished en su primera
@@ -4769,13 +4779,18 @@ class FileScanner(QWidget):
         ventana.set_progress(0, max(1, len(worker.items)))
         ventana.cancelled.connect(worker.cancel)
         worker.signals.progress.connect(ventana.set_progress)
-        # Con `ventana` como contexto: si la ventana muere -por ejemplo porque
-        # se cerro el Media Manager- Qt desconecta sola. Con un lambda pelado
-        # la conexion sobrevive y el slot corre sobre un widget destruido.
-        worker.signals.item.connect(
-            ventana,
-            lambda nombre: ventana.set_message("%s\n%s" % (titulo, nombre)),
-        )
+        # Los dos slots son METODOS de la ventana, no lambdas: un bound method
+        # de un QObject se desconecta solo cuando ese QObject muere, que es lo
+        # que hace falta si el Media Manager se cierra con una tanda corriendo.
+        #
+        # Aca habia un `connect(ventana, lambda ...)`, copiando la forma de Qt
+        # C++ de pasarle un objeto de CONTEXTO al connect. Esa firma NO existe
+        # en PySide: tira TypeError en el connect, o sea que Copy to y Delete
+        # se caian ANTES de arrancar el worker. Como la excepcion sale por la
+        # consola de Nuke y no por el log de la tool, el sintoma era que no
+        # pasaba absolutamente nada: ni copia, ni ventana de progreso, ni
+        # cartel de error.
+        worker.signals.item.connect(ventana.set_item)
 
         def cerrar(hechos, salteados, errores, cancelado):
             # El trabajo de cierre va PRIMERO. Cerrando antes, un RuntimeError

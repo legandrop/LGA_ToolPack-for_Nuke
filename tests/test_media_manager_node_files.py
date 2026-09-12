@@ -6,6 +6,7 @@ dos. El FileScanner solo le pasa self.read_node_info y su normalizador.
 """
 
 import os
+import re
 import sys
 import unittest
 
@@ -244,6 +245,41 @@ class TestCierreDeTanda(unittest.TestCase):
                     min(returns),
                     "%s puede volver sin haber soltado la tanda" % nombre,
                 )
+
+
+class TestConnectSinObjetoDeContexto(unittest.TestCase):
+    """
+    Ningun `connect` del pack puede usar la forma con objeto de contexto.
+
+    Qt en C++ deja escribir `connect(emisor, senal, contexto, lambda)` para que
+    la conexion muera con el contexto. En PySide esa firma NO existe: un
+    `senal.connect(objeto, lambda)` tira TypeError en el momento de conectar.
+
+    Costo real: `_run_batch` la usaba, asi que Copy to, Delete y Collect se
+    caian ANTES de arrancar el worker. Como la excepcion sale por la consola de
+    Nuke y no por el log de la tool, el sintoma era que no pasaba absolutamente
+    nada: ni copia, ni ventana de progreso, ni cartel de error.
+
+    Lo que SI da esa proteccion es conectar un bound method de un QObject, que
+    Qt desconecta solo cuando el objeto muere.
+    """
+
+    # `.connect(` y en la linea siguiente un identificador suelto con coma.
+    PATRON = re.compile(r"\.connect\(\s*\n\s*([A-Za-z_][\w\.]*)\s*,\s*\n")
+
+    def test_ningun_connect_con_contexto(self):
+        carpeta = os.path.join(os.path.dirname(__file__), "..", "py")
+        culpables = []
+        for nombre in sorted(os.listdir(carpeta)):
+            if not nombre.endswith(".py"):
+                continue
+            ruta = os.path.join(carpeta, nombre)
+            with open(ruta, encoding="utf-8") as handle:
+                fuente = handle.read()
+            for marca in self.PATRON.finditer(fuente):
+                linea = fuente[: marca.start()].count("\n") + 1
+                culpables.append("%s:%d connect(%s, ...)" % (nombre, linea, marca.group(1)))
+        self.assertEqual(culpables, [], "connect con objeto de contexto: %s" % culpables)
 
 
 class TestExtensionDelCat(unittest.TestCase):

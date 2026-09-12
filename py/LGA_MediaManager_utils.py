@@ -1,11 +1,17 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.49 | Lega
+  LGA_MediaManager_utils v2.50 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.50: ProgressWindow suma set_item, el slot que muestra el archivo
+         que se esta tocando. Existe como METODO y no como lambda en
+         quien conecta porque un bound method de un QObject se
+         desconecta solo cuando ese objeto muere: es la forma valida en
+         PySide de lo que Qt C++ hace con un objeto de contexto, y la
+         que _run_batch intentaba usar mal.
   v2.46: PathDelegate pinta el rango de frames de una secuencia aparte
          del path: separado por un espacio y con el gradiente
          violeta-fucsia del browser de FileManager S3
@@ -966,6 +972,9 @@ class ProgressWindow(QWidget):
     def __init__(self, message, parent=None, ui=None, cancelable=True):
         super(ProgressWindow, self).__init__(parent)
         self.UI = ui or _tema()
+        # El titulo de la tanda, para que set_item pueda rearmar el mensaje de
+        # dos lineas sin que quien conecta tenga que cerrarlo en un lambda.
+        self._titulo = message
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         # Las esquinas redondeadas necesitan que el fondo de la VENTANA sea
         # transparente: si no, Qt pinta el rectangulo entero por debajo y las
@@ -1056,6 +1065,21 @@ class ProgressWindow(QWidget):
 
     def set_message(self, texto):
         self.label.setText(texto)
+
+    @Slot(str)
+    def set_item(self, nombre):
+        """
+        El archivo que se esta tocando, debajo del titulo de la tanda.
+
+        Existe como METODO de la ventana y no como lambda en quien conecta, y
+        eso no es un detalle de estilo. Un slot que es un bound method de un
+        QObject se desconecta SOLO cuando ese QObject muere, que es justo lo
+        que hace falta si el Media Manager se cierra con una copia corriendo.
+        La forma de Qt C++ para eso -pasarle un objeto de contexto al
+        connect- no existe en PySide: `signal.connect(objeto, lambda)` tira
+        TypeError y se lleva puesta la operacion entera.
+        """
+        self.label.setText("%s\n%s" % (self._titulo, nombre) if self._titulo else nombre)
 
     def set_progress(self, hechos, total):
         """Progreso real, en cantidad de archivos."""

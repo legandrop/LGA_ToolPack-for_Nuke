@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.49 | Lega
+  LGA_mediaManager v2.50 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -27,6 +27,12 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.50: Copy to, Delete y Collect no copiaban NADA. _run_batch
+         conectaba la senal del worker con la forma de Qt C++ que le
+         pasa un objeto de contexto al connect, y esa firma no existe
+         en PySide: tiraba TypeError antes de arrancar la copia. Como
+         la excepcion sale por la consola de Nuke, el sintoma era que
+         no pasaba absolutamente nada.
   v2.49: Despues de un Collect, Copy to, Delete y Relink quedaban
          muertos en silencio: quien suelta la tanda es el callback y
          _on_collect_finished nacio sin hacerlo, asi que
