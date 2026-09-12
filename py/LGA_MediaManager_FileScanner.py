@@ -1,10 +1,19 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.54 | Lega
+  LGA_MediaManager_FileScanner v2.55 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.55: Los dos browsers de carpeta abren donde el usuario estuvo la
+         ultima vez, aunque haya sido en otra sesion. Los fallbacks son
+         distintos a proposito: Relink sube de a un nivel hasta la
+         primera carpeta que exista, y Collect se va a la carpeta del
+         .nk -subir desde una entrega vieja lleva a las entregas de
+         OTRO proyecto-. La lectura va protegida igual que la
+         escritura: corre ANTES de abrir el dialogo, asi que una
+         excepcion ahi no degrada la comodidad, se lleva puesto el
+         boton entero.
   v2.54: El menu de Copy to se dibujaba con la fuente del HOST -Segoe
          UI al tamano de Nuke-: medido, era la unica pieza de la barra
          que nunca pasaba por apply_ui_font. Ahora toma la fuente y el
@@ -3572,6 +3581,51 @@ class FileScanner(QWidget):
         """Abre la carpeta que contiene un archivo."""
         self.open_folder(os.path.dirname(file_path))
 
+    # ------------------------------------------------- browsers con memoria ---
+    def _carpeta_inicial(self, clave, subir=True):
+        """
+        Donde abrir un browser: la ultima carpeta que uso el usuario.
+
+        La memoria es entre SESIONES, asi que la carpeta guardada puede ser de
+        hace meses y no existir mas. Con `subir` se busca la primera que exista
+        yendo hacia arriba -lo que quiere Relink, porque lo cercano al archivo
+        viejo suele seguir siendo util-; sin `subir`, si no existe se cae a la
+        carpeta del .nk -lo que quiere Collect, porque subir desde una entrega
+        vieja lleva a las entregas de OTRO proyecto-.
+
+        Devuelve "" si no hay nada razonable: ahi Qt abre donde quiera, que es
+        exactamente lo que hacia antes.
+
+        Todo el cuerpo va protegido, igual que _recordar_carpeta: esta mitad
+        corre ANTES de abrir el dialogo, asi que una excepcion aca no degrada
+        la comodidad -se lleva puesto el boton entero-. La de escritura ya
+        estaba protegida y esta no: esa asimetria fue justo por donde entro el
+        unico bug que la auditoria encontro.
+        """
+        try:
+            guardada = mm_config.load_recientes().get(clave) or ""
+            if subir:
+                encontrada = mm_paths.primera_carpeta_existente(guardada)
+                if encontrada:
+                    return encontrada
+            elif guardada and os.path.isdir(guardada):
+                return guardada
+        except Exception as problema:
+            self.logger.debug("[RECIENTES] no se pudo leer %s: %s" % (clave, problema))
+        return self.nk_dir() or ""
+
+    def _recordar_carpeta(self, clave, ruta):
+        """Guarda la carpeta elegida para la proxima vez. Nunca interrumpe."""
+        try:
+            if mm_config.save_reciente(clave, ruta):
+                self.logger.debug("[RECIENTES] %s -> %s" % (clave, ruta))
+            else:
+                self.logger.debug("[RECIENTES] no se pudo guardar %s" % clave)
+        except Exception as problema:
+            # Es una comodidad: que no se pueda guardar no puede frenar un
+            # relink ni un collect, ni merece un cartel.
+            self.logger.debug("[RECIENTES] error guardando %s: %s" % (clave, problema))
+
     def open_folder(self, directory):
         debug_print("Attempting to open folder: " + directory)
         if os.path.exists(directory):
@@ -3610,9 +3664,16 @@ class FileScanner(QWidget):
             debug_print("Hay una operacion en curso: se ignora el Relink")
             return
 
-        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+        # El browser abre donde el usuario relinkeo la ULTIMA vez, aunque haya
+        # sido en otra sesion. Si esa carpeta ya no esta -un proyecto
+        # archivado, una unidad sin montar- se sube de a un nivel hasta la
+        # primera que exista, que casi siempre es el proyecto o la unidad.
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select Directory", self._carpeta_inicial(mm_config.RECIENTE_RELINK)
+        )
         if not directory:
             return
+        self._recordar_carpeta(mm_config.RECIENTE_RELINK, directory)
 
         self.relink_directory = directory
         self._relink_cancelado = False
@@ -5269,9 +5330,18 @@ class FileScanner(QWidget):
             if estructura.reproducible
             else "Collect to folder"
         )
-        elegida = QFileDialog.getExistingDirectory(self, titulo)
+        # Collect abre donde se colecto la ultima vez. Si esa carpeta ya no
+        # esta, NO se sube de a un nivel como en Relink: se va a la carpeta del
+        # .nk. Subir desde una entrega vieja lleva a la carpeta de entregas de
+        # otro proyecto, que no es donde uno quiere estar; el script, si.
+        elegida = QFileDialog.getExistingDirectory(
+            self,
+            titulo,
+            self._carpeta_inicial(mm_config.RECIENTE_COLLECT, subir=False),
+        )
         if not elegida:
             return
+        self._recordar_carpeta(mm_config.RECIENTE_COLLECT, elegida)
         elegida = elegida.replace("\\", "/").rstrip("/")
 
         destino = mm_collect.raiz_de_collect(elegida, estructura.nombre_shot)

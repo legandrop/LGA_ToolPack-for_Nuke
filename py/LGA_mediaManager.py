@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.54 | Lega
+  LGA_mediaManager v2.55 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -27,6 +27,10 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.55: Los browsers de Relink y de Collect recuerdan la ultima
+         carpeta usada, entre sesiones. Si ya no existe, Relink sube de
+         a un nivel hasta la primera que exista y Collect se va a la
+         carpeta del .nk.
   v2.54: Los carteles y el menu de Copy to se dibujaban con el tamano
          de fuente del HOST y no con el que el pack declara; el menu,
          encima, ni con la fuente del pack. Los dos pasan a

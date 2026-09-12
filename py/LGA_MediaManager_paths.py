@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_paths v2.54 | Lega
+  LGA_MediaManager_paths v2.55 | Lega
   Como se interpretan las rutas relativas al .nk
 
   El shot folder y las locations se escriben como rutas RELATIVAS a la
@@ -21,6 +21,11 @@ _______________________________________
 
   No importa Qt a proposito: asi se puede probar sin PySide.
 
+  v2.55: Suma primera_carpeta_existente, que sube de a un nivel hasta
+         la primera carpeta que exista. La usa el browser de Relink
+         para reabrir donde el usuario estuvo la ultima vez: una ruta
+         guardada hace meses puede apuntar a un proyecto archivado o a
+         una unidad sin montar.
   v2.47: Suma la parte sin Nuke ni Qt del inventario de knobs de
          archivo: folder_paths, folder_paths_by_node y knob_for_path,
          que contestan cual de los knobs de un nodo corresponde a una
@@ -483,6 +488,32 @@ def path_html(path, shot_segs=(), common="", palette=(), filename="",
 # `read_node_info` es {nombre de nodo: [{knob, path, role, is_folder,
 # node_class}]}, y lo arma get_read_files a partir de LGA_NodeFiles. Estas dos
 # funciones son la parte que no toca Nuke ni Qt, para poder probarlas sueltas.
+
+
+def primera_carpeta_existente(ruta, tope=64):
+    """
+    La primera carpeta que EXISTE, subiendo desde `ruta`. "" si no hay ninguna.
+
+    Sirve para reabrir un browser donde el usuario lo dejo la ultima vez: una
+    ruta guardada hace meses puede apuntar a un proyecto archivado, a una
+    unidad que ya no esta montada o a una carpeta borrada, y ahi el browser se
+    abre en cualquier lado. Subiendo de a un nivel se llega a lo mas cercano
+    que todavia existe, que casi siempre es el proyecto o la unidad.
+
+    `tope` corta por las dudas: os.path.dirname de una raiz devuelve la raiz
+    misma, asi que sin corte el bucle no termina nunca.
+    """
+    actual = (ruta or "").strip().replace("\\", "/").rstrip("/")
+    if not actual:
+        return ""
+    for _ in range(tope):
+        if os.path.isdir(actual):
+            return actual
+        padre = os.path.dirname(actual)
+        if not padre or padre == actual:
+            return ""
+        actual = padre
+    return ""
 
 
 def folder_paths(read_node_info):

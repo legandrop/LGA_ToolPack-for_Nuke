@@ -1,9 +1,19 @@
 """
 _______________________________________
 
-  LGA_MediaManager_config v2.54 | Lega
+  LGA_MediaManager_config v2.55 | Lega
   Donde vive la configuracion del Media Manager, y que tiene adentro
 
+  v2.55: Suma el archivo de carpetas recientes, donde se recuerda la
+         ultima que uso el usuario en cada browser. Va APARTE del .ini
+         de configuracion y no es capricho: la ventana de ajustes arma
+         el dict que guarda desde cero, asi que una clave nueva en el
+         .ini se perderia el dia que toque Save. Se lee con
+         interpolation=None igual que _parse: para configparser un "%"
+         suelto empieza una sustitucion, y en una ruta no es raro -una
+         carpeta "100%_final", el "%04d" de una secuencia-. Sin eso,
+         guardar UNA ruta con "%" envenenaba el archivo para siempre y
+         se caian Relink y Collect enteros.
   v2.46: La T deja de estar reservada: Delete pasa a Alt+Backspace.
   v2.45: RESERVED_SHORTCUTS suma la T: Delete pasa a Alt+T porque la D
          es ahora de Download.
@@ -687,3 +697,84 @@ def save_settings(settings):
 def copy_destinations(locations):
     """Las locations que van al menu Copy to, en orden."""
     return [l for l in (locations or ()) if l.get("copy_to") and l.get("name") and l.get("path")]
+
+
+# ---------------------------------------------------------------------------
+#                      Las carpetas donde el usuario estuvo
+# ---------------------------------------------------------------------------
+# Vive en un archivo APARTE del .ini de configuracion, y no es un capricho: la
+# ventana de ajustes arma el dict que guarda desde cero -shot, locations y
+# appearance- asi que cualquier clave nueva metida en el .ini se perderia el
+# dia que el usuario toque Save. Ademas son dos cosas distintas: esto es por
+# donde anduvo, no como quiere que funcione la herramienta.
+RECIENTES_INI_NAME = "MediaManager_Recientes.ini"
+
+# Las claves que se recuerdan. Una por browser.
+RECIENTE_RELINK = "relink"
+RECIENTE_COLLECT = "collect"
+
+
+def get_recientes_path(create_dir=False):
+    """El archivo de carpetas recientes, al lado del .ini del usuario."""
+    ruta_ini = get_user_ini_path(create_dir)
+    if not ruta_ini:
+        return None
+    return os.path.join(os.path.dirname(ruta_ini), RECIENTES_INI_NAME)
+
+
+def load_recientes():
+    """
+    {clave: ruta} con lo ultimo que eligio el usuario en cada browser.
+
+    Nunca falla: si el archivo no esta, no se puede leer o vino con basura,
+    devuelve un dict vacio. Es una comodidad, no configuracion: que se pierda
+    no puede romper nada ni merece un cartel.
+    """
+    ruta = get_recientes_path()
+    if not ruta or not os.path.isfile(ruta):
+        return {}
+    # interpolation=None, igual que _parse y por el mismo motivo: para
+    # configparser un "%" suelto es el principio de una sustitucion, y en una
+    # RUTA no es raro -una carpeta "100%_final", o el "%04d" de una secuencia
+    # de Nuke-. Sin esto, guardar una sola ruta con "%" envenenaba el archivo
+    # para siempre: load_recientes explotaba, save_reciente tambien -porque
+    # relee para mergear- y con eso se caian Relink y Collect enteros, no solo
+    # la comodidad de recordar la carpeta.
+    config = configparser.ConfigParser(interpolation=None)
+    salida = {}
+    try:
+        with open(ruta, "r", encoding="utf-8") as archivo:
+            config.read_file(archivo)
+        if not config.has_section("Recientes"):
+            return {}
+        # items() va ADENTRO del try: es la llamada que resuelve los valores,
+        # o sea la que puede tirar. Dejarla afuera hacia que el except no
+        # atrapara justamente el error que importaba.
+        for clave, valor in config.items("Recientes"):
+            texto = _one_line(_unquote(valor))
+            if texto:
+                salida[clave] = _to_slashes(texto)
+    except (OSError, configparser.Error, UnicodeDecodeError, ValueError):
+        return {}
+    return salida
+
+
+def save_reciente(clave, ruta):
+    """
+    Recuerda una carpeta. Devuelve True si se pudo escribir.
+
+    Se relee y se reescribe entero para no pisar las otras claves: son dos o
+    tres lineas, asi que no vale la pena nada mas fino.
+    """
+    if not clave or not (ruta or "").strip():
+        return False
+    destino = get_recientes_path(create_dir=True)
+    if not destino:
+        return False
+    actuales = load_recientes()
+    actuales[clave] = _to_slashes(_one_line(ruta))
+    lineas = ["[Recientes]"]
+    for nombre in sorted(actuales):
+        lineas.append("%s = %s" % (nombre, actuales[nombre]))
+    lineas.append("")
+    return write_ini(destino, "\n".join(lineas))
