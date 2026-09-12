@@ -1,10 +1,26 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.55 | Lega
+  LGA_MediaManager_FileScanner v2.56 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.56: La barra de estado suma, del otro lado de un separador, el
+         espacio libre del disco donde vive el .nk. Es un stat y no un
+         recorrido, asi que no va a un worker; si falla, la etiqueta y
+         su separador se esconden y no se dice nada.
+         Download pasa a tener su propio separador: los cuatro de la
+         izquierda trabajan sobre lo que YA esta en el shot y este trae
+         algo de afuera por la red, y no se leia asi.
+         Los tres separadores salen ahora de _make_separator y los
+         pinta pintar_separadores, que llaman las DOS pasadas de
+         estilo: el de la barra de estado se crea despues de la de la
+         barra de herramientas, asi que con el bucle solo ahi nacia sin
+         hoja y quedaba invisible.
+         Se va un `read_node_name = next(iter(read_files.values()))[0]`
+         sin guarda de add_file_to_table: con un read_files vacio tiraba
+         StopIteration y se llevaba puesto el armado de TODA la tabla.
+         No se blinda, se borra: el valor no lo leia nadie.
   v2.55: Los dos browsers de carpeta abren donde el usuario estuvo la
          ultima vez, aunque haya sido en otra sesion. Los fallbacks son
          distintos a proposito: Relink sube de a un nivel hasta la
@@ -504,6 +520,7 @@ TOOLTIPS = {
         "con las rutas relativas y ordenada por location.\n"
         "Trabaja sobre el script entero, no sobre la seleccion"
     ),
+    "disk_free": "Espacio libre en el disco donde vive el script",
     "settings": "Ajustes del Media Manager",
     # La ✕ del buscador.
     "search_clear": "Limpiar",
@@ -1238,16 +1255,16 @@ class FileScanner(QWidget):
         main_buttons_layout.addWidget(self.relink_button)
         main_buttons_layout.addWidget(self.copy_button)
         if self.download_button is not None:
+            # Download tambien va del otro lado de un separador: los cuatro de
+            # la izquierda trabajan sobre lo que YA esta en el shot, y este
+            # trae algo de afuera -de Wasabi- por la red. No es la misma
+            # familia de acciones y no se leia asi.
+            main_buttons_layout.addWidget(self._make_separator())
             main_buttons_layout.addWidget(self.download_button)
 
         # Delete va del otro lado de un separador: es el unico de la fila que
         # toca archivos en disco.
-        self.toolbar_separator = QFrame(self)
-        self.toolbar_separator.setFixedSize(1, TOOLBAR_SEPARATOR_HEIGHT)
-        # Sin esto Qt resuelve la hoja y no pinta un solo pixel, asi que el
-        # separador quedaba invisible aunque su regla fuera correcta.
-        self.toolbar_separator.setFrameShape(QFrame.NoFrame)
-        self.toolbar_separator.setAttribute(Qt.WA_StyledBackground, True)
+        self.toolbar_separator = self._make_separator()
         main_buttons_layout.addWidget(self.toolbar_separator)
         main_buttons_layout.addWidget(self.delete_button)
 
@@ -1410,6 +1427,43 @@ class FileScanner(QWidget):
     # ----------------------------------------------------------------------
     #                       Barra de herramientas
     # ----------------------------------------------------------------------
+    def pintar_separadores(self):
+        """
+        Pinta TODOS los separadores con el color de borde del tema.
+
+        Va en un metodo propio y lo llaman las dos pasadas de estilo. El de la
+        barra de estado se crea DESPUES de apply_toolbar_stylesheet, asi que
+        con el bucle metido solo ahi nacia sin hoja y quedaba invisible: se
+        veia el texto del espacio libre pero no la linea que lo separa.
+        """
+        UI = getattr(self, "UI", None) or UIStyle.theme(None)
+        for separador in getattr(self, "_separadores", ()):
+            separador.setStyleSheet(
+                "QFrame { background-color: %s; border: none; }" % UI.Color.BORDER
+            )
+
+    def _make_separator(self, alto=TOOLBAR_SEPARATOR_HEIGHT):
+        """
+        Una linea vertical de 1 px, del color de borde del tema.
+
+        Salen todas de aca y se guardan juntas para que las pinte una sola
+        pasada: hay una entre Download y lo anterior, otra antes de Delete y
+        otra en la barra de estado, y tres bloques de estilo sueltos es como
+        se empiezan a desincronizar.
+
+        setFrameShape(NoFrame) y WA_StyledBackground no son opcionales: sin
+        ellos Qt resuelve la hoja y no pinta un solo pixel, asi que el
+        separador queda invisible aunque su regla sea correcta.
+        """
+        separador = QFrame(self)
+        separador.setFixedSize(1, alto)
+        separador.setFrameShape(QFrame.NoFrame)
+        separador.setAttribute(Qt.WA_StyledBackground, True)
+        if not hasattr(self, "_separadores"):
+            self._separadores = []
+        self._separadores.append(separador)
+        return separador
+
     def _make_toolbar_button(self, texto, icono, atajo, tooltip, peligro=False):
         """
         Un boton de la barra: icono + texto + el atajo escrito al costado.
@@ -1558,10 +1612,7 @@ class FileScanner(QWidget):
             # primera letra de "Go to Read".
             boton.setFixedWidth(boton.sizeHint().width())
 
-        if getattr(self, "toolbar_separator", None) is not None:
-            self.toolbar_separator.setStyleSheet(
-                "QFrame { background-color: %s; border: none; }" % Paleta.BORDER
-            )
+        self.pintar_separadores()
 
         self.refresh_toolbar_icons()
         # El ancho minimo depende del ancho de los botones, que acaba de
@@ -1719,6 +1770,16 @@ class FileScanner(QWidget):
                 )
             )
 
+        # El espacio libre del disco donde vive el .nk, del otro lado de un
+        # separador: no es un contador de la tabla, es el estado del disco al
+        # que va a parar todo lo que se copie.
+        self.disk_separator = self._make_separator(PILL_HEIGHT - 10)
+        fila.addWidget(self.disk_separator)
+        self.disk_label = QLabel("", self)
+        self.disk_label.setToolTip(TOOLTIPS["disk_free"])
+        fila.addWidget(self.disk_label)
+        self.update_disk_free()
+
         fila.addStretch(1)
 
         # El buscador no lleva boton de filtro: filtra al tipear.
@@ -1808,6 +1869,18 @@ class FileScanner(QWidget):
         """La hoja de las pastillas y del buscador, con el tema activo."""
         UI = getattr(self, "UI", None) or UIStyle.theme(None)
         Paleta = UI.Color
+
+        # Los separadores se repintan aca tambien: el de esta barra se crea
+        # despues de la pasada de la barra de herramientas.
+        self.pintar_separadores()
+
+        # El espacio libre va atenuado: es dato de contexto, no un contador
+        # que el usuario tenga que leer en cada escaneo.
+        if getattr(self, "disk_label", None) is not None:
+            self.disk_label.setStyleSheet(
+                "QLabel { background: transparent; border: none; color: %s; }"
+                % Paleta.TEXT_DIM
+            )
 
         for datos in self.status_pills:
             clave = datos["clave"]
@@ -2067,6 +2140,38 @@ class FileScanner(QWidget):
             if item is not None:
                 item.setForeground(QBrush(QColor(Paleta.TEXT_DIM)))
 
+    def update_disk_free(self):
+        """
+        El espacio libre del disco donde vive el .nk.
+
+        Es UN stat, no un recorrido, asi que no va a un worker: el disco del
+        script ya esta montado -Nuke lo tiene abierto- y el escaneo acaba de
+        recorrerlo. Si aun asi falla -una unidad que se desconecto en el
+        medio- la etiqueta y su separador se esconden y no se dice nada: es
+        informacion de apoyo, no un error que el usuario tenga que atender.
+        """
+        etiqueta = getattr(self, "disk_label", None)
+        if etiqueta is None:
+            return
+        separador = getattr(self, "disk_separator", None)
+
+        texto = ""
+        base = self.nk_dir()
+        if base:
+            try:
+                libres = shutil.disk_usage(base).free
+                volumen = mm_paths.nombre_de_volumen(base)
+                tamano = mm_paths.formatear_tamano(libres)
+                if volumen and tamano:
+                    texto = "%s free on %s" % (tamano, volumen)
+            except (OSError, ValueError) as problema:
+                debug_print("No se pudo leer el espacio libre: %s" % problema)
+
+        etiqueta.setText(texto)
+        etiqueta.setVisible(bool(texto))
+        if separador is not None:
+            separador.setVisible(bool(texto))
+
     def update_status_counts(self):
         """
         Los contadores de las pastillas, sobre el TOTAL.
@@ -2087,6 +2192,10 @@ class FileScanner(QWidget):
             datos["contador"].setText(
                 str(total if clave == "all" else cuentas.get(clave, 0))
             )
+        # Se relee aca y no solo al abrir: despues de un Copy to, un Collect o
+        # un Delete el numero cambio, y esta funcion es justo la que corre
+        # despues de cada una de las tres.
+        self.update_disk_free()
         self.apply_status_bar_stylesheet()
 
     def on_pill_clicked(self, clave):
@@ -4506,7 +4615,13 @@ class FileScanner(QWidget):
                 is_folder_deletable,
                 sequence_state,
             ) = file_data
-            read_node_name = next(iter(read_files.values()))[0]
+            # Aca habia un `read_node_name = next(iter(read_files.values()))[0]`
+            # sin ninguna guarda: con un read_files vacio o con su primera
+            # lista vacia tiraba StopIteration o IndexError y se llevaba puesto
+            # el armado de TODA la tabla, no solo esta fila. Se va en vez de
+            # blindarse, porque el valor no lo leia nadie: los dos lugares que
+            # SI necesitan el nodo lo sacan de `nodes` mas arriba, y los dos ya
+            # preguntan `if nodes:` antes de indexar.
             row_position = self.table.rowCount()
 
             self.logger.debug(f"\n[ARCHIVO {i+1}/{len(files_data)}] Agregando a tabla:")

@@ -45,7 +45,7 @@ La elección se guarda **fuera del pack**, en **%APPDATA%\LGA\ToolPack\Enabled.i
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.55 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.56 | Lega
 
 Para revisar y ordenar toda la media del proyecto de forma rápida.<br>
 Al ejecutarlo escanea las carpetas configuradas como scan locations y todas las rutas de los nodos Read del script, mostrando el estado de cada archivo como OK, Offline, Outside o Unused para poder decidir si relinkear, copiar o borrar.<br><br>
@@ -70,6 +70,15 @@ Conviene tener el script guardado antes de empezar. Si algo falla vuelve atrás 
 
 - <strong>Shot folder:</strong> La carpeta principal del shot, escrita como una ruta relativa a la carpeta del script. Define qué está adentro del shot y qué está afuera, o sea de dónde sale el estado Outside, y es el ancla del coloreo de los paths. Por default es <code>../..</code>: si el script está en T:/Client/Film/Shot/Comp/Project/e101s005.nk, sube desde Project a Comp y de Comp a Shot. Se puede apagar, y ahí Outside pasa a medirse contra las scan locations.
 - <strong>Scan locations:</strong> Una fila por carpeta, con su nombre y su ruta relativa al script. La ruta acepta <code>*</code> como comodín, así que <code>../*assets*</code> encuentra 0_assets, _assets o my_assets sin tener que escribir el nombre exacto, y la columna <em>Resolves to</em> muestra a qué carpeta real llega cada una. Cada fila tiene dos casillas: <strong>Scan</strong> la incluye en el escaneo —si otra location ya la contiene queda tildada y deshabilitada, porque el escaneo es recursivo— y <strong>Copy to</strong> la ofrece en el menú de copia. El atajo va en su propio campo, una sola letra, y se dispara con Alt + esa letra.
+<br>
+
+**La barra de estado**
+
+Debajo de los botones, las pastillas cuentan cuántos archivos hay de cada estado sobre el total, sin que las afecte el buscador. A la derecha, separado por un divisor, se muestra el <strong>espacio libre del disco donde vive el script</strong> —por ejemplo <code>71 GB free on N:</code>—, que es a dónde va a parar todo lo que se copie con Copy to o con Collect. Si ese dato no se puede leer, la etiqueta simplemente no aparece.
+<br><br>
+
+**Opciones disponibles en los Settings (continuación)**
+
 - <strong>Theme y Table font size:</strong> La paleta de las dos ventanas y el tamaño de letra de las tablas. Los dos se ven aplicados mientras se eligen, y Cancel los revierte.
 <br><br>
 

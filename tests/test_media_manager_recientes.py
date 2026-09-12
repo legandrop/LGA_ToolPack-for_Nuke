@@ -166,5 +166,43 @@ class TestArchivoDeRecientes(unittest.TestCase):
         self.assertFalse(os.path.exists(mm_config.get_user_ini_path()))
 
 
+class TestVolumenYTamano(unittest.TestCase):
+    """El disco del proyecto y su espacio libre, como se muestran en la barra."""
+
+    def test_letra_de_unidad_en_windows(self):
+        self.assertEqual(mm_paths.nombre_de_volumen("N:/VFX/shot/comp.nk"), "N:")
+        self.assertEqual(mm_paths.nombre_de_volumen(r"T:\VFX\shot"), "T:")
+
+    def test_share_unc(self):
+        # En UNC el "disco" es el share, no el servidor.
+        self.assertEqual(
+            mm_paths.nombre_de_volumen("//servidor/proyectos/shot/x.nk"),
+            "//servidor/proyectos",
+        )
+
+    def test_vacio(self):
+        self.assertEqual(mm_paths.nombre_de_volumen(""), "")
+        self.assertEqual(mm_paths.nombre_de_volumen(None), "")
+
+    def test_escalas_de_tamano(self):
+        self.assertEqual(mm_paths.formatear_tamano(1.4 * 1024 ** 4), "1.4 TB")
+        self.assertEqual(mm_paths.formatear_tamano(847 * 1024 ** 3), "847 GB")
+        self.assertEqual(mm_paths.formatear_tamano(9.6 * 1024 ** 3), "9.6 GB")
+        self.assertEqual(mm_paths.formatear_tamano(512 * 1024 ** 2), "512 MB")
+
+    def test_un_decimal_solo_cuando_el_numero_es_chico(self):
+        # "1.4 TB" dice algo; "847.3 GB" es ruido.
+        self.assertNotIn(".", mm_paths.formatear_tamano(847 * 1024 ** 3))
+        self.assertIn(".", mm_paths.formatear_tamano(1.4 * 1024 ** 4))
+
+    def test_valores_que_no_sirven(self):
+        self.assertEqual(mm_paths.formatear_tamano(None), "")
+        self.assertEqual(mm_paths.formatear_tamano("no es un numero"), "")
+        self.assertEqual(mm_paths.formatear_tamano(-1), "")
+
+    def test_un_disco_lleno_no_dice_vacio(self):
+        # 0 libres es un dato, no un fallo: tiene que mostrarse.
+        self.assertTrue(mm_paths.formatear_tamano(0))
+
 if __name__ == "__main__":
     unittest.main()

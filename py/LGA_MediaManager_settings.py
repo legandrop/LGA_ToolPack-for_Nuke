@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_settings v2.55 | Lega
+  LGA_MediaManager_settings v2.56 | Lega
   Ventana de ajustes del Media Manager
 
   v2.46: La T deja de estar reservada: Delete pasa a Alt+Backspace.

@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_config v2.55 | Lega
+  LGA_MediaManager_config v2.56 | Lega
   Donde vive la configuracion del Media Manager, y que tiene adentro
 
   v2.55: Suma el archivo de carpetas recientes, donde se recuerda la

@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_paths v2.55 | Lega
+  LGA_MediaManager_paths v2.56 | Lega
   Como se interpretan las rutas relativas al .nk
 
   El shot folder y las locations se escriben como rutas RELATIVAS a la
@@ -21,6 +21,10 @@ _______________________________________
 
   No importa Qt a proposito: asi se puede probar sin PySide.
 
+  v2.56: Suma nombre_de_volumen y formatear_tamano, que arman el
+         "71 GB free on N:" de la barra de estado. El nombre del disco
+         sale de la letra en Windows, del share en UNC y del punto de
+         montaje en POSIX.
   v2.55: Suma primera_carpeta_existente, que sube de a un nivel hasta
          la primera carpeta que exista. La usa el browser de Relink
          para reabrir donde el usuario estuvo la ultima vez: una ruta
@@ -618,3 +622,67 @@ def knob_for_path(read_node_info, node_name, ruta, normalizar):
             return entrada
 
     return entradas[0]
+
+
+# ---------------------------------------------------------------------------
+#                        El disco donde vive el proyecto
+# ---------------------------------------------------------------------------
+def nombre_de_volumen(ruta):
+    """
+    Como se llama el disco de esa ruta, para mostrarlo.
+
+    En Windows es la letra con los dos puntos ("N:"); en una ruta UNC, el
+    share ("//servidor/share"). En macOS y Linux no hay letra, asi que se usa
+    el nombre del punto de montaje ("Macintosh HD", "T3") y, si la ruta cuelga
+    de la raiz a secas, "/".
+    """
+    texto = (ruta or "").strip().replace("\\", "/")
+    if not texto:
+        return ""
+
+    if texto.startswith("//"):
+        partes = [p for p in texto[2:].split("/") if p]
+        return "//" + "/".join(partes[:2]) if partes else ""
+
+    unidad, _resto = os.path.splitdrive(texto)
+    if unidad:
+        return unidad.replace("\\", "/")
+
+    # POSIX: el punto de montaje. Se sube hasta el que de verdad lo es, que es
+    # lo que el sistema considera "otro disco".
+    actual = texto
+    for _ in range(64):
+        if os.path.ismount(actual):
+            return os.path.basename(actual.rstrip("/")) or "/"
+        padre = os.path.dirname(actual)
+        if not padre or padre == actual:
+            break
+        actual = padre
+    return "/"
+
+
+# Los saltos de escala. En un pipeline de VFX un disco de proyecto se mide en
+# TB y una carpeta de trabajo en GB: mostrar bytes o megabytes no dice nada.
+_ESCALAS = ((1024.0 ** 4, "TB"), (1024.0 ** 3, "GB"), (1024.0 ** 2, "MB"))
+
+
+def formatear_tamano(bytes_libres):
+    """
+    Un tamano en texto corto: "1.4 TB", "820 GB", "512 MB".
+
+    Un decimal solo cuando el numero es chico: "1.4 TB" dice algo, "847.3 GB"
+    es ruido. "" si el valor no sirve.
+    """
+    try:
+        valor = float(bytes_libres)
+    except (TypeError, ValueError):
+        return ""
+    if valor < 0:
+        return ""
+    for unidad, nombre in _ESCALAS:
+        if valor >= unidad:
+            escalado = valor / unidad
+            if escalado < 10:
+                return "%.1f %s" % (escalado, nombre)
+            return "%d %s" % (round(escalado), nombre)
+    return "%d KB" % round(valor / 1024.0)
