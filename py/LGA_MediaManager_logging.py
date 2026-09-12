@@ -1,7 +1,7 @@
 """
 _______________________________________
 
-  LGA_MediaManager_logging v2.52 | Lega
+  LGA_MediaManager_logging v2.53 | Lega
   Logger compartido del Media Manager
 
   v2.25: Se le pone header con version, para que acompane al resto de

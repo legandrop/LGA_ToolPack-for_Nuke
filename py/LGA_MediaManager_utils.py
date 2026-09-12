@@ -1,11 +1,19 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.52 | Lega
+  LGA_MediaManager_utils v2.53 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
 
+  v2.53: La ventana de progreso TEMBLABA durante una copia. El nombre
+         del archivo iba pegado al titulo en el mismo QLabel, que tiene
+         wordWrap y ancho fijo: un nombre largo lo partia en dos lineas
+         y la ventana cambiaba de alto con cada archivo. Ahora el
+         archivo tiene su propio label de una sola linea, elidido al
+         medio y atenuado, y el alto queda clavado al construirla. La
+         linea se reserva solo con con_item=True, asi que el escaneo y
+         el relink -que no informan archivo- siguen compactos.
   v2.50: ProgressWindow suma set_item, el slot que muestra el archivo
          que se esta tocando. Existe como METODO y no como lambda en
          quien conecta porque un bound method de un QObject se
@@ -969,12 +977,16 @@ class ProgressWindow(QWidget):
 
     cancelled = Signal()
 
-    def __init__(self, message, parent=None, ui=None, cancelable=True):
+    def __init__(self, message, parent=None, ui=None, cancelable=True,
+                 con_item=False):
         super(ProgressWindow, self).__init__(parent)
         self.UI = ui or _tema()
-        # El titulo de la tanda, para que set_item pueda rearmar el mensaje de
-        # dos lineas sin que quien conecta tenga que cerrarlo en un lambda.
+        # El titulo de la tanda, que no cambia mientras dura.
         self._titulo = message
+        # `con_item` reserva la linea del archivo que se esta tocando. Va
+        # apagada por default: el escaneo y el relink no informan archivo, y
+        # reservarles la linea les dejaria un renglon vacio abajo del titulo.
+        self._con_item = con_item
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         # Las esquinas redondeadas necesitan que el fondo de la VENTANA sea
         # transparente: si no, Qt pinta el rectangulo entero por debajo y las
@@ -1002,6 +1014,14 @@ class ProgressWindow(QWidget):
         self.label = QLabel(message)
         self.label.setWordWrap(True)
         fila.addWidget(self.label, 1)
+        # El archivo que se esta tocando va en un label PROPIO y de una sola
+        # linea, no pegado al titulo con un "\n". Con los dos en el mismo label
+        # y wordWrap puesto, un nombre largo lo partia en dos y la ventana
+        # CAMBIABA DE ALTO con cada archivo: durante una copia se la veia
+        # temblar. Ahora el nombre se elide y el alto no se mueve.
+        self.item_label = QLabel("")
+        self.item_label.setWordWrap(False)
+        self.item_label.setTextInteractionFlags(Qt.NoTextInteraction)
 
         self.close_button = QPushButton("\u2715")
         self.close_button.setFixedSize(PROGRESS_CLOSE_SIZE, PROGRESS_CLOSE_SIZE)
@@ -1012,6 +1032,8 @@ class ProgressWindow(QWidget):
         self.close_button.setVisible(cancelable)
         fila.addWidget(self.close_button, 0, Qt.AlignTop)
         adentro.addLayout(fila)
+        self.item_label.setVisible(self._con_item)
+        adentro.addWidget(self.item_label)
 
         self.progressBar = QProgressBar(self.marco)
         self.progressBar.setRange(0, 100)
@@ -1021,6 +1043,13 @@ class ProgressWindow(QWidget):
 
         self.apply_theme(self.UI)
         self.setFixedWidth(PROGRESS_WIDTH)
+        # El alto se clava con una linea de archivo ya puesta, para que quede
+        # reservada desde el principio: si se midiera con el item vacio, la
+        # ventana daria un salto al aparecer el primer nombre. La medicion va
+        # DESPUES de apply_theme, que es quien aplica la fuente real.
+        if self._con_item:
+            self.item_label.setText(" ")
+        self.setFixedHeight(self.sizeHint().height())
 
     # ------------------------------------------------------------- estilo ---
     def apply_theme(self, ui):
@@ -1038,6 +1067,16 @@ class ProgressWindow(QWidget):
             "QLabel { background: transparent; border: none; color: %s;"
             " font-size: %dpx; }" % (C.TEXT_STRONG, PROGRESS_FONT_SIZE)
         )
+        # El nombre del archivo va atenuado: lo que manda es el titulo, y el
+        # archivo cambia veinte veces por segundo.
+        self.item_label.setStyleSheet(
+            "QLabel { background: transparent; border: none; color: %s; }"
+            % C.TEXT_DIM
+        )
+        # El tamano va por QFont y NO por `font-size` en la hoja: es la forma
+        # que pide el modulo de estilo, y ademas deja la medicion del elidido
+        # midiendo con la fuente que de verdad se dibuja.
+        UIStyle.apply_ui_font(self.item_label, PROGRESS_FONT_SIZE)
         self.close_button.setStyleSheet(self.UI.Style.BTN_CLOSE)
         self.progressBar.setStyleSheet(
             "QProgressBar { background-color: %s; border: none;"
@@ -1069,7 +1108,7 @@ class ProgressWindow(QWidget):
     @Slot(str)
     def set_item(self, nombre):
         """
-        El archivo que se esta tocando, debajo del titulo de la tanda.
+        El archivo que se esta tocando, en su propia linea bajo el titulo.
 
         Existe como METODO de la ventana y no como lambda en quien conecta, y
         eso no es un detalle de estilo. Un slot que es un bound method de un
@@ -1078,8 +1117,20 @@ class ProgressWindow(QWidget):
         La forma de Qt C++ para eso -pasarle un objeto de contexto al
         connect- no existe en PySide: `signal.connect(objeto, lambda)` tira
         TypeError y se lleva puesta la operacion entera.
+
+        El nombre se ELIDE a mano y no se deja envolver: la ventana tiene un
+        ancho fijo, asi que un nombre largo la hacia crecer de alto y la copia
+        se veia temblar. La medicion va con la fuente ya aplicada, que es la
+        que de verdad se dibuja.
         """
-        self.label.setText("%s\n%s" % (self._titulo, nombre) if self._titulo else nombre)
+        # El ancho sale de la CONSTANTE y no de self.item_label.width(): la
+        # ventana tiene ancho fijo, asi que el disponible se conoce de
+        # antemano, y el del widget antes del primer layout es un default de
+        # Qt que no tiene nada que ver -con el, el nombre salia elidido a nada
+        # y la linea se veia vacia-.
+        ancho = PROGRESS_WIDTH - PROGRESS_PADDING * 2
+        metricas = self.item_label.fontMetrics()
+        self.item_label.setText(metricas.elidedText(nombre or "", Qt.ElideMiddle, ancho))
 
     def set_progress(self, hechos, total):
         """Progreso real, en cantidad de archivos."""

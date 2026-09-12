@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.52 | Lega
+  LGA_mediaManager v2.53 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -27,6 +27,11 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.53: Los carteles de Collect eran un bloque de texto plano y chico
+         donde nada se destacaba. Ahora los numeros y lo que decide la
+         respuesta van resaltados y las rutas coloreadas, con los
+         helpers del modulo de estilo. La ventana de progreso deja de
+         temblar mientras copia.
   v2.52: Collect arma en el destino la estructura REAL del shot, la
          que definen los Settings, en vez de una subcarpeta por nombre
          de location con el .nk en la raiz. Es lo unico que hace que el

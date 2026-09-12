@@ -1,10 +1,19 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.52 | Lega
+  LGA_MediaManager_FileScanner v2.53 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.53: Los dos carteles de Collect -la confirmacion y el resumen-
+         pasan a rich text. Eran ocho o nueve renglones de numeros y
+         rutas, todos del mismo gris y del mismo peso: no se leian, se
+         barrian. Los numeros y lo que decide la respuesta van con
+         emphasis() y las rutas con colorize_path(), los dos del modulo
+         de estilo, asi que no entra un solo hex. Los textos de error
+         se escapan antes de ir a un cartel en rich text: un "&" o un
+         "<" de un nombre de archivo los interpretaba Qt como marcado.
+         La confirmacion cierra con Cancel y no con No.
   v2.52: Collect reproduce la estructura del shot en el destino. El
          usuario elige la carpeta CONTENEDORA -el titulo del dialogo lo
          dice- y Collect crea adentro la del shot; si la elegida ya se
@@ -651,6 +660,22 @@ RESCAN_SPIN_STEP = 11.0
 # numero daba una letra un tercio mas chica en Mac. En px mide igual en las dos.
 # 13 es el equivalente de los 10pt que se veian bien en Windows.
 DEFAULT_FONT_SIZE = 13
+
+
+def escape_html(texto):
+    """
+    Escapa un texto que va a un cartel en rich text.
+
+    Los mensajes de error traen nombres de archivo y textos de excepcion, y ahi
+    un "&" o un "<" sueltos los interpreta Qt como marcado: el cartel muestra
+    el error mutilado justo cuando mas se lo necesita leer entero.
+    """
+    return (
+        (texto or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
 
 
 def normalize_path_for_comparison(file_path):
@@ -4798,7 +4823,7 @@ class FileScanner(QWidget):
         Comun a la copia y al borrado: las dos muestran lo mismo, se cancelan
         igual y terminan igual. Lo unico que cambia es el worker.
         """
-        ventana = ProgressWindow(titulo, self)
+        ventana = ProgressWindow(titulo, self, con_item=True)
         self.center_window(ventana)
         ventana.set_progress(0, max(1, len(worker.items)))
         ventana.cancelled.connect(worker.cancel)
@@ -5369,59 +5394,79 @@ class FileScanner(QWidget):
         self, destino, destino_nk, estructura, plan, pares, salteadas,
         sin_archivos, project_dir_vacio
     ):
-        """El resumen de lo que va a pasar, antes de tocar nada."""
-        texto = ["%d file(s) will be copied to:" % len(pares), destino, ""]
+        """
+        El resumen de lo que va a pasar, antes de tocar nada.
+
+        Va en rich text y no en texto plano. Son ocho o nueve renglones de
+        numeros y rutas: todos del mismo gris y del mismo peso no se leen, se
+        barren. Lo que decide la respuesta -cuantos archivos, a donde, y si
+        algo se sobreescribe- va destacado con emphasis(), las rutas con
+        colorize_path(), y el resto queda de cuerpo. Los dos helpers salen del
+        modulo de estilo: aca no hay un solo hex.
+        """
+        destacado = UIStyle.emphasis
+        lineas = [
+            "%s will be copied to:" % destacado("%d file(s)" % len(pares)),
+            UIStyle.colorize_path(destino),
+            "",
+        ]
 
         if estructura.reproducible:
-            texto.append(
-                "The shot structure is reproduced there, so the collected "
-                "script resolves its own shot folder and scan locations."
+            lineas.append(
+                "The %s is reproduced there, so the collected script resolves "
+                "its own shot folder and scan locations."
+                % destacado("shot structure")
             )
             if estructura.nombre_externos:
                 # Que location recibe lo de afuera depende del NOMBRE de una
                 # fila de los ajustes, asi que se dice ACA y no solo en el log:
                 # el usuario tiene que poder verlo antes de aceptar.
-                texto.append(
-                    'Files from outside the shot go to the "%s" location.'
-                    % estructura.nombre_externos
+                lineas.append(
+                    "Files from outside the shot go to %s."
+                    % destacado('"%s"' % estructura.nombre_externos)
                 )
         else:
-            texto.append(
-                "The shot structure cannot be reproduced (%s), so files are "
-                "grouped by location name instead." % estructura.motivo
+            lineas.append(
+                "The shot structure %s (%s), so files are grouped by location "
+                "name instead."
+                % (destacado("cannot be reproduced"), estructura.motivo)
             )
 
-        texto.append("")
-        texto.append(
-            "%d node path(s) will be rewritten as relative."
-            % len(mm_collect.a_reapuntar(plan))
+        lineas.append("")
+        lineas.append(
+            "%s will be rewritten as relative."
+            % destacado("%d node path(s)" % len(mm_collect.a_reapuntar(plan)))
         )
         if sin_archivos:
-            texto.append(
-                "%d path(s) have no file on disk and will be repointed anyway."
-                % len(sin_archivos)
+            lineas.append(
+                "%s have no file on disk and will be repointed anyway."
+                % destacado("%d path(s)" % len(sin_archivos))
             )
         # Vacios y expresiones son dos cosas distintas y se cuentan aparte: un
         # solo numero rotulado "with expressions" decia 90 en una corrida real
         # donde la enorme mayoria eran knobs proxy VACIOS.
         vacias = sum(1 for _e, motivo in salteadas if motivo == mm_collect.SKIP_EMPTY)
         expresiones = len(salteadas) - vacias
+        sin_tocar = []
         if expresiones:
-            texto.append(
-                "%d path(s) with expressions will be left untouched." % expresiones
-            )
+            sin_tocar.append("%d with expressions" % expresiones)
         if vacias:
-            texto.append("%d empty path(s) will be left untouched." % vacias)
+            sin_tocar.append("%d empty" % vacias)
+        if sin_tocar:
+            lineas.append("Left untouched: %s." % ", ".join(sin_tocar))
         if project_dir_vacio:
-            texto.append("The Project Directory will be set to the script folder.")
+            lineas.append("The Project Directory will be set to the script folder.")
 
-        texto.append("")
+        lineas.append("")
         if os.path.exists(destino_nk):
-            texto.append("The script will OVERWRITE:")
+            lineas.append("The script will %s:" % destacado("OVERWRITE"))
         else:
-            texto.append("The script will then be saved as:")
-        texto.append(destino_nk)
-        return ask_question(self, "Collect", "\n".join(texto), yes_text="Collect")
+            lineas.append("The script will then be saved as:")
+        lineas.append(UIStyle.colorize_path(destino_nk))
+        return ask_question(
+            self, "Collect", "<br>".join(lineas), yes_text="Collect",
+            no_text="Cancel"
+        )
 
     def _on_collect_finished(self, hechos, salteados, errores, cancelado):
         """
@@ -5514,39 +5559,51 @@ class FileScanner(QWidget):
         # que hay en la tabla ya no describe nada.
         self.rescan()
 
+        # Mismo criterio que el cartel de confirmacion: lo que el usuario tiene
+        # que leer de un vistazo va destacado, las rutas coloreadas, y el resto
+        # de cuerpo. Todo sale del modulo de estilo.
+        destacado = UIStyle.emphasis
         resumen = [
-            "%d file(s) copied." % hechos,
-            "%d node path(s) rewritten as relative." % aplicadas,
+            "%s copied." % destacado("%d file(s)" % hechos),
+            "%s rewritten as relative." % destacado("%d node path(s)" % aplicadas),
         ]
         if estado["sin_archivos"]:
             resumen.append(
-                "%d path(s) had no file on disk." % len(estado["sin_archivos"])
+                "%s had no file on disk."
+                % destacado("%d path(s)" % len(estado["sin_archivos"]))
             )
         if no_llegaron:
             resumen.append(
-                "%d path(s) failed to copy and were left pointing at the "
-                "original." % len(no_llegaron)
+                "%s failed to copy and were left pointing at the original."
+                % destacado("%d path(s)" % len(no_llegaron))
             )
-        if estado["salteadas"]:
-            resumen.append(
-                "%d path(s) with expressions were left untouched."
-                % len(estado["salteadas"])
-            )
+        # Vacios y expresiones, contados aparte igual que en la confirmacion.
+        vacias = sum(
+            1 for _e, motivo in estado["salteadas"] if motivo == mm_collect.SKIP_EMPTY
+        )
+        expresiones = len(estado["salteadas"]) - vacias
+        sin_tocar = []
+        if expresiones:
+            sin_tocar.append("%d with expressions" % expresiones)
+        if vacias:
+            sin_tocar.append("%d empty" % vacias)
+        if sin_tocar:
+            resumen.append("Left untouched: %s." % ", ".join(sin_tocar))
         if ruta_guardada:
             resumen.append("")
             resumen.append("Script saved as:")
-            resumen.append(ruta_guardada)
+            resumen.append(UIStyle.colorize_path(ruta_guardada))
         if errores:
             resumen.append("")
-            resumen.append("%d error(s):" % len(errores))
-            resumen.extend(errores[:8])
+            resumen.append("%s:" % destacado("%d error(s)" % len(errores)))
+            resumen.extend(escape_html(e) for e in errores[:8])
             if len(errores) > 8:
                 resumen.append("...")
 
         if errores:
-            show_warning(self, "Collect", "\n".join(resumen))
+            show_warning(self, "Collect", "<br>".join(resumen))
         else:
-            show_info(self, "Collect", "\n".join(resumen))
+            show_info(self, "Collect", "<br>".join(resumen))
 
     def _plan_copy(self, filas, destino_base):
         """
