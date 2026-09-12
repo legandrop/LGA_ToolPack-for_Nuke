@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_MessageBox_ToolPack v1.00 | Lega
+  LGA_UI_MessageBox_ToolPack v1.01 | Lega
 
   Carteles estandar del pack: info, warning, error y pregunta,
   estilados con LGA_UI_Style_ToolPack. Reemplazan a los QMessageBox
@@ -31,13 +31,17 @@ ____________________________________________________________________
   Sin icono de sistema: los carteles del pack no usan los iconos del
   host, la jerarquia la dan el titulo de la ventana y el texto.
 
+  v1.01: Los carteles se dibujaban con el TAMANO de fuente del host.
+         apply_ui_font sin `size` solo pone la familia, asi que salian
+         en Inter pero al tamano de Nuke -medido, 9 pt- y no al que el
+         pack declara. Ahora se les pasa Metric.FORM_FONT_SIZE.
   v1.00: Version inicial, portado del helper de HieroTools con
          las fuentes del pack aplicadas (apply_ui_font).
 ____________________________________________________________________
 """
 
 from LGA_QtAdapter_ToolPack import QtWidgets
-from LGA_UI_Style_ToolPack import Style, apply_ui_font
+from LGA_UI_Style_ToolPack import Metric, Style, apply_ui_font
 
 
 def styled_message_box(parent=None, title="", text=""):
@@ -51,14 +55,14 @@ def styled_message_box(parent=None, title="", text=""):
     box.setText(text)
     box.setIcon(QtWidgets.QMessageBox.NoIcon)
     box.setStyleSheet(Style.FORM)
-    apply_ui_font(box)
+    apply_ui_font(box, Metric.FORM_FONT_SIZE)
     return box
 
 
 def _show(parent, title, text):
     box = styled_message_box(parent, title, text)
     box.setStandardButtons(QtWidgets.QMessageBox.Ok)
-    apply_ui_font(box)  # de nuevo: el boton Ok recien existe ahora
+    apply_ui_font(box, Metric.FORM_FONT_SIZE)  # de nuevo: el Ok recien existe
     box.exec_()
 
 
@@ -121,5 +125,5 @@ def ask_question(parent, title, text, yes_text="Yes", no_text="No", recommended=
     no_button.clicked.connect(dialog.reject)
     yes_button.clicked.connect(dialog.accept)
 
-    apply_ui_font(dialog)  # al final: recorre hijos, que recien ahora existen
+    apply_ui_font(dialog, Metric.FORM_FONT_SIZE)  # al final: recorre hijos
     return dialog.exec_() == QtWidgets.QDialog.Accepted

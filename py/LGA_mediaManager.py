@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.53 | Lega
+  LGA_mediaManager v2.54 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -27,6 +27,10 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.54: Los carteles y el menu de Copy to se dibujaban con el tamano
+         de fuente del HOST y no con el que el pack declara; el menu,
+         encima, ni con la fuente del pack. Los dos pasan a
+         Metric.FORM_FONT_SIZE.
   v2.53: Los carteles de Collect eran un bloque de texto plano y chico
          donde nada se destacaba. Ahora los numeros y lo que decide la
          respuesta van resaltados y las rutas coloreadas, con los

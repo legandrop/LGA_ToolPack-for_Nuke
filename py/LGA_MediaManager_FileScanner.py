@@ -1,10 +1,15 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.53 | Lega
+  LGA_MediaManager_FileScanner v2.54 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.54: El menu de Copy to se dibujaba con la fuente del HOST -Segoe
+         UI al tamano de Nuke-: medido, era la unica pieza de la barra
+         que nunca pasaba por apply_ui_font. Ahora toma la fuente y el
+         tamano del pack. El tamano de los carteles lo arregla el
+         helper (LGA_UI_MessageBox_ToolPack v1.01).
   v2.53: Los dos carteles de Collect -la confirmacion y el resumen-
          pasan a rich text. Eran ocho o nueve renglones de numeros y
          rutas, todos del mismo gris y del mismo peso: no se leian, se
@@ -2720,6 +2725,11 @@ class FileScanner(QWidget):
         self._copy_actions = list(self.copy_menu.actions())
         for action in self._copy_actions:
             self.addAction(action)
+        # El menu se dibujaba con la fuente del HOST -Segoe UI al tamano de
+        # Nuke- y no con la del pack: medido, era la unica pieza de la barra
+        # que no pasaba por apply_ui_font. Va aca y no en el constructor
+        # porque populate_copy_menu se rehace entero cada vez.
+        UIStyle.apply_ui_font(self.copy_menu, UIStyle.Metric.FORM_FONT_SIZE)
 
     def show_copy_menu(self):
         """Abre el menu de Copy to pegado al boton, como pide el disenio."""
