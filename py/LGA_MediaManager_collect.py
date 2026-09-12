@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_collect v2.57 | Lega
+  LGA_MediaManager_collect v2.58 | Lega
 
   El PLAN de un Collect: que archivo va a que carpeta del destino, con
   que ruta relativa queda cada knob, y que choca con que.

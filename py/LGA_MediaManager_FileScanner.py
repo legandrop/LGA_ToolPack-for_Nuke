@@ -1,10 +1,14 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.57 | Lega
+  LGA_MediaManager_FileScanner v2.58 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.58: El boton pasa a decir "Reload All Reads", como la tool de
+         ToolPack-B de la que sale: "Reload" solo no dice sobre QUE. Y
+         en el espacio libre se destacan el tamano y la letra del disco
+         -lo que se lee de un vistazo- dejando el "free on" de cuerpo.
   v2.57: El espacio libre se leia mal: iba en TEXT_DIM sobre el fondo
          de la ventana. Pasa al gris de las pastillas, se separa mas
          del bloque de contadores y suma un punto de color con el mismo
@@ -2208,7 +2212,14 @@ class FileScanner(QWidget):
                 volumen = mm_paths.nombre_de_volumen(base)
                 tamano = mm_paths.formatear_tamano(libres)
                 if volumen and tamano:
-                    texto = "%s free on %s" % (tamano, volumen)
+                    # Lo que se lee de un vistazo -cuanto queda y en que
+                    # disco- va destacado, y el "free on" que los une queda de
+                    # cuerpo. Es el mismo criterio que los carteles de Collect,
+                    # y sale del mismo helper del modulo de estilo.
+                    texto = "%s free on %s" % (
+                        UIStyle.emphasis(tamano),
+                        UIStyle.emphasis(volumen),
+                    )
                     self._disk_free_bytes = libres
             except (OSError, ValueError) as problema:
                 debug_print("No se pudo leer el espacio libre: %s" % problema)
@@ -2527,7 +2538,7 @@ class FileScanner(QWidget):
         # dice a Nuke que relea los archivos -para cuando un render termino y
         # el Read sigue mostrando el cache viejo- y Rescan vuelve a recorrer el
         # disco para rearmar la tabla.
-        self.reload_button = QPushButton("Reload", self)
+        self.reload_button = QPushButton("Reload All Reads", self)
         self.reload_button.setToolTip(TOOLTIPS["reload_reads"])
         self.reload_button.setFixedHeight(RESCAN_HEIGHT)
         self.reload_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)

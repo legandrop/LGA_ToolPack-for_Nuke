@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.57 | Lega
+  LGA_mediaManager v2.58 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
