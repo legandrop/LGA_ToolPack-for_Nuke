@@ -97,6 +97,50 @@ class TestClasificacion(unittest.TestCase):
         self.assertEqual(collect.nombre_de_bucket("  "), "location")
 
 
+class TestDestino(unittest.TestCase):
+    """
+    Que destinos sirven. Collect COPIA, no mueve.
+
+    Hubo un guard que prohibia el shot ENTERO, y rechazaba un "Comp/collect"
+    recien creado que no tiene ningun riesgo detras: el lugar natural para
+    dejar una entrega. Lo unico que puede destruir algo es la carpeta del .nk.
+    """
+
+    NK_DIR = SHOT + "/Comp/1_projects"
+
+    def _revisar(self, destino):
+        return collect.revisar_destino(destino, self.NK_DIR, LOCATIONS)
+
+    def test_una_carpeta_nueva_adentro_del_shot_sirve(self):
+        self.assertEqual(self._revisar(SHOT + "/Comp/collect"), (collect.DESTINO_OK, None))
+
+    def test_afuera_del_shot_sirve(self):
+        self.assertEqual(self._revisar("D:/entregas/ERSO"), (collect.DESTINO_OK, None))
+
+    def test_la_carpeta_del_nk_se_bloquea(self):
+        # El paso final es un scriptSaveAs con el mismo nombre: pisaria el
+        # script original y sus rutas absolutas.
+        self.assertEqual(self._revisar(self.NK_DIR), (collect.DESTINO_ES_NK_DIR, None))
+
+    def test_la_carpeta_del_nk_con_barra_o_backslash_tambien(self):
+        self.assertEqual(
+            self._revisar(self.NK_DIR + "/")[0], collect.DESTINO_ES_NK_DIR
+        )
+        self.assertEqual(
+            self._revisar(self.NK_DIR.replace("/", "\\"))[0], collect.DESTINO_ES_NK_DIR
+        )
+
+    def test_adentro_de_una_scan_location_solo_avisa(self):
+        veredicto, nombre = self._revisar(SHOT + "/Comp/2_prerenders/collect")
+        self.assertEqual(veredicto, collect.DESTINO_EN_LOCATION)
+        self.assertEqual(nombre, "Prerenders")
+
+    def test_sin_locations_ni_nk_dir_no_molesta(self):
+        self.assertEqual(
+            collect.revisar_destino("D:/x", "", []), (collect.DESTINO_OK, None)
+        )
+
+
 class TestAcciones(unittest.TestCase):
     def test_input_se_copia(self):
         item = _uno([entrada("file", SHOT + "/_input/plate.mov")])

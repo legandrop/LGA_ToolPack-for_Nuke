@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_collect v2.50 | Lega
+  LGA_MediaManager_collect v2.51 | Lega
 
   El PLAN de un Collect: que archivo va a que carpeta del destino, con
   que ruta relativa queda cada knob, y que choca con que.
@@ -18,6 +18,12 @@ _______________________________________________________________________
   destino de cada archivo, y la ruta relativa se calcula contra la raiz
   del collect, que es donde va a quedar el .nk.
 
+  v2.51: Suma revisar_destino, la politica de que carpeta sirve como
+         destino. Estaba escrita adentro del metodo de Qt y prohibia el
+         shot ENTERO, o sea tambien un Comp/collect recien creado que
+         no tiene ningun riesgo: Collect copia, no mueve. Ahora se
+         bloquea solo la carpeta del .nk -el scriptSaveAs final la
+         pisaria- y adentro de una scan location se avisa nomas.
   v2.48: Modulo nuevo. Cuatro cosas que salieron de auditarlo y que
          conviene no volver a romper: el token del frame se sustituye
          POR POSICION -con str.replace, dos grupos del mismo largo
@@ -178,6 +184,40 @@ def _juntar(*tramos):
     if primero.startswith("//"):
         prefijo = "//"
     return prefijo + "/".join(p for p in partes if p)
+
+
+# Que puede pasar con el destino elegido.
+DESTINO_OK = "ok"
+DESTINO_ES_NK_DIR = "es_nk_dir"  # bloquea: el Save As pisaria el script
+DESTINO_EN_LOCATION = "en_location"  # solo avisa
+
+
+def revisar_destino(destino, nk_dir, locations):
+    """
+    Si el destino elegido sirve. Devuelve (veredicto, nombre_de_location).
+
+    Collect COPIA, no mueve, asi que casi cualquier carpeta sirve -incluida una
+    adentro del shot, que es el lugar natural para dejar una entrega-. Hubo un
+    guard que prohibia el shot entero y estaba mal calibrado: rechazaba un
+    "Comp/collect" recien creado sin ningun riesgo detras.
+
+    Lo unico que puede DESTRUIR algo es elegir la carpeta donde vive el .nk:
+    el paso final es un scriptSaveAs con el mismo nombre, o sea que pisaria el
+    script original y sus rutas absolutas.
+
+    Adentro de una scan location no es peligroso, pero tiene una consecuencia
+    que conviene decir antes: desde el proximo escaneo, todo lo colectado
+    aparece en la tabla como material del shot.
+    """
+    objetivo = normalizar(destino)
+    if not objetivo:
+        return DESTINO_OK, None
+    if objetivo == normalizar(nk_dir):
+        return DESTINO_ES_NK_DIR, None
+    for nombre, carpeta in locations or ():
+        if carpeta and dentro_de(destino, carpeta):
+            return DESTINO_EN_LOCATION, nombre
+    return DESTINO_OK, None
 
 
 def accion_para(entrada, incluir_workdir):

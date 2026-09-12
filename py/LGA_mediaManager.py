@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.50 | Lega
+  LGA_mediaManager v2.51 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -27,6 +27,10 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.51: Collect rechazaba cualquier destino adentro del shot, y una
+         carpeta como Comp/collect es el lugar natural para dejar una
+         entrega. Collect copia, no mueve: lo unico que se bloquea es
+         la carpeta del .nk, porque el Save As final la pisaria.
   v2.50: Copy to, Delete y Collect no copiaban NADA. _run_batch
          conectaba la senal del worker con la forma de Qt C++ que le
          pasa un objeto de contexto al connect, y esa firma no existe

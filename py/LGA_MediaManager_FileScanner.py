@@ -1,10 +1,18 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.50 | Lega
+  LGA_MediaManager_FileScanner v2.51 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.51: El guard del destino de Collect estaba mal calibrado:
+         rechazaba TODO el shot, o sea tambien un Comp/collect recien
+         creado, que no tiene ningun riesgo detras. Collect COPIA, no
+         mueve. Ahora la politica vive en mm_collect.revisar_destino:
+         se bloquea solo la carpeta del .nk -el scriptSaveAs final la
+         pisaria- y adentro de una scan location se avisa que lo
+         colectado va a aparecer en los proximos escaneos, pero se
+         deja seguir. El veredicto queda en el log.
   v2.50: Copy to, Delete y Collect se caian ANTES de arrancar el
          worker. _run_batch hacia `senal.connect(ventana, lambda ...)`,
          copiando la forma de Qt C++ que pasa un objeto de CONTEXTO
@@ -5189,17 +5197,34 @@ class FileScanner(QWidget):
             return
         destino = destino.replace("\\", "/").rstrip("/")
 
-        # Coleccionar adentro del propio shot mezcla el collect con el trabajo
-        # y deja rutas que apuntan a si mismas.
-        if self.project_folder and mm_collect.dentro_de(destino, self.project_folder):
+        # Que destinos sirven lo decide mm_collect.revisar_destino; aca solo se
+        # traduce el veredicto a carteles.
+        veredicto, location = mm_collect.revisar_destino(
+            destino, self.nk_dir(), self.collect_locations()
+        )
+        self.logger.debug(
+            "[COLLECT] Destino elegido: %s (%s%s)"
+            % (destino, veredicto, " en %s" % location if location else "")
+        )
+        if veredicto == mm_collect.DESTINO_ES_NK_DIR:
             show_warning(
                 self,
                 "Collect",
-                "The destination is inside the shot folder.\n\n"
-                "Choose a folder outside it, so the collected script and the "
-                "original do not end up mixed.",
+                "Collect saves the script into the destination folder, and "
+                "this is the folder the current script lives in: it would "
+                "overwrite it.\n\nPick another folder.",
             )
             return
+        if veredicto == mm_collect.DESTINO_EN_LOCATION:
+            if not ask_question(
+                self,
+                "Collect",
+                'The destination is inside the "%s" scan location, so from the '
+                "next scan on, everything collected will show up in the table "
+                "as shot media.\n\nCollect there anyway?" % location,
+                yes_text="Collect here",
+            ):
+                return
 
         anchor, project_dir_vacio = mm_collect.anchor_del_script()
         entradas = mm_collect.inventario(anchor)
