@@ -1,10 +1,22 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.48 | Lega
+  LGA_MediaManager_FileScanner v2.49 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.49: _on_collect_finished no soltaba la tanda. Quien pone
+         _batch_worker en None es el CALLBACK y no _run_batch -asi lo
+         hacen _on_copy_finished y _on_delete_finished en su primera
+         linea-, asi que despues de un Collect operacion_en_curso()
+         devolvia "batch" para siempre: la barra apagada y Copy to,
+         Delete y Relink cortando en su guard sin decir nada.
+         Copy to tiene tres salidas silenciosas -sin seleccion, con
+         otra tanda en curso, y con el plan vacio- y no escribia una
+         sola linea al log, asi que cuando no pasaba nada no habia
+         forma de saber cual de las tres fue. Ahora Copy to y Collect
+         registran cada decision, el destino resuelto, el tamano del
+         plan y el resultado de la tanda.
   v2.48: Boton Collect, a la derecha de la barra y sin atajo: es la
          operacion mas cara -copia el shot, reescribe todos los knobs y
          hace un Save As- y un Alt+letra al lado de las que se usan a
@@ -4970,16 +4982,34 @@ class FileScanner(QWidget):
         antes de arrancar- asi que encadenar solo agregaba una ventana por
         archivo y cinco caminos distintos para terminar.
         """
+        # Copy to tiene tres salidas SILENCIOSAS -sin seleccion, con otra tanda
+        # en curso, y con el plan vacio- y hasta v2.48 no escribia una sola
+        # linea al log: cuando no pasaba nada, no habia forma de saber cual de
+        # las tres fue. Por eso cada decision queda registrada.
         filas = self.selected_rows()
+        etiqueta_log = location.get("name") or location.get("path", "")
+        self.logger.debug(
+            "[COPY_TO] Pedido a '%s' con %d fila(s) seleccionada(s)"
+            % (etiqueta_log, len(filas))
+        )
         if not filas:
+            self.logger.debug("[COPY_TO] CORTA: no hay filas seleccionadas")
             return
-        if self.operacion_en_curso() is not None:
+        en_curso = self.operacion_en_curso()
+        if en_curso is not None:
+            self.logger.debug(
+                "[COPY_TO] CORTA: hay una operacion en curso (%s)" % en_curso
+            )
             debug_print("Hay una operacion en curso: se ignora el Copy to")
             return
 
         # Guard de siempre, sobre TODAS las filas: Copy to es traerse adentro
         # del shot algo que esta afuera, y copiar de nuevo algo que ya esta
         # adentro no significa nada.
+        self.logger.debug(
+            "[COPY_TO] Estados de las filas: %s"
+            % sorted({self.row_status(fila) for fila in filas})
+        )
         if any(self.row_status(fila) != "Outside" for fila in filas):
             show_warning(
                 self,
@@ -5011,8 +5041,19 @@ class FileScanner(QWidget):
             return
 
         destino_base = resultado.folders[0]
+        self.logger.debug("[COPY_TO] Destino resuelto: %s" % destino_base)
         plan, conflictos, colisiones, reapuntar = self._plan_copy(filas, destino_base)
+        self.logger.debug(
+            "[COPY_TO] Plan: %d archivo(s), %d conflicto(s), %d colision(es)"
+            % (len(plan), len(conflictos), len(colisiones))
+        )
         if not plan:
+            # Pasa cuando ninguna fila expande a un archivo real: una fila de
+            # secuencia sin rango de frames escrito no expande a nada.
+            self.logger.debug(
+                "[COPY_TO] CORTA: el plan salio vacio. Rutas de las filas: %s"
+                % [self.row_path(fila) for fila in filas][:10]
+            )
             return
 
         # Dos origenes distintos que caen en el mismo destino no es algo que se
@@ -5059,6 +5100,7 @@ class FileScanner(QWidget):
 
         self._copy_reapuntar = reapuntar
         worker = CopyWorker(plan)
+        self.logger.debug("[COPY_TO] Arranca la copia de %d archivo(s)" % len(plan))
         self._run_batch(worker, "Copying...", self._on_copy_finished)
 
     # ------------------------------------------------------------ collect ---
@@ -5098,7 +5140,9 @@ class FileScanner(QWidget):
         Trabaja sobre el script ENTERO y no sobre la seleccion: un collect a
         medias no sirve para nada.
         """
-        if self.operacion_en_curso() is not None:
+        en_curso = self.operacion_en_curso()
+        if en_curso is not None:
+            self.logger.debug("[COLLECT] CORTA: operacion en curso (%s)" % en_curso)
             debug_print("Hay una operacion en curso: se ignora el Collect")
             return
 
@@ -5152,6 +5196,11 @@ class FileScanner(QWidget):
             return
 
         pares, sin_archivos = self._plan_collect_files(plan)
+        self.logger.debug(
+            "[COLLECT] Destino %s | %d knob(s) en el plan, %d archivo(s) a "
+            "copiar, %d sin archivo, %d salteado(s)"
+            % (destino, len(plan), len(pares), len(sin_archivos), len(salteadas))
+        )
         if not self._confirmar_collect(
             destino, plan, pares, salteadas, sin_archivos, project_dir_vacio
         ):
@@ -5259,9 +5308,22 @@ class FileScanner(QWidget):
         a un destino a medio copiar es peor que no haber hecho nada, porque el
         script queda roto y sin aviso de que archivos faltan.
         """
+        # Lo PRIMERO, y antes de cualquier return: soltar la tanda. Quien la
+        # cierra es el callback, no _run_batch, asi que dejarlo sin soltar
+        # dejaba operacion_en_curso() devolviendo "batch" para SIEMPRE: la
+        # barra entera apagada y Copy to, Delete y Relink muertos en silencio
+        # por el resto de la sesion. _on_copy_finished y _on_delete_finished
+        # lo hacen en su primera linea; este no lo hacia.
+        self._batch_worker = None
+        self.logger.debug(
+            "[COLLECT] Copia terminada: %d hecho(s), %d error(es), cancelado=%s"
+            % (hechos, len(errores or []), cancelado)
+        )
+
         estado = getattr(self, "_collect_estado", None)
         self._collect_estado = None
         if not estado:
+            self.logger.debug("[COLLECT] CORTA: no hay estado de collect")
             return
 
         errores = list(estado["errores"]) + list(errores or [])
@@ -5431,6 +5493,12 @@ class FileScanner(QWidget):
     def _on_copy_finished(self, hechos, salteados, errores, cancelado):
         """Reapunta los Reads de las filas que SI se copiaron."""
         self._batch_worker = None
+        self.logger.debug(
+            "[COPY_TO] Termino: %d copiado(s), %d salteado(s), %d error(es), "
+            "cancelado=%s" % (hechos, salteados, len(errores or []), cancelado)
+        )
+        for problema in (errores or [])[:10]:
+            self.logger.debug("[COPY_TO]   error: %s" % problema)
         tocados = []
         for registro in getattr(self, "_copy_reapuntar", []) or []:
             # Se verifica contra DISCO y no contra el plan. Antes se reapuntaba

@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.48 | Lega
+  LGA_mediaManager v2.49 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -27,6 +27,12 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.49: Despues de un Collect, Copy to, Delete y Relink quedaban
+         muertos en silencio: quien suelta la tanda es el callback y
+         _on_collect_finished nacio sin hacerlo, asi que
+         operacion_en_curso() devolvia "batch" por el resto de la
+         sesion. Copy to y Collect ademas no escribian una sola linea
+         al log, con lo cual "no paso nada" era indiagnosticable.
   v2.48: Boton Collect: copia el script y toda su media a una carpeta
          nueva, ordenada por location -input, assets, prerenders,
          publish, shot y outside-, deja cada knob con su ruta relativa

@@ -194,6 +194,58 @@ class TestCarpetasDeNodo(unittest.TestCase):
         self.assertFalse(afuera == clave or afuera.startswith(clave + "/"))
 
 
+class TestCierreDeTanda(unittest.TestCase):
+    """
+    Todo callback de _run_batch tiene que soltar la tanda en su primera linea.
+
+    Quien pone _batch_worker en None es el CALLBACK, no _run_batch. Un callback
+    que no lo hace deja operacion_en_curso() devolviendo "batch" para siempre:
+    la barra entera apagada, y Copy to, Delete y Relink muertos en silencio por
+    el resto de la sesion. Pasó con _on_collect_finished, que nació sin la
+    linea, y el sintoma fue justo ese: apretar Copy to y que no pasara nada.
+
+    Es una prueba sobre el FUENTE porque los tres metodos necesitan Qt y una
+    ventana viva; lo que se cuida es la invariante, no la implementacion.
+    """
+
+    CALLBACKS = ("_on_copy_finished", "_on_delete_finished", "_on_collect_finished")
+
+    def setUp(self):
+        ruta = os.path.join(
+            os.path.dirname(__file__), "..", "py", "LGA_MediaManager_FileScanner.py"
+        )
+        with open(ruta, encoding="utf-8") as handle:
+            self.lineas = handle.read().splitlines()
+
+    def _cuerpo(self, nombre):
+        for indice, linea in enumerate(self.lineas):
+            if linea.strip().startswith("def %s(" % nombre):
+                return self.lineas[indice : indice + 16]
+        self.fail("no se encontro %s" % nombre)
+
+    def test_los_tres_sueltan_la_tanda(self):
+        for nombre in self.CALLBACKS:
+            cuerpo = self._cuerpo(nombre)
+            self.assertTrue(
+                any("self._batch_worker = None" in linea for linea in cuerpo),
+                "%s no suelta _batch_worker en sus primeras lineas" % nombre,
+            )
+
+    def test_lo_sueltan_antes_de_cualquier_return(self):
+        for nombre in self.CALLBACKS:
+            cuerpo = self._cuerpo(nombre)
+            suelta = next(
+                i for i, l in enumerate(cuerpo) if "self._batch_worker = None" in l
+            )
+            returns = [i for i, l in enumerate(cuerpo) if l.strip().startswith("return")]
+            if returns:
+                self.assertLess(
+                    suelta,
+                    min(returns),
+                    "%s puede volver sin haber soltado la tanda" % nombre,
+                )
+
+
 class TestExtensionDelCat(unittest.TestCase):
     """El .cat tiene que estar en las extensiones que escanea la tool."""
 

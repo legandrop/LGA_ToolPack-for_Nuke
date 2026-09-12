@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.48 | Lega
+  LGA_MediaManager_utils v2.49 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
