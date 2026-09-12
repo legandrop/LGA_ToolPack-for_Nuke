@@ -97,48 +97,231 @@ class TestClasificacion(unittest.TestCase):
         self.assertEqual(collect.nombre_de_bucket("  "), "location")
 
 
+NK_DIR = SHOT + "/Comp/1_projects"
+NK = NK_DIR + "/comp_v008.nk"
+
+
+def _estructura(shot=SHOT, nk_dir=NK_DIR, locations=None):
+    return collect.analizar_estructura(
+        shot, nk_dir, LOCATIONS if locations is None else locations
+    )
+
+
+class TestEstructura(unittest.TestCase):
+    """
+    Collect reproduce la estructura REAL del shot, no buckets por nombre.
+
+    Es lo unico que hace que el script colectado resuelva adentro del collect:
+    el shot folder y las locations se escriben relativas al .nk, asi que si el
+    .nk no queda en su misma posicion relativa, resuelven al shot VIEJO. Con la
+    estructura de buckets, un rescan del script colectado volvia a escanear el
+    shot original (medido en la corrida del 2026-09-11).
+    """
+
+    def test_la_estructura_del_shot_de_ejemplo(self):
+        e = _estructura()
+        self.assertTrue(e.reproducible)
+        self.assertEqual(e.nombre_shot, "ERSO_5076_0400_SUP")
+        self.assertEqual(e.rel_nk, "Comp/1_projects")
+        self.assertEqual(e.rel_externos, "_input")
+        self.assertEqual(e.nombre_externos, "Input")
+
+    def test_las_locations_quedan_con_su_ruta_real(self):
+        e = _estructura()
+        rutas = {nombre: rel for nombre, _abs, rel in e.internas}
+        self.assertEqual(rutas["Input"], "_input")
+        self.assertEqual(rutas["Assets"], "Comp/0_assets")
+        self.assertEqual(rutas["Prerenders"], "Comp/2_prerenders")
+
+    def test_la_mas_especifica_primero(self):
+        e = _estructura(locations=LOCATIONS + [("Comp", SHOT + "/Comp")])
+        self.assertEqual(e.internas[0][2], "Comp/2_prerenders")
+
+    def test_shot_apagado_no_es_reproducible(self):
+        e = _estructura(shot="")
+        self.assertFalse(e.reproducible)
+        self.assertIn("turned off", e.motivo)
+
+    def test_shot_sin_nombre_no_es_reproducible(self):
+        # La raiz de una unidad o de un UNC: sin nombre no hay carpeta de shot
+        # que crear y todo caeria suelto en la carpeta elegida.
+        for raiz in ("N:/", "N:", "//server/share"):
+            self.assertFalse(_estructura(shot=raiz, nk_dir=raiz + "/Comp").reproducible)
+
+    def test_nk_fuera_del_shot_no_es_reproducible(self):
+        e = _estructura(nk_dir="D:/otro/lado")
+        self.assertFalse(e.reproducible)
+        self.assertIn("not inside", e.motivo)
+
+    def test_location_fuera_del_shot_se_descarta_sin_reventar(self):
+        # Una location puede ser una ruta absoluta a otra unidad: os.path.relpath
+        # ahi lanza ValueError, y con la misma unidad devuelve una ruta con ".."
+        # que se escapa del destino.
+        locations = LOCATIONS + [
+            ("Libreria", "T:/pipeline/shared"),
+            ("Otra", "C:/fuera/del/shot"),
+        ]
+        e = _estructura(locations=locations)
+        self.assertTrue(e.reproducible)
+        self.assertNotIn("Libreria", [n for n, _a, _r in e.internas])
+        self.assertNotIn("Otra", [n for n, _a, _r in e.internas])
+        for _n, _a, rel in e.internas:
+            self.assertNotIn("..", rel)
+
+    def test_sin_location_input_cae_a_la_primera(self):
+        locations = [("Plates", SHOT + "/_input"), ("Assets", SHOT + "/Comp/0_assets")]
+        e = _estructura(locations=locations)
+        self.assertEqual(e.nombre_externos, "Plates")
+
+    def test_sin_ninguna_location_interna_usa_carpeta_propia(self):
+        e = _estructura(locations=[("Libreria", "T:/pipeline/shared")])
+        self.assertEqual(e.rel_externos, collect.CARPETA_EXTERNOS)
+        self.assertEqual(e.nombre_externos, "")
+
+
+class TestRaizYScript(unittest.TestCase):
+    def test_se_le_cuelga_la_carpeta_del_shot(self):
+        self.assertEqual(
+            collect.raiz_de_collect("D:/entregas", "ERSO_5076_0400_SUP"),
+            "D:/entregas/ERSO_5076_0400_SUP",
+        )
+
+    def test_si_ya_se_llama_como_el_shot_no_anida(self):
+        self.assertEqual(
+            collect.raiz_de_collect("D:/entregas/ERSO_5076_0400_SUP", "ERSO_5076_0400_SUP"),
+            "D:/entregas/ERSO_5076_0400_SUP",
+        )
+        self.assertEqual(
+            collect.raiz_de_collect("D:/entregas/erso_5076_0400_sup", "ERSO_5076_0400_SUP"),
+            "D:/entregas/erso_5076_0400_sup",
+        )
+
+    def test_el_script_va_a_su_posicion_del_shot(self):
+        e = _estructura()
+        raiz = collect.raiz_de_collect("D:/entregas", e.nombre_shot)
+        self.assertEqual(
+            collect.destino_del_script(raiz, e, "comp_v008.nk"),
+            "D:/entregas/ERSO_5076_0400_SUP/Comp/1_projects/comp_v008.nk",
+        )
+
+    def test_sin_estructura_el_script_va_a_la_raiz(self):
+        e = _estructura(shot="")
+        self.assertEqual(
+            collect.destino_del_script("D:/entregas", e, "comp_v008.nk"),
+            "D:/entregas/comp_v008.nk",
+        )
+
+
 class TestDestino(unittest.TestCase):
     """
     Que destinos sirven. Collect COPIA, no mueve.
 
-    Hubo un guard que prohibia el shot ENTERO, y rechazaba un "Comp/collect"
-    recien creado que no tiene ningun riesgo detras: el lugar natural para
-    dejar una entrega. Lo unico que puede destruir algo es la carpeta del .nk.
+    Un guard viejo prohibia el shot ENTERO y rechazaba un "Comp/collect" que no
+    tiene ningun riesgo. Y desde que el destino reproduce la estructura, elegir
+    la carpeta del .nk tampoco es peligroso: el script colectado aterriza dos
+    niveles mas abajo. Lo unico que destruye algo es que el .nk colectado caiga
+    exactamente sobre el original.
     """
 
-    NK_DIR = SHOT + "/Comp/1_projects"
-
-    def _revisar(self, destino):
-        return collect.revisar_destino(destino, self.NK_DIR, LOCATIONS)
-
-    def test_una_carpeta_nueva_adentro_del_shot_sirve(self):
-        self.assertEqual(self._revisar(SHOT + "/Comp/collect"), (collect.DESTINO_OK, None))
+    def _revisar(self, elegida):
+        e = _estructura()
+        raiz = collect.raiz_de_collect(elegida, e.nombre_shot)
+        destino_nk = collect.destino_del_script(raiz, e, "comp_v008.nk")
+        return collect.revisar_destino(raiz, destino_nk, NK, SHOT)
 
     def test_afuera_del_shot_sirve(self):
-        self.assertEqual(self._revisar("D:/entregas/ERSO"), (collect.DESTINO_OK, None))
+        self.assertEqual(self._revisar("D:/entregas"), (collect.DESTINO_OK, None))
 
-    def test_la_carpeta_del_nk_se_bloquea(self):
-        # El paso final es un scriptSaveAs con el mismo nombre: pisaria el
-        # script original y sus rutas absolutas.
-        self.assertEqual(self._revisar(self.NK_DIR), (collect.DESTINO_ES_NK_DIR, None))
+    def test_la_carpeta_del_nk_ya_no_se_bloquea(self):
+        # Es el caso que el usuario planteo: el script colectado cae en
+        # <nk_dir>/<shot>/Comp/1_projects/, dos niveles mas abajo.
+        self.assertEqual(self._revisar(NK_DIR)[0], collect.DESTINO_EN_EL_SHOT)
 
-    def test_la_carpeta_del_nk_con_barra_o_backslash_tambien(self):
+    def test_la_raiz_del_shot_actual_se_bloquea(self):
+        # Se llama como el shot, asi que no anida y la estructura se reproduce
+        # encima: el Save As pisaria el script original.
+        self.assertEqual(self._revisar(SHOT)[0], collect.DESTINO_PISA_SCRIPT)
+
+    def test_adentro_del_shot_avisa_pero_deja_seguir(self):
         self.assertEqual(
-            self._revisar(self.NK_DIR + "/")[0], collect.DESTINO_ES_NK_DIR
+            self._revisar(SHOT + "/Comp/collect")[0], collect.DESTINO_EN_EL_SHOT
         )
+        self.assertEqual(self._revisar(SHOT + "/Comp")[0], collect.DESTINO_EN_EL_SHOT)
+
+    def test_un_alias_del_shot_tampoco_pasa_desapercibido(self):
+        # Una letra de unidad mapeada al shot -un subst, una unidad de red- es
+        # el mismo lugar con otro nombre, y la comparacion de texto no lo ve:
+        # el collect se metia adentro del shot sin ni siquiera el aviso.
+        import tempfile
+
+        real = tempfile.mkdtemp(prefix="shot_alias_")
+        try:
+            adentro = os.path.join(real, "sub")
+            os.makedirs(adentro, exist_ok=True)
+            # Sin alias de por medio, el texto ya alcanza.
+            self.assertTrue(collect._dentro_de_real(adentro, real))
+            # Y con rutas que no se tocan, sigue diciendo que no.
+            self.assertFalse(collect._dentro_de_real(tempfile.gettempdir(), adentro))
+        finally:
+            import shutil
+
+            shutil.rmtree(real, ignore_errors=True)
+
+    def test_sin_shot_ni_script_no_molesta(self):
         self.assertEqual(
-            self._revisar(self.NK_DIR.replace("/", "\\"))[0], collect.DESTINO_ES_NK_DIR
+            collect.revisar_destino("D:/x", "D:/x/a.nk", "", ""),
+            (collect.DESTINO_OK, None),
         )
 
-    def test_adentro_de_una_scan_location_solo_avisa(self):
-        veredicto, nombre = self._revisar(SHOT + "/Comp/2_prerenders/collect")
-        self.assertEqual(veredicto, collect.DESTINO_EN_LOCATION)
-        self.assertEqual(nombre, "Prerenders")
 
-    def test_sin_locations_ni_nk_dir_no_molesta(self):
+class TestRutaDelKnob(unittest.TestCase):
+    """La ruta que queda escrita es relativa a la CARPETA DEL .nk."""
+
+    def test_relativa_entre(self):
         self.assertEqual(
-            collect.revisar_destino("D:/x", "", []), (collect.DESTINO_OK, None)
+            collect.relativa_entre("Comp/1_projects", "_input/plate.mov"),
+            "../../_input/plate.mov",
         )
+        # Se cancela el prefijo comun: la ruta queda como la escribiria alguien.
+        self.assertEqual(
+            collect.relativa_entre("Comp/1_projects", "Comp/2_prerenders/x.exr"),
+            "../2_prerenders/x.exr",
+        )
+        # Sin estructura el .nk esta en la raiz y la relativa es la sub-ruta.
+        self.assertEqual(collect.relativa_entre("", "input/plate.mov"), "input/plate.mov")
+
+    def test_el_plan_escribe_la_relativa_al_nk(self):
+        e = _estructura()
+        raiz = collect.raiz_de_collect("D:/entregas", e.nombre_shot)
+        entradas = [
+            entrada("file", SHOT + "/_input/plate.mov"),
+            entrada("file", SHOT + "/Comp/2_prerenders/pre.%04d.exr", node="Read2"),
+            entrada("file", SHOT + "/Comp/3_review/nota.mov", node="Read3"),
+            entrada("file", "T:/afuera/gt/env.%04d.png", node="Read4"),
+        ]
+        plan, _ = collect.armar_plan(entradas, raiz, LOCATIONS, SHOT, estructura=e)
+        self.assertEqual(
+            [i["relativa"] for i in plan],
+            [
+                "../../_input/plate.mov",
+                "../2_prerenders/pre.%04d.exr",
+                "../3_review/nota.mov",
+                "../../_input/gt/env.%04d.png",
+            ],
+        )
+
+    def test_los_homonimos_de_afuera_siguen_sin_pisarse(self):
+        # El borrador de esta propuesta usaba una formula fija de un segmento
+        # para el bucket de externos, y eso reintroducia la perdida silenciosa
+        # que _sin_colision existe para evitar.
+        e = _estructura()
+        raiz = collect.raiz_de_collect("D:/entregas", e.nombre_shot)
+        entradas = [
+            entrada("file", "T:/renders/take%03d/out/output/plate.exr" % i, node="R%d" % i)
+            for i in range(150)
+        ]
+        plan, _ = collect.armar_plan(entradas, raiz, LOCATIONS, SHOT, estructura=e)
+        self.assertEqual(len({i["destino"] for i in plan}), 150)
 
 
 class TestAcciones(unittest.TestCase):
@@ -484,6 +667,34 @@ class TestResumen(unittest.TestCase):
         plan, _ = collect.armar_plan(entradas, DESTINO, LOCATIONS, SHOT)
         self.assertEqual(collect.buckets_del_plan(plan), {"input": 2, "outside": 1})
         self.assertNotIn("assets", collect.buckets_del_plan(plan))
+
+    def test_se_crea_el_esqueleto_del_shot_aunque_una_location_este_vacia(self):
+        # Medido de punta a punta: sin esto, una location sin archivos no existe
+        # en el destino y desde el script colectado resuelve a CERO carpetas, o
+        # sea que el collect deja de ser un shot valido apenas alguna location
+        # no tenga contenido, que es el caso normal.
+        e = _estructura()
+        raiz = collect.raiz_de_collect("D:/entregas", e.nombre_shot)
+        plan, _ = collect.armar_plan(
+            [entrada("file", SHOT + "/_input/plate.mov")], raiz, LOCATIONS, SHOT,
+            estructura=e,
+        )
+        carpetas = collect.carpetas_a_crear(plan, raiz, e)
+        # Las cuatro locations, salgan de donde salgan, mas la del .nk.
+        esperadas = [raiz + "/" + rel for _n, _a, rel in e.internas]
+        esperadas.append(raiz + "/" + e.rel_nk)
+        for esperada in esperadas:
+            self.assertIn(esperada, carpetas)
+        self.assertEqual(len(esperadas), len(LOCATIONS) + 1)
+
+    def test_sin_estructura_no_se_inventa_esqueleto(self):
+        e = _estructura(shot="")
+        plan, _ = collect.armar_plan(
+            [entrada("file", "T:/x/plate.mov")], DESTINO, LOCATIONS, "", estructura=e
+        )
+        carpetas = collect.carpetas_a_crear(plan, DESTINO, e)
+        self.assertTrue(all(c.startswith(DESTINO) for c in carpetas))
+        self.assertNotIn(DESTINO + "/Comp/1_projects", carpetas)
 
     def test_carpetas_a_crear_incluye_el_workdir_vacio(self):
         entradas = [

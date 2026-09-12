@@ -1,10 +1,26 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.51 | Lega
+  LGA_MediaManager_FileScanner v2.52 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.52: Collect reproduce la estructura del shot en el destino. El
+         usuario elige la carpeta CONTENEDORA -el titulo del dialogo lo
+         dice- y Collect crea adentro la del shot; si la elegida ya se
+         llama como el shot, no anida. El .nk va a su misma posicion
+         relativa, asi que sus rutas quedan como las del original
+         ("../../_input/x.mov") y el Media Manager relee el collect y
+         no el shot viejo.
+         El bloqueo pasa a comparar la ruta final del SCRIPT: elegir la
+         carpeta del .nk ya no es peligroso -el colectado cae dos
+         niveles mas abajo- y lo unico que se rechaza es que el script
+         colectado caiga sobre el original. Adentro del shot vivo se
+         avisa y se deja seguir.
+         El cartel separa los knobs VACIOS de los que tienen expresion
+         -un solo numero decia "90 with expressions" cuando casi todos
+         eran proxy vacios- y los errores de la copia van al .log, que
+         antes solo registraba cuantos hubo.
   v2.51: El guard del destino de Collect estaba mal calibrado:
          rechazaba TODO el shot, o sea tambien un Comp/collect recien
          creado, que no tiene ningun riesgo detras. Collect COPIA, no
@@ -5192,36 +5208,75 @@ class FileScanner(QWidget):
                 show_warning(self, "Collect", "Could not save the script:\n%s" % problema)
                 return
 
-        destino = QFileDialog.getExistingDirectory(self, "Collect to folder")
-        if not destino:
-            return
-        destino = destino.replace("\\", "/").rstrip("/")
-
-        # Que destinos sirven lo decide mm_collect.revisar_destino; aca solo se
-        # traduce el veredicto a carteles.
-        veredicto, location = mm_collect.revisar_destino(
-            destino, self.nk_dir(), self.collect_locations()
+        # La estructura del shot es lo que decide TODO el resto: donde cae cada
+        # archivo, donde va el .nk y con que ruta queda cada knob.
+        estructura = mm_collect.analizar_estructura(
+            self.project_folder, self.nk_dir(), self.collect_locations()
         )
         self.logger.debug(
-            "[COLLECT] Destino elegido: %s (%s%s)"
-            % (destino, veredicto, " en %s" % location if location else "")
+            "[COLLECT] Estructura reproducible=%s shot=%r nk en %r externos a %r "
+            "(%d location(s) internas)%s"
+            % (
+                estructura.reproducible,
+                estructura.nombre_shot,
+                estructura.rel_nk,
+                estructura.rel_externos,
+                len(estructura.internas),
+                " motivo: %s" % estructura.motivo if estructura.motivo else "",
+            )
         )
-        if veredicto == mm_collect.DESTINO_ES_NK_DIR:
+
+        # Se pide la carpeta CONTENEDORA, no la del shot: la del shot la crea
+        # Collect con el nombre que corresponde. Decirlo en el titulo evita que
+        # el usuario arme antes una carpeta intermedia al pedo.
+        titulo = (
+            'Choose the folder where "%s" will be created' % estructura.nombre_shot
+            if estructura.reproducible
+            else "Collect to folder"
+        )
+        elegida = QFileDialog.getExistingDirectory(self, titulo)
+        if not elegida:
+            return
+        elegida = elegida.replace("\\", "/").rstrip("/")
+
+        destino = mm_collect.raiz_de_collect(elegida, estructura.nombre_shot)
+        nombre_nk = os.path.basename(nuke.root().name()) or "collected.nk"
+        destino_nk = mm_collect.destino_del_script(destino, estructura, nombre_nk)
+
+        veredicto, dato = mm_collect.revisar_destino(
+            destino, destino_nk, nuke.root().name(), self.project_folder
+        )
+        self.logger.debug(
+            "[COLLECT] Elegida %s -> raiz %s | el .nk va a %s | veredicto %s"
+            % (elegida, destino, destino_nk, veredicto)
+        )
+        if veredicto == mm_collect.DESTINO_PISA_SCRIPT:
+            # El consejo solo vale cuando hay carpeta de shot que crear. Sin
+            # estructura reproducible el .nk cae directo en la carpeta elegida,
+            # nombre_shot esta vacio, y el mensaje quedaba diciendo
+            # 'the "" folder' y mandando a hacer algo que no existe.
+            if estructura.reproducible:
+                detalle = (
+                    "That happens when the chosen folder is the shot folder "
+                    'itself. Pick the folder that will CONTAIN the "%s" folder '
+                    "instead." % estructura.nombre_shot
+                )
+            else:
+                detalle = "Pick another folder."
             show_warning(
                 self,
                 "Collect",
-                "Collect saves the script into the destination folder, and "
-                "this is the folder the current script lives in: it would "
-                "overwrite it.\n\nPick another folder.",
+                "The collected script would land exactly on the script that is "
+                "open, and overwrite it.\n\n%s" % detalle,
             )
             return
-        if veredicto == mm_collect.DESTINO_EN_LOCATION:
+        if veredicto == mm_collect.DESTINO_EN_EL_SHOT:
             if not ask_question(
                 self,
                 "Collect",
-                'The destination is inside the "%s" scan location, so from the '
-                "next scan on, everything collected will show up in the table "
-                "as shot media.\n\nCollect there anyway?" % location,
+                "The destination is inside the current shot folder, so the "
+                "collected copy will hang from it and show up in the next "
+                "scans of this script.\n\nCollect there anyway?",
                 yes_text="Collect here",
             ):
                 return
@@ -5229,7 +5284,11 @@ class FileScanner(QWidget):
         anchor, project_dir_vacio = mm_collect.anchor_del_script()
         entradas = mm_collect.inventario(anchor)
         plan, salteadas = mm_collect.armar_plan(
-            entradas, destino, self.collect_locations(), self.project_folder
+            entradas,
+            destino,
+            self.collect_locations(),
+            self.project_folder,
+            estructura=estructura,
         )
         if not plan:
             show_warning(self, "Collect", "No file paths were found in this script.")
@@ -5242,13 +5301,17 @@ class FileScanner(QWidget):
             % (destino, len(plan), len(pares), len(sin_archivos), len(salteadas))
         )
         if not self._confirmar_collect(
-            destino, plan, pares, salteadas, sin_archivos, project_dir_vacio
+            destino, destino_nk, estructura, plan, pares, salteadas,
+            sin_archivos, project_dir_vacio
         ):
             return
 
-        errores_carpetas = mm_collect.crear_carpetas(mm_collect.carpetas_a_crear(plan))
+        errores_carpetas = mm_collect.crear_carpetas(
+            mm_collect.carpetas_a_crear(plan, destino, estructura)
+        )
         self._collect_estado = {
             "destino": destino,
+            "destino_nk": destino_nk,
             "plan": plan,
             "errores": list(errores_carpetas),
             "sin_archivos": sin_archivos,
@@ -5303,41 +5366,61 @@ class FileScanner(QWidget):
         return pares, sin_archivos
 
     def _confirmar_collect(
-        self, destino, plan, pares, salteadas, sin_archivos, project_dir_vacio
+        self, destino, destino_nk, estructura, plan, pares, salteadas,
+        sin_archivos, project_dir_vacio
     ):
         """El resumen de lo que va a pasar, antes de tocar nada."""
-        cuentas = mm_collect.buckets_del_plan(plan)
-        detalle = ", ".join(
-            "%s (%d)" % (bucket, cantidad) for bucket, cantidad in sorted(cuentas.items())
+        texto = ["%d file(s) will be copied to:" % len(pares), destino, ""]
+
+        if estructura.reproducible:
+            texto.append(
+                "The shot structure is reproduced there, so the collected "
+                "script resolves its own shot folder and scan locations."
+            )
+            if estructura.nombre_externos:
+                # Que location recibe lo de afuera depende del NOMBRE de una
+                # fila de los ajustes, asi que se dice ACA y no solo en el log:
+                # el usuario tiene que poder verlo antes de aceptar.
+                texto.append(
+                    'Files from outside the shot go to the "%s" location.'
+                    % estructura.nombre_externos
+                )
+        else:
+            texto.append(
+                "The shot structure cannot be reproduced (%s), so files are "
+                "grouped by location name instead." % estructura.motivo
+            )
+
+        texto.append("")
+        texto.append(
+            "%d node path(s) will be rewritten as relative."
+            % len(mm_collect.a_reapuntar(plan))
         )
-        texto = [
-            "%d file(s) will be copied to:" % len(pares),
-            destino,
-            "",
-            "Folders: %s" % (detalle or "none"),
-            "%d node path(s) will be rewritten as relative." % len(
-                mm_collect.a_reapuntar(plan)
-            ),
-        ]
         if sin_archivos:
             texto.append(
                 "%d path(s) have no file on disk and will be repointed anyway."
                 % len(sin_archivos)
             )
-        if salteadas:
+        # Vacios y expresiones son dos cosas distintas y se cuentan aparte: un
+        # solo numero rotulado "with expressions" decia 90 en una corrida real
+        # donde la enorme mayoria eran knobs proxy VACIOS.
+        vacias = sum(1 for _e, motivo in salteadas if motivo == mm_collect.SKIP_EMPTY)
+        expresiones = len(salteadas) - vacias
+        if expresiones:
             texto.append(
-                "%d path(s) with expressions will be left untouched." % len(salteadas)
+                "%d path(s) with expressions will be left untouched." % expresiones
             )
+        if vacias:
+            texto.append("%d empty path(s) will be left untouched." % vacias)
         if project_dir_vacio:
             texto.append("The Project Directory will be set to the script folder.")
+
         texto.append("")
-        nombre = os.path.basename(nuke.root().name()) or "collected.nk"
-        if os.path.exists(os.path.join(destino, nombre)):
-            # Se avisa en el MISMO cartel y no en uno aparte: es una condicion
-            # del destino elegido, igual que las de arriba.
-            texto.append('"%s" already exists there and will be overwritten.' % nombre)
+        if os.path.exists(destino_nk):
+            texto.append("The script will OVERWRITE:")
         else:
-            texto.append('The script will then be saved there as "%s".' % nombre)
+            texto.append("The script will then be saved as:")
+        texto.append(destino_nk)
         return ask_question(self, "Collect", "\n".join(texto), yes_text="Collect")
 
     def _on_collect_finished(self, hechos, salteados, errores, cancelado):
@@ -5359,6 +5442,11 @@ class FileScanner(QWidget):
             "[COLLECT] Copia terminada: %d hecho(s), %d error(es), cancelado=%s"
             % (hechos, len(errores or []), cancelado)
         )
+        # Los errores van al .log, no solo al cartel: el cartel se cierra y con
+        # el se pierde el unico dato que dice QUE archivo fallo. Ya paso: una
+        # corrida real informo "1 error" y no quedo rastro de cual.
+        for problema in (errores or [])[:20]:
+            self.logger.debug("[COLLECT]   error: %s" % problema)
 
         estado = getattr(self, "_collect_estado", None)
         self._collect_estado = None
@@ -5393,9 +5481,8 @@ class FileScanner(QWidget):
         aplicadas, errores_knobs = mm_collect.aplicar_rutas(plan_a_escribir)
         errores.extend(errores_knobs)
 
-        nombre = os.path.basename(nuke.root().name()) or "collected.nk"
         ruta_guardada, error_guardado = mm_collect.guardar_como(
-            estado["destino"], nombre
+            estado["destino_nk"]
         )
         if error_guardado:
             # Si el guardado falla, el script ABIERTO ya tiene todos sus knobs

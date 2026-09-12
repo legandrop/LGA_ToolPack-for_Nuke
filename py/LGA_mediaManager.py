@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.51 | Lega
+  LGA_mediaManager v2.52 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -27,6 +27,11 @@ _______________________________________________________________________
     - El titulo de la seccion "Media manager" del README.md. Ese SI es
       un numero a mano y hay que cambiarlo en la misma pasada.
 
+  v2.52: Collect arma en el destino la estructura REAL del shot, la
+         que definen los Settings, en vez de una subcarpeta por nombre
+         de location con el .nk en la raiz. Es lo unico que hace que el
+         script colectado resuelva adentro del collect. El detalle esta
+         en los headers de LGA_MediaManager_collect y _FileScanner.
   v2.51: Collect rechazaba cualquier destino adentro del shot, y una
          carpeta como Comp/collect es el lugar natural para dejar una
          entrega. Collect copia, no mueve: lo unico que se bloquea es

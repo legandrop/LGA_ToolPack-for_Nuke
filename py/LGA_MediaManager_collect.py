@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_collect v2.51 | Lega
+  LGA_MediaManager_collect v2.52 | Lega
 
   El PLAN de un Collect: que archivo va a que carpeta del destino, con
   que ruta relativa queda cada knob, y que choca con que.
@@ -18,6 +18,27 @@ _______________________________________________________________________
   destino de cada archivo, y la ruta relativa se calcula contra la raiz
   del collect, que es donde va a quedar el .nk.
 
+  v2.52: El destino deja de ser una invencion -una subcarpeta por
+         nombre de location, con el .nk en la raiz- y pasa a reproducir
+         la estructura REAL que definen los Settings. Es lo unico que
+         hace que el script colectado resuelva adentro del collect: el
+         shot folder y las locations se escriben relativas al .nk, asi
+         que si el .nk no queda en su misma posicion, resuelven al shot
+         VIEJO. Medido: un rescan despues de un collect volvia a
+         escanear las carpetas del shot original.
+         Suma analizar_estructura, raiz_de_collect, destino_del_script,
+         relativa_entre y clasificar_en_estructura. Se crea ademas el
+         esqueleto completo del shot: sin eso, una location sin
+         archivos no existe en el destino y desde el script colectado
+         resuelve a cero carpetas.
+         relativo_seguro reemplaza a os.path.relpath, que con una
+         carpeta que no cuelga de la base devuelve una ruta con ".."
+         -se escapa del destino- y entre dos unidades lanza ValueError,
+         que con una location absoluta es configuracion valida.
+         revisar_destino pasa a comparar la ruta final del SCRIPT, que
+         es la condicion exacta que destruye algo, y resuelve los alias
+         del sistema de archivos: una letra mapeada al shot metia el
+         collect adentro de si mismo sin ni siquiera el aviso.
   v2.51: Suma revisar_destino, la politica de que carpeta sirve como
          destino. Estaba escrita adentro del metodo de Qt y prohibia el
          shot ENTERO, o sea tambien un Comp/collect recien creado que
@@ -115,8 +136,241 @@ def nombre_de_bucket(nombre_location):
 
 
 # ---------------------------------------------------------------------------
+#                        La estructura del shot a reproducir
+# ---------------------------------------------------------------------------
+def relativo_seguro(ruta, base):
+    """
+    La ruta relativa de `ruta` dentro de `base`, o None si no cuelga de ahi.
+
+    NO usa os.path.relpath. relpath contesta siempre algo: con una carpeta que
+    no cuelga de la base devuelve una ruta con ".." -que adentro del destino se
+    escapa de la carpeta que el usuario eligio- y entre dos unidades distintas
+    lanza ValueError, que en Windows es una configuracion valida y comun (una
+    location apuntando a una biblioteca compartida en otro servidor).
+    """
+    if not dentro_de(ruta, base):
+        return None
+    return relativo_a(con_barras(ruta), base)
+
+
+class Estructura(object):
+    """
+    Como se reproduce el shot adentro del destino.
+
+    Collect deja de inventar carpetas por nombre de location y reproduce la
+    estructura REAL que definen los Settings: si el shot tiene el .nk en
+    "Comp/1_projects" y las locations en "_input" y "Comp/2_prerenders", el
+    destino queda igual. Esa es la unica forma de que abrir el .nk colectado y
+    correr el Media Manager resuelva adentro del collect: el shot folder y las
+    locations se escriben RELATIVAS al .nk, asi que si el .nk no queda en la
+    misma posicion relativa, resuelven al shot viejo.
+
+    `reproducible` es False cuando no hay estructura que copiar -shot apagado,
+    shot que no resuelve, o un .nk que no cuelga del shot-. Ahi se cae al
+    esquema viejo de buckets por nombre, que no es tan bueno pero es predecible.
+    """
+
+    __slots__ = (
+        "reproducible",
+        "shot_dir",
+        "nombre_shot",
+        "rel_nk",
+        "internas",
+        "rel_externos",
+        "nombre_externos",
+        "motivo",
+    )
+
+    def __init__(self, reproducible, shot_dir="", nombre_shot="", rel_nk="",
+                 internas=None, rel_externos="", nombre_externos="", motivo=""):
+        self.reproducible = reproducible
+        self.shot_dir = con_barras(shot_dir).rstrip("/")
+        self.nombre_shot = nombre_shot
+        self.rel_nk = rel_nk
+        self.nombre_externos = nombre_externos
+        # [(nombre, carpeta_absoluta, ruta_relativa_al_shot)] de las locations
+        # que SI cuelgan del shot, ordenadas de mas especifica a menos.
+        self.internas = internas or []
+        # Donde caen los archivos que viven fuera del shot, relativo al shot.
+        self.rel_externos = rel_externos
+        # Por que no es reproducible, para poder decirlo.
+        self.motivo = motivo
+
+
+# Carpeta para lo de afuera cuando no hay ninguna location que pueda recibirlo.
+CARPETA_EXTERNOS = "_outside"
+
+
+def _location_para_externos(internas):
+    """
+    Que location recibe lo que vive fuera del shot.
+
+    Primero la que se llame "input", que es la decision del usuario. Si no hay
+    ninguna con ese nombre, la primera de la lista. Si no hay ninguna location
+    adentro del shot, una carpeta propia en la raiz.
+
+    El criterio depende de un NOMBRE que el usuario puede cambiar, asi que la
+    location elegida se muestra en el cartel de confirmacion: que el destino de
+    un archivo dependa de como se llama una fila de los ajustes es aceptable
+    solo si el usuario lo ve antes de aceptar, no despues en el log.
+    """
+    for nombre, _carpeta, rel in internas:
+        if nombre_de_bucket(nombre) == "input":
+            return rel, nombre
+    if internas:
+        return internas[0][2], internas[0][0]
+    return CARPETA_EXTERNOS, ""
+
+
+def analizar_estructura(shot_dir, nk_dir, locations):
+    """
+    Que se puede reproducir del shot. Devuelve una Estructura.
+
+    No toca disco: trabaja sobre rutas ya resueltas por quien llama.
+    """
+    if not shot_dir:
+        return Estructura(False, motivo="the shot folder is turned off")
+
+    nombre_shot = os.path.basename(con_barras(shot_dir).rstrip("/"))
+    if not nombre_shot:
+        # La raiz de una unidad o de un UNC no tiene nombre. Sin nombre no hay
+        # carpeta de shot que crear, y todo caeria suelto en la carpeta elegida.
+        return Estructura(False, motivo="the shot folder has no name")
+
+    rel_nk = relativo_seguro(nk_dir, shot_dir)
+    if rel_nk is None:
+        # El shot puede configurarse con una ruta absoluta a cualquier lado, y
+        # ahi el .nk no cuelga de el.
+        return Estructura(False, motivo="the script is not inside the shot folder")
+
+    internas = []
+    for nombre, carpeta in locations or ():
+        if not carpeta:
+            continue
+        rel = relativo_seguro(carpeta, shot_dir)
+        if rel is None:
+            # Una location afuera del shot no tiene lugar en la estructura: lo
+            # que viva ahi se trata como material externo.
+            continue
+        internas.append((nombre, con_barras(carpeta), rel))
+
+    # La location que recibe lo de afuera se elige ANTES de ordenar, o sea en
+    # el orden de la tabla de ajustes. Eligiendola despues salia la mas
+    # ESPECIFICA, que no es un criterio que el usuario pueda predecir: con
+    # locations "Plates" y "Assets", lo de afuera caia en Assets solo porque su
+    # ruta es mas larga.
+    rel_externos, nombre_externos = _location_para_externos(internas)
+
+    # Recien ahora, de mas especifica a menos: para el matching, una location
+    # adentro de otra tiene que ganar.
+    internas.sort(key=lambda t: len(normalizar(t[1])), reverse=True)
+    return Estructura(
+        True,
+        shot_dir=shot_dir,
+        nombre_shot=nombre_shot,
+        rel_nk=rel_nk,
+        internas=internas,
+        rel_externos=rel_externos,
+        nombre_externos=nombre_externos,
+    )
+
+
+def raiz_de_collect(elegida, nombre_shot):
+    """
+    La raiz del shot nuevo a partir de la carpeta que eligio el usuario.
+
+    El usuario elige la carpeta CONTENEDORA y aca se le cuelga la del shot. Si
+    la que eligio ya se llama como el shot, se usa tal cual: asi elegir la
+    carpeta que ya preparo no le anida una igual adentro.
+    """
+    elegida = con_barras(elegida).rstrip("/")
+    if not nombre_shot:
+        return elegida
+    if os.path.basename(elegida).lower() == nombre_shot.lower():
+        return elegida
+    return _juntar(elegida, nombre_shot)
+
+
+def destino_del_script(raiz, estructura, nombre_nk):
+    """Donde queda el .nk colectado."""
+    if estructura.reproducible:
+        return _juntar(raiz, estructura.rel_nk, nombre_nk)
+    return _juntar(raiz, nombre_nk)
+
+
+def relativa_entre(rel_desde, rel_hasta):
+    """
+    La ruta de `rel_hasta` vista desde `rel_desde`. Las dos cuelgan de la raiz.
+
+    Es lo que se escribe en el knob, y NO es lo mismo que la ruta relativa a la
+    raiz del collect: el .nk no queda en la raiz sino en su posicion del shot
+    -"Comp/1_projects"-, asi que un archivo en "_input/plate.mov" se escribe
+    "../../_input/plate.mov".
+
+    Se cancela el prefijo comun para que la ruta quede como la escribiria una
+    persona: desde "Comp/1_projects" hasta "Comp/2_prerenders/x.exr" da
+    "../2_prerenders/x.exr" y no "../../Comp/2_prerenders/x.exr". Las dos
+    resuelven al mismo lado, pero la corta es la que ya tiene el script
+    original y la que el usuario espera leer.
+
+    No usa os.path.relpath a proposito: en Windows devuelve barras invertidas
+    y aca la salida va a un knob de Nuke, que las quiere hacia adelante.
+    """
+    desde = [p for p in con_barras(rel_desde).strip("/").split("/") if p]
+    hasta = [p for p in con_barras(rel_hasta).strip("/").split("/") if p]
+
+    comun = 0
+    for a, b in zip(desde, hasta):
+        if a.lower() != b.lower():
+            break
+        comun += 1
+
+    subidas = [".."] * (len(desde) - comun)
+    return "/".join(subidas + hasta[comun:]) or "."
+
+
+# ---------------------------------------------------------------------------
 #                          A que bucket va cada ruta
 # ---------------------------------------------------------------------------
+def clasificar_en_estructura(ruta, estructura):
+    """
+    Donde cae una ruta absoluta dentro del shot reproducido.
+
+    Devuelve la sub-ruta relativa a la raiz del collect. Tres casos:
+
+      1. Adentro de una scan location que cuelga del shot -> la MISMA ruta que
+         tiene hoy relativa al shot. No un bucket con el nombre de la location:
+         la ruta real, para que las locations del script colectado resuelvan.
+      2. Adentro del shot pero fuera de toda location -> su ruta relativa al
+         shot, igual.
+      3. Afuera del shot -> adentro de la location de externos, conservando la
+         carpeta que lo contenia para no perder de donde salio.
+
+    El desempate de homonimos NO se hace aca: lo hace armar_plan para TODOS los
+    casos por igual, con _sin_colision. Meter una formula fija de un solo
+    segmento aca -como decia el borrador de esta propuesta- reintroduce el
+    modo de fallo que el desempate existe para evitar: dos archivos distintos
+    al mismo destino, uno pisa al otro, y el resumen dice que salio todo bien.
+    """
+    ruta = con_barras(ruta)
+
+    # 1. Adentro de una location del shot: su ruta real, relativa al shot.
+    for _nombre, carpeta, rel in estructura.internas:
+        if dentro_de(ruta, carpeta):
+            return _juntar(rel, relativo_a(ruta, carpeta))
+
+    # 2. Adentro del shot, fuera de toda location: su ruta relativa al shot.
+    rel_al_shot = relativo_seguro(ruta, estructura.shot_dir)
+    if rel_al_shot is not None:
+        return rel_al_shot
+
+    # 3. Afuera del shot: a la location de externos, con la carpeta que lo
+    # contenia para no perder de donde salio.
+    carpeta_padre = os.path.basename(os.path.dirname(ruta.rstrip("/")))
+    nombre = os.path.basename(ruta.rstrip("/"))
+    return _juntar(estructura.rel_externos, carpeta_padre, nombre)
+
+
 def clasificar(ruta, locations, shot_dir):
     """
     Decide bucket y sub-ruta de una ruta absoluta.
@@ -188,35 +442,73 @@ def _juntar(*tramos):
 
 # Que puede pasar con el destino elegido.
 DESTINO_OK = "ok"
-DESTINO_ES_NK_DIR = "es_nk_dir"  # bloquea: el Save As pisaria el script
-DESTINO_EN_LOCATION = "en_location"  # solo avisa
+DESTINO_PISA_SCRIPT = "pisa_script"  # bloquea: el Save As pisaria el original
+DESTINO_EN_EL_SHOT = "en_el_shot"  # solo avisa
 
 
-def revisar_destino(destino, nk_dir, locations):
+def _mismo_archivo(a, b):
     """
-    Si el destino elegido sirve. Devuelve (veredicto, nombre_de_location).
+    Si dos rutas son el MISMO lugar en disco.
 
-    Collect COPIA, no mueve, asi que casi cualquier carpeta sirve -incluida una
-    adentro del shot, que es el lugar natural para dejar una entrega-. Hubo un
-    guard que prohibia el shot entero y estaba mal calibrado: rechazaba un
-    "Comp/collect" recien creado sin ningun riesgo detras.
-
-    Lo unico que puede DESTRUIR algo es elegir la carpeta donde vive el .nk:
-    el paso final es un scriptSaveAs con el mismo nombre, o sea que pisaria el
-    script original y sus rutas absolutas.
-
-    Adentro de una scan location no es peligroso, pero tiene una consecuencia
-    que conviene decir antes: desde el proximo escaneo, todo lo colectado
-    aparece en la tabla como material del shot.
+    Compara el texto normalizado y, cuando las dos existen, tambien le
+    pregunta al sistema: dos letras de unidad mapeadas al mismo servidor, o un
+    symlink, son el mismo archivo con dos nombres distintos, y la comparacion
+    de texto no lo ve. Si la de destino todavia no existe -el caso normal- solo
+    queda el texto, y se declara: no es una garantia total.
     """
-    objetivo = normalizar(destino)
-    if not objetivo:
-        return DESTINO_OK, None
-    if objetivo == normalizar(nk_dir):
-        return DESTINO_ES_NK_DIR, None
-    for nombre, carpeta in locations or ():
-        if carpeta and dentro_de(destino, carpeta):
-            return DESTINO_EN_LOCATION, nombre
+    if normalizar(a) == normalizar(b):
+        return True
+    try:
+        if os.path.exists(a) and os.path.exists(b):
+            return os.path.samefile(a, b)
+    except OSError:
+        pass
+    return False
+
+
+def _dentro_de_real(ruta, carpeta):
+    """
+    Como dentro_de, pero resolviendo antes los alias del sistema de archivos.
+
+    La comparacion de texto sola no ve que una letra de unidad mapeada -un
+    `subst K: <shot>`, una unidad de red, un symlink- es el mismo lugar con
+    otro nombre: elegir "K:/" como destino se lleva el shot adentro de si
+    mismo y no salta ni el aviso, porque "k:/..." no empieza con "n:/...".
+    realpath lo desarma en Windows y en macOS.
+    """
+    if dentro_de(ruta, carpeta):
+        return True
+    try:
+        return dentro_de(os.path.realpath(ruta), os.path.realpath(carpeta))
+    except OSError:
+        return False
+
+
+def revisar_destino(raiz, destino_nk, nk_actual, shot_dir):
+    """
+    Si el destino elegido sirve. Devuelve (veredicto, dato).
+
+    Collect COPIA, no mueve, asi que casi cualquier carpeta sirve, incluida una
+    adentro del shot. Hubo un guard que prohibia el shot ENTERO y estaba mal
+    calibrado: rechazaba un "Comp/collect" recien creado sin ningun riesgo.
+
+    Ahora que el destino reproduce la estructura del shot, elegir la carpeta
+    donde vive el .nk tampoco es peligroso: el script colectado aterriza dos
+    niveles mas abajo, adentro de la carpeta con el nombre del shot.
+
+    Lo unico que DESTRUYE algo es que el .nk colectado caiga exactamente sobre
+    el original, que pasa al elegir la raiz del shot actual -se llama como el
+    shot, asi que no se anida, y la estructura se reproduce encima-. Se compara
+    la ruta final del script, que es la condicion exacta, y no la carpeta.
+
+    Reproducir el shot ADENTRO del shot vivo no rompe nada pero deja una copia
+    entera del plano colgando de el, que el proximo escaneo va a listar. Se
+    avisa y se deja seguir.
+    """
+    if destino_nk and nk_actual and _mismo_archivo(destino_nk, nk_actual):
+        return DESTINO_PISA_SCRIPT, None
+    if shot_dir and _dentro_de_real(raiz, shot_dir):
+        return DESTINO_EN_EL_SHOT, shot_dir
     return DESTINO_OK, None
 
 
@@ -249,13 +541,19 @@ def accion_para(entrada, incluir_workdir):
     return ACTION_COPY, ""
 
 
-def armar_plan(entradas, destino, locations, shot_dir, incluir_workdir=False):
+def armar_plan(entradas, destino, locations, shot_dir, incluir_workdir=False,
+               estructura=None):
     """
     El plan completo del collect.
 
     `entradas` son dicts del inventario con al menos: node_name, node_class,
     knob, role, is_folder, is_expression y path (absoluta, ya resuelta).
-    `destino` es la carpeta raiz del collect, donde va a quedar el .nk.
+    `destino` es la RAIZ del shot nuevo, o sea donde se reproduce la estructura.
+
+    Con `estructura` reproducible, cada archivo va a la ruta REAL que tiene hoy
+    relativa al shot, y el resultado es un shot de verdad: abrir el .nk
+    colectado y correr el Media Manager resuelve adentro del collect. Sin ella
+    se cae al esquema viejo de buckets por nombre de location.
 
     Devuelve (plan, salteadas):
       plan       una entrada por knob, con bucket, destino absoluto, ruta
@@ -263,15 +561,17 @@ def armar_plan(entradas, destino, locations, shot_dir, incluir_workdir=False):
       salteadas  [(entrada, motivo)] de lo que no se toca
 
     Las colisiones -dos origenes distintos que caen en el mismo destino- se
-    resuelven aca adentro alargando la sub-ruta en outside/. Si no alcanza, se
-    numera la carpeta contenedora. Dos archivos que se llaman igual y se pisan
-    en silencio es el peor modo de fallar de un collect: el script queda
-    apuntando a un archivo que no es el suyo y nadie se entera.
+    resuelven aca adentro, IGUAL para todos los casos: alargando la sub-ruta
+    con mas segmentos del origen y, si no alcanza, con un hash. Dos archivos
+    que se llaman igual y se pisan en silencio es el peor modo de fallar de un
+    collect: el script queda apuntando a un archivo que no es el suyo y nadie
+    se entera.
     """
     destino = con_barras(destino).rstrip("/")
     plan = []
     salteadas = []
     ocupados = {}
+    reproducible = estructura is not None and estructura.reproducible
 
     for entrada in entradas or []:
         accion, motivo = accion_para(entrada, incluir_workdir)
@@ -280,10 +580,17 @@ def armar_plan(entradas, destino, locations, shot_dir, incluir_workdir=False):
             continue
 
         ruta = con_barras(entrada["path"])
-        bucket, subruta = clasificar(ruta, locations, shot_dir)
+        if reproducible:
+            # Sin bucket: la sub-ruta YA es la ruta relativa a la raiz. El
+            # desempate se hace igual, con un bucket unico, asi que dos
+            # archivos distintos nunca comparten destino.
+            bucket = ""
+            subruta = clasificar_en_estructura(ruta, estructura)
+        else:
+            bucket, subruta = clasificar(ruta, locations, shot_dir)
         # La barra final del origen no viaja en la sub-ruta: se decide una sola
         # vez mas abajo, y si no se saca aca queda duplicada ("CopyCat//").
-        subruta = subruta.strip("/")
+        subruta = (subruta or "").strip("/")
         # La sub-ruta queda vacia cuando el knob apunta EXACTAMENTE a la raiz
         # de una location. Sin nombre, el destino seria la carpeta del bucket y
         # el knob quedaria escrito como "input" a secas. Se usa el ultimo
@@ -293,7 +600,10 @@ def armar_plan(entradas, destino, locations, shot_dir, incluir_workdir=False):
         subruta = _sin_colision(bucket, subruta, ruta, ocupados)
 
         destino_abs = _juntar(destino, bucket, subruta)
-        relativa = _juntar("", bucket, subruta)
+        # La ruta del knob es relativa a la carpeta del .nk, que con estructura
+        # reproducible NO es la raiz del collect sino su posicion del shot.
+        rel_nk = estructura.rel_nk if reproducible else ""
+        relativa = relativa_entre(rel_nk, _juntar("", bucket, subruta))
         # Un knob de carpeta se guarda con la barra final que tenia.
         if entrada.get("is_folder") and ruta.endswith("/"):
             relativa += "/"
@@ -462,15 +772,33 @@ def buckets_del_plan(plan):
     return cuentas
 
 
-def carpetas_a_crear(plan):
-    """Las carpetas del destino que hay que crear, ordenadas y sin repetir."""
+def carpetas_a_crear(plan, raiz="", estructura=None):
+    """
+    Las carpetas del destino que hay que crear, ordenadas y sin repetir.
+
+    Con estructura reproducible se crea ademas el ESQUELETO del shot: la
+    carpeta del .nk y TODAS las scan locations, tengan contenido o no. Medido
+    de punta a punta: sin eso, una location vacia -Assets y Publish en el shot
+    de prueba- simplemente no existe en el destino, y desde el script colectado
+    resuelve a cero carpetas. El collect dejaba de ser un shot valido apenas
+    alguna location no tuviera archivos, que es el caso normal.
+
+    Son carpetas vacias, si: pero son las carpetas PROPIAS del shot, no buckets
+    inventados. Un shot al que le faltan sus carpetas no es un shot.
+    """
     carpetas = set()
     for item in plan or []:
         if item["accion"] == ACTION_MKDIR:
             carpetas.add(item["destino"].rstrip("/"))
         else:
             carpetas.add(os.path.dirname(item["destino"].rstrip("/")))
-    return sorted(carpetas)
+
+    if raiz and estructura is not None and estructura.reproducible:
+        carpetas.add(_juntar(raiz, estructura.rel_nk))
+        for _nombre, _abs, rel in estructura.internas:
+            carpetas.add(_juntar(raiz, rel))
+
+    return sorted(c for c in carpetas if c)
 
 
 def a_copiar(plan):
@@ -653,16 +981,20 @@ def deshacer():
         return False
 
 
-def guardar_como(destino, nombre_archivo):
+def guardar_como(ruta):
     """
-    Guarda el script en la raiz del collect. Devuelve (ruta, error).
+    Guarda el script en la ruta dada. Devuelve (ruta, error).
+
+    Recibe la ruta COMPLETA y no destino+nombre: desde que el collect
+    reproduce la estructura del shot, el .nk no va en la raiz sino en su
+    posicion -"Comp/1_projects"-, y esa cuenta ya la hizo destino_del_script.
 
     Va DESPUES de reescribir los knobs: si se guardara antes, el .nk del
     destino quedaria con las rutas viejas.
     """
     import nuke
 
-    ruta = _juntar(destino, nombre_archivo)
+    ruta = con_barras(ruta)
     try:
         nuke.scriptSaveAs(ruta, overwrite=1)
         return ruta, ""
