@@ -449,7 +449,7 @@ El último botón abre una galería con todos los snapshots que se guardan, sepa
 
 ## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Reset workspace v1.0 | Checho
 
-Reinicia el workspace.
+Reinicia el workspace. Es la única herramienta del pack que también está en Hiero y Nuke Studio, en su propio menú TP y con el mismo atajo.
 <br><br>
 <img src="Doc_Media/reset_workspace_shortcut.svg" alt="Reset workspace shortcut" width="195" height="43">
 

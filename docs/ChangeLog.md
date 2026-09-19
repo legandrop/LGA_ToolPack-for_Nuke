@@ -1,5 +1,9 @@
 # ChangeLog
 
+## v2.66
+
+- **Reset Workspace llega a Hiero y Nuke Studio.** El guard de `menu.py` dejaba afuera el pack entero en esos hosts, y con él una tool que sí tiene sentido ahí. Ahora, en Hiero y Studio, `menu.py` carga `LGA_ToolPack_Hiero_menu.py`, que arma un menú TP propio con `hiero.ui` a partir de una lista blanca, `HIERO_TOOLS`. El armado es diferido: cuando corre `menu.py`, Hiero todavía no cargó `_fnpython` e `import hiero` falla. Habilitar otra tool es sumar una entrada a esa lista; el guard sigue igual y el resto del pack no carga. Cada entrada usa la misma clave de Enable Tools que el menú de Nuke, así que apagarla desde ese panel la apaga en los dos hosts. [ ResetWorkspace - Habilitar en Hiero y Nuke Studio ]
+
 ## v2.65
 
 - **El botón dice `Reload All Reads` y el espacio libre destaca lo que importa.** `Reload` solo no decía sobre qué; el nombre completo es además el de la tool de ToolPack-B de la que sale. En la barra de estado, el tamaño y la letra del disco pasan a ir resaltados con `emphasis()` y el `free on` que los une queda de cuerpo: es el mismo criterio que los carteles de Collect, y lo que se lee de un vistazo es cuánto queda y en qué disco. Media Manager v2.58. [ MediaManager - Reload All Reads y espacio libre resaltado ]
