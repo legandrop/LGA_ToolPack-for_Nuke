@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_NKS_Flow_NamingUtils v1.13 | Lega
+  LGA_NKS_Flow_NamingUtils v1.14 | Lega
 
   Utilidades para detectar y extraer información de nombres de archivos/shots
   Compatible con sistemas de nomenclatura actuales y series:
@@ -16,23 +16,25 @@ ____________________________________________________________________
   - LGA_NKS_Coordination_Panel.py
   - LGA_NKS_Edit_Panel.py
   - LGA_NKS_Shared/LGA_NKS_GetClip.py
-  - LGA_NKS_Flow_Panel_py/LGA_NKS_Flow_Pull.py
-  - LGA_NKS_Flow_Panel_py/LGA_NKS_Flow_Push.py
-  - LGA_NKS_Flow_Panel_py/LGA_NKS_Flow_Push_connector.py
-  - LGA_NKS_Flow_Panel_py/LGA_NKS_Flow_Shot_info.py
+  - LGA_NKS_Flow_Rev_Panel_py/LGA_NKS_Flow_Pull.py
+  - LGA_NKS_Flow_Rev_Panel_py/LGA_NKS_Flow_Push.py
+  - LGA_NKS_Flow_Rev_Panel_py/LGA_NKS_Flow_Push_connector.py
+  - LGA_NKS_Flow_Rev_Panel_py/LGA_NKS_Flow_Shot_info.py
   - LGA_NKS_Assignee_Panel_py/LGA_NKS_Flow_Assignee.py
   - LGA_NKS_Assignee_Panel_py/LGA_NKS_Flow_Assign_Assignee.py
   - LGA_NKS_Assignee_Panel_py/LGA_NKS_Flow_Clear_Assignees.py
-  - LGA_NKS_Coordination_Panel_py/LGA_NKS_Flow_ShowInFlow.py
-  - LGA_NKS_Coordination_Panel_py/LGA_NKS_Flow_Thumbs.py
-  - LGA_NKS_Coordination_Panel_py/LGA_NKS_Flow_CreateShot.py
-  - LGA_NKS_Coordination_Panel_py/LGA_NKS_Flow_CheckTimelineShots.py
-  - LGA_NKS_Coordination_Panel_py/LGA_NKS_Flow_ShotPriority.py
+  - LGA_NKS_Flow_S3_Panel_py/LGA_NKS_Flow_ShowInFlow.py
+  - LGA_NKS_Flow_S3_Panel_py/LGA_NKS_Flow_Thumbs.py
+  - LGA_NKS_Flow_S3_Panel_py/LGA_NKS_Flow_CreateShot.py
+  - LGA_NKS_Flow_S3_Panel_py/LGA_NKS_Flow_CheckTimelineShots.py
+  - LGA_NKS_Flow_S3_Panel_py/LGA_NKS_Flow_ShotPriority.py
   - LGA_NKS_Edit_Panel_py/LGA_NKS_MatchVerToEXR.py
   - LGA_NKS_Edit_Panel_py/LGA_NKS_SetShotName.py
   - LGA_NKS_Edit_Panel_py/LGA_NKS_CompareVerToEditref.py
   - LGA_NKS_Edit_Panel_py/LGA_NKS_CompareEXR_to_aPlate.py
 
+  v1.14: Actualiza las referencias documentales a las carpetas privadas
+         Flow Rev y Flow S3 de HieroTools.
   v1.13: Copia local para LGA_ToolPack, usada por Show Flow Notes sin depender
          de HieroTools instalado/cargado.
   v1.12: extract_project_name_from_path(): extrae el nombre de proyecto desde
@@ -253,4 +255,3 @@ def extract_task_name(base_name):
         return core_parts[task_index]
 
     return None
-

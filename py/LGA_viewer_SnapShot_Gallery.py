@@ -1,9 +1,11 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v1.07 | Lega
+  LGA_viewer_SnapShot_Gallery v1.08 | Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
+  v1.08 - La integracion con HieroTools sigue la carpeta privada renombrada
+          LGA_NKS_Flow_Rev_Panel_py al localizar ShareX Image Editor.
   v1.07 - Se enrocan los modificadores: Shift+click abre el JPG en el
           ShareX Image Editor (como el panel de HieroTools) y Alt+click lo
           revela en el explorador. Sin HieroTools, Shift cae al visor por
@@ -135,7 +137,7 @@ def get_hierotools_image_editor():
         "Python",
         "Startup",
         "LGA_HieroTools",
-        "LGA_NKS_Flow_Panel_py",
+        "LGA_NKS_Flow_Rev_Panel_py",
         "ShareX_ImageEditor_LGA",
         "ShareX_ImageEditor_LGA.exe",
     )

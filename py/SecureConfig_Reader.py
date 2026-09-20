@@ -1,19 +1,21 @@
 """
 ____________________________________________________________________
 
-  SecureConfig_Reader v1.02 | Lega
+  SecureConfig_Reader v1.03 | Lega
 
   Lee config.secure de PipeSync para credenciales/roles de Flow.
 
+  v1.03: Actualiza las referencias documentales a las carpetas privadas
+         Flow Rev y Flow S3 de HieroTools.
+  v1.02: Agrega trazas no sensibles para diagnosticar lectura de config.secure.
   v1.01: Copia local para LGA_ToolPack, usada por Show Flow Notes sin depender
          de HieroTools instalado/cargado.
-  v1.02: Agrega trazas no sensibles para diagnosticar lectura de config.secure.
 ____________________________________________________________________
 
 Usado por runtime activo:
 - LGA_NKS_ViewerTL_Panel.py
 - LGA_NKS_Projects_Panel_py/LGA_Projects_Panel_ScanProjects.py
-- LGA_NKS_Flow_Panel_py/LGA_NKS_Flow_Push.py
+- LGA_NKS_Flow_Rev_Panel_py/LGA_NKS_Flow_Push.py
 - LGA_NKS_Assignee_Panel_py/LGA_NKS_Flow_Assignee.py
 - LGA_NKS_Assignee_Panel_py/LGA_NKS_Flow_Assign_Assignee.py
 - LGA_NKS_Assignee_Panel_py/LGA_NKS_Flow_Clear_Assignees.py
@@ -21,9 +23,9 @@ Usado por runtime activo:
 - LGA_NKS_Assignee_Panel_py/LGA_NKS_Wasabi_PolicyUnassign.py
 - LGA_NKS_Assignee_Panel_py/LGA_NKS_Wasabi_PolicyUnassign_CompletedShots.py
 - LGA_NKS_Assignee_Panel_py/wasabi_policy_utils.py
-- LGA_NKS_Coordination_Panel_py/LGA_NKS_Flow_ShowInFlow.py
-- LGA_NKS_Coordination_Panel_py/LGA_NKS_Flow_CreateShot.py
-- LGA_NKS_Coordination_Panel_py/LGA_NKS_Flow_ShotPriority.py
+- LGA_NKS_Flow_S3_Panel_py/LGA_NKS_Flow_ShowInFlow.py
+- LGA_NKS_Flow_S3_Panel_py/LGA_NKS_Flow_CreateShot.py
+- LGA_NKS_Flow_S3_Panel_py/LGA_NKS_Flow_ShotPriority.py
 """
 
 import sys

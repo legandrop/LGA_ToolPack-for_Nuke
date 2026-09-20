@@ -430,7 +430,7 @@ Cambia el viewer a Rec709.
 
 
 
-## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.07 | Lega</strong>
+## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.08 | Lega</strong>
 
 Take: Toma un snapshot (jpg) de lo que se ve en el viewer —con el viewerProcess, el gain y el gamma aplicados, y respetando el encuadre—, lo copia al portapapeles, lo guarda en la carpeta de archivos temporales y también en una galería.<br>
 Take and append: Con Shift se generan dos imágenes: la captura suelta y la compo con la anterior pegada a su izquierda. Repitiendo el shortcut se va armando la tira de comparación —plate, versión del vendor, propuesta— sin pasar por Photoshop.<br>

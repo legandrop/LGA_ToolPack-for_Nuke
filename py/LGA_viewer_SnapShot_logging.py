@@ -1,7 +1,7 @@
 """
 ______________________________________________________________________________
 
-  LGA_viewer_SnapShot_logging v1.07 | Lega
+  LGA_viewer_SnapShot_logging v1.08 | Lega
 
   Logger compartido de la tool Take/Show Snapshot.
 

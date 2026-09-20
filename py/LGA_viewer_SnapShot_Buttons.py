@@ -1,7 +1,7 @@
 """
 ______________________________________________________
 
-  LGA_viewer_SnapShot_Buttons v1.07 | Lega
+  LGA_viewer_SnapShot_Buttons v1.08 | Lega
 
   Crea botones en el viewer para snapshots
 

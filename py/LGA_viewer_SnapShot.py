@@ -1,7 +1,7 @@
 """
 ______________________________________________________________________________
 
-  LGA_viewer_SnapShot v1.07 | Lega
+  LGA_viewer_SnapShot v1.08 | Lega
 
   Crea un snapshot de lo que se ve en el viewer, lo copia al portapapeles y
   puede guardarlo en la galeria del proyecto.
