@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.28 | Lega
+  LGA_UI_Style_ToolPack v1.29 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.29: Style.PILL_CONTAINER_SUNKEN separa el switch de placement del fondo
+         de una ventana sin alterar el toggle Studio/Client.
   v1.28: Style.PILL_CONTAINER, PILL_ACTIVE y PILL_INACTIVE centralizan el
          switch compacto usado por contexto y decisiones de preview.
   v1.27: FRAME_RANGE_GRADIENT, los dos colores del rango de frames de
@@ -380,6 +382,7 @@ class Color(object):
     PILL_TEXT = "#CCCCCC"
     PILL_TEXT_DIM = "#8A8A8A"
     PILL_TEXT_HOVER = "#C8C8C8"
+    PILL_SUNKEN = "#161616"
 
 
 # De la divergencia en adelante se recorre esta paleta en orden, IGUAL en los
@@ -935,7 +938,16 @@ QWidget {
     border-radius: 13px;
 }
 """ % {
-        "window": Color.WINDOW,
+    "window": Color.WINDOW,
+    }
+    Style.PILL_CONTAINER_SUNKEN = """
+QWidget {
+    background: %(sunken)s;
+    border: none;
+    border-radius: 13px;
+}
+""" % {
+        "sunken": Color.PILL_SUNKEN,
     }
     Style.PILL_ACTIVE = """
 QPushButton {

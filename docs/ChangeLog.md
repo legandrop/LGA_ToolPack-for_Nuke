@@ -2,6 +2,8 @@
 
 ## v2.66
 
+- **La cápsula PILL puede hundirse sin alterar el switch Studio/Client.** `LGA_UI_Style_ToolPack v1.29` agrega `PILL_CONTAINER_SUNKEN` con fondo `#161616`; se usa cuando el contenedor normal compartiría el mismo color que la ventana y dejaría invisibles los límites del grupo. [ ToolPack - Separar cápsula PILL del fondo ]
+
 - **El switch pill pasa a ser una hoja compartida de los cuatro packs.** `LGA_UI_Style_ToolPack v1.28` concentra contenedor, segmento activo e inactivo para que opciones mutuamente excluyentes mantengan la geometría y los estados del control Studio/Client sin copiar QSS en cada diálogo. La documentación de estilo incorpora el rol. [ ToolPack - Centralizar switch pill ]
 
 - **Snapshot Gallery acompaña el renombre interno de Flow Rev.** HieroTools movió el ShareX Image Editor desde `LGA_NKS_Flow_Panel_py/` a `LGA_NKS_Flow_Rev_Panel_py/`; la galería todavía construía la ruta anterior y habría ocultado Shift+click aunque el editor siguiera instalado. La ruta compartida se actualiza y queda cubierta por una regresión estática; las copias locales de `SecureConfig_Reader` y `LGA_NKS_Flow_NamingUtils` actualizan también su inventario documental de consumidores. Take/Show Snapshot v1.08, `SecureConfig_Reader v1.03`, `LGA_NKS_Flow_NamingUtils v1.14`. [ SnapshotGallery - Seguir la carpeta Flow Rev ]
