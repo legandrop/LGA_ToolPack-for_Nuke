@@ -182,6 +182,7 @@ familia `Inter`.
 | El botón que ejecuta la acción | `Style.BTN_PRIMARY` |
 | Cancel, Close, cualquier otro | `Style.BTN_SECONDARY` |
 | Botón auxiliar de una fila de herramientas | `Style.BTN_SMALL` |
+| Switch compacto de opciones mutuamente excluyentes | `Style.PILL_CONTAINER`, `Style.PILL_ACTIVE`, `Style.PILL_INACTIVE` |
 | Botón cuadrado con un glifo (swap, `+`, `-`) | `Style.BTN_ICON` |
 | La cruz de cerrar de una ventana sin frame | `Style.BTN_CLOSE` |
 | Tabla | `Style.TABLE` |

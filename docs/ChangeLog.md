@@ -2,6 +2,8 @@
 
 ## v2.66
 
+- **El switch pill pasa a ser una hoja compartida de los cuatro packs.** `LGA_UI_Style_ToolPack v1.28` concentra contenedor, segmento activo e inactivo para que opciones mutuamente excluyentes mantengan la geometría y los estados del control Studio/Client sin copiar QSS en cada diálogo. La documentación de estilo incorpora el rol. [ ToolPack - Centralizar switch pill ]
+
 - **Snapshot Gallery acompaña el renombre interno de Flow Rev.** HieroTools movió el ShareX Image Editor desde `LGA_NKS_Flow_Panel_py/` a `LGA_NKS_Flow_Rev_Panel_py/`; la galería todavía construía la ruta anterior y habría ocultado Shift+click aunque el editor siguiera instalado. La ruta compartida se actualiza y queda cubierta por una regresión estática; las copias locales de `SecureConfig_Reader` y `LGA_NKS_Flow_NamingUtils` actualizan también su inventario documental de consumidores. Take/Show Snapshot v1.08, `SecureConfig_Reader v1.03`, `LGA_NKS_Flow_NamingUtils v1.14`. [ SnapshotGallery - Seguir la carpeta Flow Rev ]
 
 - **Reset Workspace llega a Hiero y Nuke Studio.** El guard de `menu.py` dejaba afuera el pack entero en esos hosts, y con él una tool que sí tiene sentido ahí. Ahora, en Hiero y Studio, `menu.py` carga `LGA_ToolPack_Hiero_menu.py`, que arma un menú TP propio con `hiero.ui` a partir de una lista blanca, `HIERO_TOOLS`. El armado es diferido: cuando corre `menu.py`, Hiero todavía no cargó `_fnpython` e `import hiero` falla. Habilitar otra tool es sumar una entrada a esa lista; el guard sigue igual y el resto del pack no carga. Cada entrada usa la misma clave de Enable Tools que el menú de Nuke, así que apagarla desde ese panel la apaga en los dos hosts. [ ResetWorkspace - Habilitar en Hiero y Nuke Studio ]

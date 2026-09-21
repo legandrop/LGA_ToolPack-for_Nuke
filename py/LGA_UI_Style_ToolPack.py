@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.27 | Lega
+  LGA_UI_Style_ToolPack v1.28 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.28: Style.PILL_CONTAINER, PILL_ACTIVE y PILL_INACTIVE centralizan el
+         switch compacto usado por contexto y decisiones de preview.
   v1.27: FRAME_RANGE_GRADIENT, los dos colores del rango de frames de
          una secuencia -copiados del browser de FileManager S3-, para
          pintarlo con el mismo gradiente violeta-fucsia en las tablas.
@@ -370,6 +372,14 @@ class Color(object):
     # igual, pero tiene token propio para que retocar la paleta de paths no le
     # cambie el color a algo que no es un path.
     ENTITY = "#C56CF0"
+
+    # --- switch segmentado ------------------------------------------------
+    # El switch Studio/Client usa estos tres textos. Son tokens separados de
+    # los botones porque una opcion inactiva se lee como contexto disponible,
+    # no como una accion secundaria.
+    PILL_TEXT = "#CCCCCC"
+    PILL_TEXT_DIM = "#8A8A8A"
+    PILL_TEXT_HOVER = "#C8C8C8"
 
 
 # De la divergencia en adelante se recorre esta paleta en orden, IGUAL en los
@@ -913,6 +923,47 @@ QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
         Color.SURFACE,
         Metric.RADIUS,
     )
+
+    # Switch segmentado. Conserva exactamente la geometria y los estados del
+    # toggle Studio/Client: un contenedor oscuro y un unico segmento violeta.
+    # A diferencia de un grupo de botones secundarios, las opciones son partes
+    # de una sola decision y no tres acciones independientes.
+    Style.PILL_CONTAINER = """
+QWidget {
+    background: %(window)s;
+    border: none;
+    border-radius: 13px;
+}
+""" % {
+        "window": Color.WINDOW,
+    }
+    Style.PILL_ACTIVE = """
+QPushButton {
+    background: %(accent)s;
+    color: %(text)s;
+    border: none;
+    border-radius: 11px;
+    padding: 3px 14px;
+    font-size: 12px;
+}
+""" % {
+        "accent": Color.ACCENT,
+        "text": Color.PILL_TEXT,
+    }
+    Style.PILL_INACTIVE = """
+QPushButton {
+    background: transparent;
+    color: %(text_dim)s;
+    border: none;
+    border-radius: 11px;
+    padding: 3px 14px;
+    font-size: 12px;
+}
+QPushButton:hover { color: %(text_hover)s; }
+""" % {
+        "text_dim": Color.PILL_TEXT_DIM,
+        "text_hover": Color.PILL_TEXT_HOVER,
+    }
 
     # --- botones -----------------------------------------------------------
     # Los dos botones de accion van en SemiBold (600) y no en bold. El pack
