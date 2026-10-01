@@ -13,7 +13,7 @@ ____________________________________________________________________
   Usado por runtime activo:
   - LGA_NKS_Flow_Panel.py
   - LGA_NKS_Assignee_Panel.py
-  - LGA_NKS_Coordination_Panel.py
+  - LGA_NKS_Flow_S3_Panel.py
   - LGA_NKS_Edit_Panel.py
   - LGA_NKS_Shared/LGA_NKS_GetClip.py
   - LGA_NKS_Flow_Rev_Panel_py/LGA_NKS_Flow_Pull.py
