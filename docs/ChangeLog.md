@@ -2,6 +2,8 @@
 
 ## v2.66
 
+- **El README que muestra GitHub pasa a ser el inglés.** La página del repo mostraba el README en castellano y el inglés quedaba escondido en `README_EN.md`. Ahora `README.md` es el inglés y el castellano pasa a `README_ES.md` (antes `README.md`), renombrados con historia. Los dos arrancan con un selector de idioma que enlaza al otro, así que mantienen el mismo esqueleto línea por línea; el resto del contenido no cambia. [ ToolPack - El README de GitHub pasa a estar en ingles ]
+
 - **La cápsula PILL puede hundirse sin alterar el switch Studio/Client.** `LGA_UI_Style_ToolPack v1.29` agrega `PILL_CONTAINER_SUNKEN` con fondo `#161616`; se usa cuando el contenedor normal compartiría el mismo color que la ventana y dejaría invisibles los límites del grupo. [ ToolPack - Separar cápsula PILL del fondo ]
 
 - **El switch pill pasa a ser una hoja compartida de los cuatro packs.** `LGA_UI_Style_ToolPack v1.28` concentra contenedor, segmento activo e inactivo para que opciones mutuamente excluyentes mantengan la geometría y los estados del control Studio/Client sin copiar QSS en cada diálogo. La documentación de estilo incorpora el rol. [ ToolPack - Centralizar switch pill ]

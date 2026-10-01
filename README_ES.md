@@ -1,3 +1,5 @@
+<p align="right"><a href="README.md">English</a> · <b>Español</b></p>
+
 <p>
   <img src="Doc_Media/image1.png" alt="LGA Tool Pack logo" width="56" height="56" align="left" style="margin-right:8px;">
   <span style="font-size:1.6em;font-weight:700;line-height:1;">LGA TOOL PACK</span><br>
