@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_mediaManager v2.58 | Lega
+  LGA_mediaManager v2.59 | Lega
 
   Ventana del Media Manager: escaneo del shot, estado de cada media,
   relink, copia de archivos, borrado y descarga desde Wasabi.
@@ -24,9 +24,14 @@ _______________________________________________________________________
       de ESTE header con get_tool_version() de
       LGA_MediaManager_settings.py, asi que no hay ningun numero
       escrito a mano en la interfaz.
-    - El titulo de la seccion "Media manager" del README.md. Ese SI es
-      un numero a mano y hay que cambiarlo en la misma pasada.
+    - El titulo de la seccion "Media manager" de README.md y de
+      README_ES.md. Ese SI es un numero a mano y hay que cambiarlo en
+      los dos en la misma pasada.
 
+  v2.59: Un script fuera de la estructura esperada -ninguna scan
+         location existe junto al .nk- ya no dispara un escaneo de
+         carpetas: se muestran solo los archivos de los nodos. Antes
+         un .nk en el Escritorio recorria la carpeta del usuario entera.
   v2.57: El espacio libre de la barra se lee -estaba en el gris
          atenuado- y suma un punto de color: verde de 200 GB para
          arriba, amarillo entre 100 y 200, rojo abajo. Y aparece un

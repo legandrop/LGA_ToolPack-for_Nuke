@@ -47,7 +47,7 @@ Your choice is saved **outside the pack**, in **%APPDATA%\LGA\ToolPack\Enabled.i
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.58 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.59 | Lega
 
 To quickly review and organize all of the project's media.<br>
 When run, it scans the folders configured as scan locations and every path in the script's Read nodes, showing the status of each file as OK, Offline, Outside or Unused so you can decide whether to relink, copy or delete.<br><br>
@@ -72,7 +72,7 @@ It's best to have the script saved before you start. If something fails it rolls
 **Options available in the Settings**
 
 - <strong>Shot folder:</strong> The main shot folder, written as a path relative to the script's folder. It defines what is inside the shot and what is outside, that is, where the Outside status comes from, and it is the anchor for path coloring. The default is <code>../..</code>: if the script is in T:/Client/Film/Shot/Comp/Project/e101s005.nk, it goes up from Project to Comp and from Comp to Shot. It can be turned off, and then Outside is measured against the scan locations instead.
-- <strong>Scan locations:</strong> One row per folder, with its name and its path relative to the script. The path accepts <code>*</code> as a wildcard, so <code>../*assets*</code> finds 0_assets, _assets or my_assets without having to type the exact name, and the <em>Resolves to</em> column shows which real folder each one points to. Each row has two checkboxes: <strong>Scan</strong> includes it in the scan —if another location already contains it, it stays checked and disabled, because the scan is recursive— and <strong>Copy to</strong> offers it in the copy menu. The shortcut goes in its own field, a single letter, and is triggered with Alt + that letter.
+- <strong>Scan locations:</strong> One row per folder, with its name and its path relative to the script. The path accepts <code>*</code> as a wildcard, so <code>../*assets*</code> finds 0_assets, _assets or my_assets without having to type the exact name, and the <em>Resolves to</em> column shows which real folder each one points to. Each row has two checkboxes: <strong>Scan</strong> includes it in the scan —if another location already contains it, it stays checked and disabled, because the scan is recursive— and <strong>Copy to</strong> offers it in the copy menu. If no location exists next to the script —a loose <code>.nk</code> on the desktop, for example— no folder is scanned and the table shows only the files used by the script's nodes. The shortcut goes in its own field, a single letter, and is triggered with Alt + that letter.
 <br>
 
 **The status bar**

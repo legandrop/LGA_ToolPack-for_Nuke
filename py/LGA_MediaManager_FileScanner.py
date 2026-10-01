@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.58 | Lega
+  LGA_MediaManager_FileScanner v2.59 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 

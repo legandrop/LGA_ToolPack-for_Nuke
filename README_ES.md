@@ -47,7 +47,7 @@ La elección se guarda **fuera del pack**, en **%APPDATA%\LGA\ToolPack\Enabled.i
 <br><br>
 <img src="Doc_Media/read_n_write.svg" alt="READ n WRITE" width="262" height="33">
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.58 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Media manager v2.59 | Lega
 
 Para revisar y ordenar toda la media del proyecto de forma rápida.<br>
 Al ejecutarlo escanea las carpetas configuradas como scan locations y todas las rutas de los nodos Read del script, mostrando el estado de cada archivo como OK, Offline, Outside o Unused para poder decidir si relinkear, copiar o borrar.<br><br>
@@ -72,7 +72,7 @@ Conviene tener el script guardado antes de empezar. Si algo falla vuelve atrás 
 **Opciones disponibles en los Settings**
 
 - <strong>Shot folder:</strong> La carpeta principal del shot, escrita como una ruta relativa a la carpeta del script. Define qué está adentro del shot y qué está afuera, o sea de dónde sale el estado Outside, y es el ancla del coloreo de los paths. Por default es <code>../..</code>: si el script está en T:/Client/Film/Shot/Comp/Project/e101s005.nk, sube desde Project a Comp y de Comp a Shot. Se puede apagar, y ahí Outside pasa a medirse contra las scan locations.
-- <strong>Scan locations:</strong> Una fila por carpeta, con su nombre y su ruta relativa al script. La ruta acepta <code>*</code> como comodín, así que <code>../*assets*</code> encuentra 0_assets, _assets o my_assets sin tener que escribir el nombre exacto, y la columna <em>Resolves to</em> muestra a qué carpeta real llega cada una. Cada fila tiene dos casillas: <strong>Scan</strong> la incluye en el escaneo —si otra location ya la contiene queda tildada y deshabilitada, porque el escaneo es recursivo— y <strong>Copy to</strong> la ofrece en el menú de copia. El atajo va en su propio campo, una sola letra, y se dispara con Alt + esa letra.
+- <strong>Scan locations:</strong> Una fila por carpeta, con su nombre y su ruta relativa al script. La ruta acepta <code>*</code> como comodín, así que <code>../*assets*</code> encuentra 0_assets, _assets o my_assets sin tener que escribir el nombre exacto, y la columna <em>Resolves to</em> muestra a qué carpeta real llega cada una. Cada fila tiene dos casillas: <strong>Scan</strong> la incluye en el escaneo —si otra location ya la contiene queda tildada y deshabilitada, porque el escaneo es recursivo— y <strong>Copy to</strong> la ofrece en el menú de copia. Si ninguna location existe junto al script —un <code>.nk</code> suelto en el escritorio, por ejemplo— no se escanea ninguna carpeta y la tabla muestra sólo los archivos de los nodos del script. El atajo va en su propio campo, una sola letra, y se dispara con Alt + esa letra.
 <br>
 
 **La barra de estado**

@@ -2,6 +2,8 @@
 
 ## v2.66
 
+- **Un script fuera de la estructura del shot hacía escanear la carpeta del usuario entera.** Cuando ninguna scan location existe junto al `.nk`, el escaneo caía a la carpeta del shot, que con un `.nk` suelto en el escritorio resuelve `../..` a la carpeta del usuario: medido en una corrida real, casi 50 segundos de recorrido por `AppData` y un log de 78 MB, sin encontrar nada útil. Ahora, si ninguna location resuelve, no se escanea ninguna carpeta y la tabla muestra sólo los archivos de los nodos del script, que nunca dependieron de ese escaneo. Los dos README lo cuentan. Media Manager v2.59. [ MediaManager - No escanear fuera de la estructura del shot ]
+
 - **El README que muestra GitHub pasa a ser el inglés.** La página del repo mostraba el README en castellano y el inglés quedaba escondido en `README_EN.md`. Ahora `README.md` es el inglés y el castellano pasa a `README_ES.md` (antes `README.md`), renombrados con historia. Los dos arrancan con un selector de idioma que enlaza al otro, así que mantienen el mismo esqueleto línea por línea; el resto del contenido no cambia. [ ToolPack - El README de GitHub pasa a estar en ingles ]
 
 - **La cápsula PILL puede hundirse sin alterar el switch Studio/Client.** `LGA_UI_Style_ToolPack v1.29` agrega `PILL_CONTAINER_SUNKEN` con fondo `#161616`; se usa cuando el contenedor normal compartiría el mismo color que la ventana y dejaría invisibles los límites del grupo. [ ToolPack - Separar cápsula PILL del fondo ]

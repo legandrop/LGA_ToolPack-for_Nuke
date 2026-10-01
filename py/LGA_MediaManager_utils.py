@@ -1,10 +1,14 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_utils v2.58 | Lega
+  LGA_MediaManager_utils v2.59 | Lega
 
   Worker de escaneo, copia de archivos y widgets compartidos del
   Media Manager.
+
+  v2.59: Si ninguna scan location existe junto al .nk, no se escanea
+         nada. Antes se caia a la carpeta del shot, y con un .nk suelto
+         en el Escritorio eso era recorrer la carpeta del usuario entera.
 
   v2.53: La ventana de progreso TEMBLABA durante una copia. El nombre
          del archivo iba pegado al titulo en el mismo QLabel, que tiene
@@ -1390,17 +1394,26 @@ class ScannerWorker(QRunnable):
 
             # Ya no se escanea UNA carpeta sino las scan locations, que pueden
             # ser varias: cada una entra a la cuenta del progreso y despues a
-            # find_files. Si no hay ninguna se cae a la del shot, para que un
-            # .ini sin locations no deje la ventana vacia.
+            # find_files.
             # La resolucion contra disco se hace ACA y no en el hilo
             # principal: es un os.scandir por nivel y por rama de cada
             # comodin, y contra un servidor eso cuelga la ventana entera.
             self.file_scanner.resolve_shot_folder()
             carpetas = list(self.file_scanner.resolve_scan_folders() or [])
             if not carpetas:
-                # Sin ninguna location con Scan no habria nada que mostrar:
-                # se cae a la carpeta del shot para no abrir la ventana vacia.
-                carpetas = [self.file_scanner.project_folder]
+                # Ninguna location existe junto a este .nk: el script no esta
+                # en la estructura esperada. No se escanea nada y la tabla
+                # muestra solo los archivos de los nodos, que salen de la
+                # segunda fase y no dependen de esto.
+                # Antes se caia a la carpeta del shot, y un .nk suelto en el
+                # Escritorio tiene de shot ../.. = la carpeta del usuario
+                # entera, AppData incluido: minutos de os.walk y un log de
+                # cientos de MB para no encontrar nada que sirva.
+                self.logger.debug(
+                    f"{self.get_timestamp()} Ninguna scan location existe junto"
+                    f" a {self.file_scanner.nk_dir()}: no se escanean carpetas,"
+                    " solo los nodos del script."
+                )
 
             root_items = []
             for carpeta in carpetas:
