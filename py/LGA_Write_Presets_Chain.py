@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets_Chain v2.78 | Lega
+  LGA_Write_Presets_Chain v2.79 | Lega
 
   Presets de cadena de Write Presets: guarda los nodos seleccionados (un
   Write y lo que tenga arriba: OCIO, textos, groups, backdrops) como un
@@ -14,18 +14,25 @@ _____________________________________________________________________________
     respaldo <.nuke>/LGA_Settings/ToolPack/WritePresets/
 
   Al guardar:
+    - Los Read de la seleccion quedan afuera: un preset de salida no
+      trae media.
     - Se suman solos los backdrops que encierran nodos seleccionados y
       no tienen adentro ningun nodo sin seleccionar (tambien anidados).
     - Se saca el rango de frames propio (first/last/use_limit) de los
       Write de primer nivel: era el del shot donde se armo.
-    - Si hay rutas absolutas en knobs de archivo (una LUT, un CDL) se
-      ofrece pasarlas a relativas a la carpeta del script. Las de red
-      (UNC) quedan siempre absolutas.
+    - No se guarda ninguna ruta fija: los knobs de archivo con una ruta
+      sin TCL se vacian. Las rutas con TCL quedan, porque se resuelven
+      solas en cada shot.
 
   Al pegar: con un nodo seleccionado la cadena se cuelga de el y se ubica
   debajo; sin ninguno se pega suelta y se encuadra; con varios se avisa y
-  no se pega. Borrar un preset lo manda a la papelera.
+  no se pega. Los OCIOCDLTransform y OCIOFileTransform vacios se completan
+  con el CDL, el LMT y el working space del .amf del shot
+  (LGA_Write_Presets_Look). Borrar un preset lo manda a la papelera.
 
+  v2.79: Sin rutas fijas: al guardar se vacian en vez de ofrecer pasarlas
+         a relativas, que solo servia desde un script dentro del shot. Al
+         pegar, el look se toma del .amf del shot. Los Read quedan afuera.
   v2.78: Modulo nuevo.
 _____________________________________________________________________________
 
@@ -57,14 +64,16 @@ PASTE_GAP_Y = 40
 # Knobs de rango que se le sacan a los Write al guardar.
 FRAME_RANGE_KNOBS = ("first", "last", "use_limit")
 
-# Solo se miran knobs de archivo: un label o un message que empiece con una
-# ruta es texto del usuario y no se reescribe.
-PATH_KNOB_WORDS = ("file", "path", "lut")
+# Clases que no entran en un preset: traen media del shot donde se armo.
+EXCLUDED_CLASSES = ("Read", "DeepRead", "ReadGeo", "ReadGeo2")
+
+LOOK_NODE_CLASSES = ("OCIOCDLTransform", "OCIOFileTransform")
 
 _INVALID_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 # Una linea "knob valor" de un .nk, sin TCL en el valor.
 _KNOB_LINE = re.compile(r'^(?P<indent>\s+)(?P<knob>\w+) (?P<q>"?)(?P<value>[^"\n\[]+)(?P=q)\s*$')
-_DRIVE_PATH = re.compile(r"^[A-Za-z]:[\\/]")
+# La linea que abre un nodo: las clases empiezan en mayuscula y los knobs no.
+_NODE_LINE = re.compile(r"^\s*(?P<clase>[A-Z]\w*) \{$")
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +99,10 @@ def _log(*partes):
             handle.write("\n".join(_log_lines) + "\n")
     except OSError:
         pass
+
+
+def _html(text):
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 # ---------------------------------------------------------------------------
@@ -187,15 +200,19 @@ def _nodes_inside_backdrop(backdrop, candidatos):
 
 
 def collect_preset_nodes():
-    """Seleccion + backdrops que la encierran. None si no hay ningun Write.
+    """(nodos, reads_excluidos). nodos es None si no hay ningun Write.
 
-    Se repite hasta que no cambie nada: un backdrop grande que encierra a uno
-    chico entra recien cuando entro el chico.
+    Los Read quedan afuera. Los backdrops que encierran la seleccion se suman
+    en una pasada que se repite hasta que no cambie nada: un backdrop grande
+    que encierra a uno chico entra recien cuando entro el chico. Un Read
+    excluido igual cuenta como "seleccionado" para esto: no es un nodo que el
+    usuario haya dejado afuera.
     """
     seleccion = nuke.selectedNodes()
-    if not any(n.Class() == "Write" for n in seleccion):
-        return None
-    elegidos = list(seleccion)
+    excluidos = [n for n in seleccion if n.Class() in EXCLUDED_CLASSES]
+    elegidos = [n for n in seleccion if n.Class() not in EXCLUDED_CLASSES]
+    if not any(n.Class() == "Write" for n in elegidos):
+        return None, excluidos
     nombres = set(n.fullName() for n in seleccion)
     todos = nuke.allNodes()
     backdrops = nuke.allNodes("BackdropNode")
@@ -211,7 +228,7 @@ def collect_preset_nodes():
                 nombres.add(backdrop.fullName())
                 cambio = True
                 _log("Backdrop sumado solo:", backdrop.name())
-    return elegidos
+    return elegidos, excluidos
 
 
 def _copy_nodes_to_text(nodes):
@@ -265,82 +282,34 @@ def strip_write_frame_range(text):
     return "\n".join(salida)
 
 
-def _unescape_nk(value):
-    """Valor tal como lo lee Nuke: el .nk escapa \\ { } $ [ y comillas."""
-    return re.sub(r"\\(.)", r"\1", value)
+def _is_path_knob(knob):
+    knob = knob.lower()
+    return knob in ("file", "proxy", "path") or knob.endswith("_file") or knob.endswith("_path")
 
 
-def _escape_nk(value):
-    """Valor listo para ir entre comillas en un .nk (como lo escribe Nuke)."""
-    return re.sub(r'([\\"\[{}$])', r"\\\1", value)
+def strip_fixed_paths(text):
+    """Vacia los knobs de archivo con una ruta sin TCL.
 
-
-def _path_kind(path):
-    if path.startswith("//") or path.startswith("\\\\"):
-        return "unc"
-    if _DRIVE_PATH.match(path):
-        return "drive"
-    if path.startswith("/"):
-        return "posix"
-    return None
-
-
-def _parse_path_line(linea):
-    """(match, ruta) si la linea es un knob de archivo con ruta absoluta."""
-    match = _KNOB_LINE.match(linea)
-    if not match:
-        return None, None
-    knob = match.group("knob").lower()
-    if not any(palabra in knob for palabra in PATH_KNOB_WORDS):
-        return None, None
-    ruta = _unescape_nk(match.group("value"))
-    if not _path_kind(ruta):
-        return None, None
-    return match, ruta
-
-
-def find_absolute_paths(text):
-    """Rutas absolutas sin TCL en los knobs de archivo. Lista de (knob, ruta)."""
-    encontradas = []
-    for linea in text.split("\n"):
-        match, ruta = _parse_path_line(linea)
-        if match:
-            encontradas.append((match.group("knob"), ruta))
-    return encontradas
-
-
-def _script_dir():
-    nombre = nuke.root().name()
-    if not nombre or nombre == "Root":
-        return None
-    return os.path.dirname(nombre)
-
-
-def relative_expression(path, script_dir):
-    """La ruta como expresion relativa al script, o None si no se puede."""
-    if _path_kind(path) == "unc":
-        # Una ruta de red no tiene relativa confiable desde una unidad local.
-        return None
-    try:
-        rel = os.path.relpath(path, script_dir)
-    except ValueError:
-        # Otra unidad: no hay relativa posible.
-        return None
-    return "[file dir [value root.name]]/" + rel.replace("\\", "/")
-
-
-def make_paths_relative(text, script_dir):
-    """Reemplaza las rutas absolutas por expresiones relativas al script."""
+    Devuelve (texto, quitadas), con quitadas una lista de (clase, knob, ruta).
+    La linea se borra entera: el knob vuelve a su default, que es vacio. Las
+    rutas con TCL no entran en el regex (no puede haber '[' en el valor).
+    """
     salida = []
+    quitadas = []
+    clase = None
     for linea in text.split("\n"):
-        match, ruta = _parse_path_line(linea)
-        if match:
-            expr = relative_expression(ruta, script_dir)
-            if expr:
-                linea = '%s%s "%s"' % (match.group("indent"), match.group("knob"), _escape_nk(expr))
-                _log("Ruta relativa:", ruta, "->", expr)
+        nodo = _NODE_LINE.match(linea)
+        if nodo:
+            clase = nodo.group("clase")
+        match = _KNOB_LINE.match(linea)
+        if match and _is_path_knob(match.group("knob")):
+            valor = re.sub(r"\\(.)", r"\1", match.group("value"))
+            if "/" in valor or "\\" in valor:
+                quitadas.append((clase, match.group("knob"), valor))
+                continue
         salida.append(linea)
-    return "\n".join(salida)
+    _log("Rutas fijas quitadas:", quitadas)
+    return "\n".join(salida), quitadas
 
 
 def _write_atomic(path, text):
@@ -365,33 +334,27 @@ def _default_name(nodes):
     return ""
 
 
-def _html(text):
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def _ask_relative(paths, script_dir):
-    from LGA_UI_MessageBox_ToolPack import ask_question
-
-    filas = []
-    for knob, ruta in paths:
-        expr = relative_expression(ruta, script_dir)
-        filas.append(
-            "%s: %s<br>&nbsp;&nbsp;&rarr; %s"
-            % (_html(knob), _html(ruta), _html(expr) if expr else "stays absolute")
+def _saved_notes(excluidos, quitadas):
+    """Lo que el cartel final cuenta que se dejo afuera del preset."""
+    notas = []
+    if excluidos:
+        notas.append(
+            "Left out (Reads are not saved in presets): %s."
+            % ", ".join(_html(n.name()) for n in excluidos)
         )
-    texto = (
-        "This preset has absolute paths. They will point to the same files "
-        "in every shot.<br><br>%s<br><br>"
-        "Make them relative to the script folder instead?" % "<br><br>".join(filas)
-    )
-    return ask_question(
-        None,
-        "Absolute paths",
-        texto,
-        yes_text="Make relative",
-        no_text="Keep absolute",
-        recommended=False,
-    )
+    look = [q for q in quitadas if q[0] in LOOK_NODE_CLASSES]
+    otras = [q for q in quitadas if q[0] not in LOOK_NODE_CLASSES]
+    if look:
+        notas.append(
+            "CDL and LUT files are not saved: when pasting, they are loaded "
+            "from the shot's .amf in _input/Look_Files."
+        )
+    if otras:
+        notas.append(
+            "These fixed paths were cleared, presets only keep TCL paths:<br>%s"
+            % "<br>".join("%s %s: %s" % (_html(c or "?"), _html(k), _html(r)) for c, k, r in otras)
+        )
+    return "".join("<br><br>" + n for n in notas)
 
 
 def save_selection_as_preset():
@@ -400,7 +363,7 @@ def save_selection_as_preset():
     from LGA_Write_Presets import show_name_input_dialog
 
     _log_start("Guardar preset de cadena")
-    nodes = collect_preset_nodes()
+    nodes, excluidos = collect_preset_nodes()
     if not nodes:
         _log("Cancelado: no hay ningun Write en la seleccion")
         show_warning(
@@ -411,6 +374,7 @@ def save_selection_as_preset():
         )
         return
     _log("Nodos:", ", ".join(n.name() for n in nodes))
+    _log("Reads excluidos:", ", ".join(n.name() for n in excluidos))
 
     carpeta = get_writable_presets_dir()
     if not carpeta:
@@ -448,27 +412,14 @@ def save_selection_as_preset():
         _log("Cancelado: no se reemplaza el existente")
         return
 
-    nota = ""
     try:
         texto = _copy_nodes_to_text(nodes)
         texto = strip_write_frame_range(texto)
-
-        absolutas = find_absolute_paths(texto)
-        _log("Rutas absolutas:", absolutas)
-        script_dir = _script_dir()
-        if absolutas and not script_dir:
-            _log("Script sin guardar: las rutas quedan absolutas")
-            nota = (
-                "<br><br>Its paths stay absolute: save the script first "
-                "to be able to make them relative."
-            )
-        elif absolutas and _ask_relative(absolutas, script_dir):
-            texto = make_paths_relative(texto, script_dir)
-
+        texto, quitadas = strip_fixed_paths(texto)
         _write_atomic(destino, texto)
     except Exception as exc:
         _log("ERROR al guardar:", repr(exc))
-        show_error(None, "Write Presets", "Could not save the preset:<br>%s" % _html(str(exc)))
+        show_error(None, "Write Presets", "Could not save the preset:<br>%s" % _html(exc))
         return
 
     _log("Guardado OK")
@@ -476,7 +427,7 @@ def save_selection_as_preset():
         None,
         "Write Presets",
         "Preset <b>%s</b> saved.<br>Open Write Presets (Shift+W) to use it.%s"
-        % (_html(nombre), nota),
+        % (_html(nombre), _saved_notes(excluidos, quitadas)),
     )
 
 
@@ -510,6 +461,24 @@ def _place_below(anchor, pasted):
     _log("Cadena movida", dx, dy, "debajo de", anchor.name())
 
 
+def _preset_has_look_nodes(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            texto = handle.read()
+    except OSError:
+        return False
+    return re.search(r"^\s*(%s) \{$" % "|".join(LOOK_NODE_CLASSES), texto, re.M) is not None
+
+
+def _empty_look_nodes(pasted):
+    """Los nodos de look del preset que quedaron sin archivo (no los de TCL)."""
+    vacios = []
+    for n in pasted:
+        if n.Class() in LOOK_NODE_CLASSES and not n["file"].value().strip():
+            vacios.append(n)
+    return vacios
+
+
 def apply_chain_preset(preset):
     """Pega el preset colgando del nodo seleccionado, o suelto si no hay."""
     from LGA_UI_MessageBox_ToolPack import show_error, show_warning
@@ -536,6 +505,18 @@ def apply_chain_preset(preset):
     anchor = seleccion[0] if seleccion else None
     _log("Ancla:", anchor.name() if anchor else None)
 
+    # El look se resuelve ANTES de abrir el undo: puede abrir un cartel.
+    plan, problema = None, None
+    if _preset_has_look_nodes(path):
+        import LGA_Write_Presets_Look as look
+        from LGA_Write_Presets_Dialogs import pick_plate
+
+        look.set_logger(_log)
+        _log("Resolviendo look del shot")
+        plan, problema = look.resolve_look_plan(anchor, lambda entries: pick_plate(None, entries))
+        _log("Plan de look:", plan, "| problema:", problema)
+
+    problemas = []
     undo = nuke.Undo()
     undo.begin("Write Preset: %s" % preset["name"])
     try:
@@ -554,16 +535,33 @@ def apply_chain_preset(preset):
             # Sin ancla quedan en las coordenadas del script donde se guardo:
             # se encuadran para que se vean.
             nuke.zoomToFitSelected()
+
+        vacios = _empty_look_nodes(pasted)
+        if vacios and plan:
+            import LGA_Write_Presets_Look as look
+
+            problemas = look.apply_look_plan(vacios, plan)
+        elif vacios and problema:
+            problemas = [problema, "The CDL and LUT nodes were left empty."]
     except Exception as exc:
         _log("ERROR al pegar:", repr(exc))
         show_error(
             None,
             "Write Presets",
-            "Could not paste the preset <b>%s</b>:<br>%s"
-            % (_html(preset["name"]), _html(str(exc))),
+            "Could not paste the preset <b>%s</b>:<br>%s" % (_html(preset["name"]), _html(exc)),
         )
+        return
     finally:
         undo.end()
+
+    if problemas:
+        _log("Problemas de look:", problemas)
+        show_warning(
+            None,
+            "Write Presets",
+            "The preset was pasted, but its look files need a check:<br><br>%s"
+            % "<br>".join(_html(p) for p in problemas),
+        )
 
 
 def _send_to_trash(path):
@@ -596,9 +594,7 @@ def delete_chain_preset(preset):
         _send_to_trash(preset["path"])
     except Exception as exc:
         _log("ERROR al borrar:", repr(exc))
-        show_error(
-            None, "Write Presets", "Could not delete the preset:<br>%s" % _html(str(exc))
-        )
+        show_error(None, "Write Presets", "Could not delete the preset:<br>%s" % _html(exc))
         return False
     _log("A la papelera:", preset["path"])
     return True

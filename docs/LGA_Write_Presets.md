@@ -11,6 +11,8 @@ Sistema para crear nodos Write con configuraciones predefinidas. Genera paths au
 - **`LGA_ToolPack/LGA_Write_Presets.ini`**: Archivo de configuración con los presets disponibles
 - **`LGA_ToolPack/LGA_Write_Presets_Check.py`**: Módulo auxiliar para verificación y edición de paths antes de crear el Write o editar Writes existentes
 - **`LGA_ToolPack/py/LGA_Write_Presets_Chain.py`**: Presets de cadena: guardar la selección con Alt+Shift+W, listarlos, pegarlos y mandarlos a la papelera
+- **`LGA_ToolPack/py/LGA_Write_Presets_Look.py`**: Al pegar un preset, carga el CDL y el LMT del shot desde su `.amf` (copia de la lógica de AMF de ToolPack-B)
+- **`LGA_ToolPack/py/LGA_Write_Presets_Dialogs.py`**: Cartel para elegir el plate (copia del de AMF)
 
 ## Funcionalidad Principal
 
@@ -44,11 +46,12 @@ Las fórmulas TCL en los presets se ajustan automáticamente según el formato d
 
 Además de los presets del `.ini`, el usuario puede guardar una cadena de nodos entera: un Write y lo que tenga arriba (OCIO, CDL, LUT, burn-ins, groups, metadata) como un pedazo de `.nk`.
 
-- **Guardar (Alt+Shift+W)**: hace falta al menos un Write en la selección. Se suman solos los backdrops que encierran nodos seleccionados y no tienen adentro ningún nodo sin seleccionar; se repite hasta que no cambia nada, así un backdrop que encierra a otro también entra. Se copia con `nuke.nodeCopy` a un temporal del sistema y se guarda atómico.
-- **Limpieza al guardar**: a los Write de primer nivel se les saca `first`, `last` y `use_limit`. En los knobs de archivo (nombre con `file`, `path` o `lut`) se buscan rutas absolutas sin TCL y se ofrece pasarlas a `[file dir [value root.name]]/<relativa>`. Las rutas de red (UNC), las de otra unidad y las de un script sin guardar quedan absolutas, y el cartel final lo dice.
+- **Guardar (Alt+Shift+W)**: hace falta al menos un Write en la selección. Los Read (y DeepRead, ReadGeo) quedan afuera: un preset de salida no trae media. Se suman solos los backdrops que encierran nodos seleccionados y no tienen adentro ningún nodo sin seleccionar; se repite hasta que no cambia nada, así un backdrop que encierra a otro también entra. Se copia con `nuke.nodeCopy` a un temporal del sistema y se guarda atómico.
+- **Limpieza al guardar**: a los Write de primer nivel se les saca `first`, `last` y `use_limit`. No se guarda ninguna ruta fija: en los knobs de archivo (`file`, `proxy`, `path` o terminados en `_file`/`_path`) se borra la línea cuyo valor es una ruta sin TCL, y el knob vuelve a vacío. Las rutas con TCL quedan. El cartel final dice qué se dejó afuera.
 - **Dónde viven**: `%APPDATA%/LGA/ToolPack/WritePresets/<nombre>.nk` (macOS: `~/Library/Application Support/...`), con respaldo en `<.nuke>/LGA_Settings/ToolPack/WritePresets/`. Nunca adentro del pack. El nombre del archivo es el nombre del preset.
 - **En la ventana (Shift+W)**: van al final con el prefijo `[Chain]`. Las filas salen de `self.rows` (presets del `.ini` y después los de cadena), no de las secciones `PresetN`. Click o Shift+Click los pega; click derecho los manda a la papelera con `send2trash`, previa confirmación.
 - **Al pegar**: con un nodo seleccionado, `nodePaste` conecta la entrada de la cadena a ese nodo y `_place_below` la mueve para que arranque debajo. Sin selección se pega suelta y se encuadra. Con varios nodos seleccionados se avisa y no se pega. Todo va en un solo paso de undo.
+- **Look del shot**: si el preset trae `OCIOCDLTransform` u `OCIOFileTransform`, antes de pegar se arma el plan con `LGA_Write_Presets_Look.resolve_look_plan`: sube desde el `.nk` hasta la carpeta con `_input`, lista los `.amf` de `_input/Look_Files` por plate (versión más alta), y elige el plate: uno solo, el que nombra la ruta de un Read de arriba del ancla (como bloque y sin distinguir mayúsculas: `APLATE` → `aPlate`), o el cartel `pick_plate`. Del `.amf` salen el `.cdl` hermano con su `cccid`, el `.clf` del LMT y el working space de cada uno (sin `.amf`: un `.cdl` y un `.clf` por extensión). Después de pegar, `apply_look_plan` carga eso en los nodos de look que quedaron sin archivo, por tipo y en orden de cadena; los que tienen TCL no se tocan. Lo que no se pudo resolver sale en un cartel.
 
 ## Compatibilidad con OCIO
 
@@ -158,9 +161,9 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 - `_create_write_from_pending(modified_file_pattern=None)`: Callback que crea el Write usando el file_pattern modificado si aplica
 
 **`LGA_ToolPack/py/LGA_Write_Presets_Chain.py`**:
-- `save_selection_as_preset()`: Entrada de Alt+Shift+W; pide nombre, confirma reemplazo, ofrece rutas relativas y guarda
-- `collect_preset_nodes()`: Selección más los backdrops que la encierran
-- `strip_write_frame_range(text)`, `find_absolute_paths(text)`, `make_paths_relative(text, script_dir)`: Limpieza del texto `.nk` antes de guardar
+- `save_selection_as_preset()`: Entrada de Alt+Shift+W; pide nombre, confirma reemplazo, limpia y guarda
+- `collect_preset_nodes()`: Selección sin Reads, más los backdrops que la encierran
+- `strip_write_frame_range(text)` y `strip_fixed_paths(text)`: Limpieza del texto `.nk` antes de guardar
 - `list_chain_presets()`: Presets de las dos carpetas posibles, sin repetir nombre
 - `apply_chain_preset(preset)` y `_place_below(anchor, pasted)`: Pegado y ubicación de la cadena
 - `delete_chain_preset(preset)`: Confirmación y envío a la papelera
@@ -169,3 +172,12 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 - `SelectedNodeInfo.rows`: Lista de filas de la tabla, presets del `.ini` y de cadena
 - `apply_if_chain(preset)` y `handle_right_click(row, column)`: Pegar y borrar presets de cadena desde la tabla
 - `NameInputDialog(initial_text, title, width)` y `show_name_input_dialog(...)`: Diálogo de nombre, compartido entre el nombre de render y el de preset
+
+**`LGA_ToolPack/py/LGA_Write_Presets_Look.py`**:
+- `resolve_look_plan(anchor, ask_plate)`: Look_Files del shot, elección de plate y plan desde el `.amf`
+- `plate_from_read(anchor, entries)`: Plate que nombra un Read de arriba del ancla
+- `apply_look_plan(look_nodes, plan)`: Carga archivo, `cccid` y working space en los nodos de look
+- `scan_amf_entries`, `build_effect_plan`, `configure_node`, `match_colorspace_option`: Copias de `LGA_ApplyAMF.py` (ToolPack-B)
+
+**`LGA_ToolPack/py/LGA_Write_Presets_Dialogs.py`**:
+- `pick_plate(parent, entries)`: Cartel de elección de plate

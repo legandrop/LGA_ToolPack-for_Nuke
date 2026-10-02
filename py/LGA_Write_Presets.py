@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.78 | Lega
+  LGA_Write_Presets v2.79 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -10,11 +10,15 @@ _____________________________________________________________________________
     LGA_Write_Presets.py          <- este, el principal (ventana Shift+W)
     LGA_Write_Presets_Check.py    ventana de verificacion del path
     LGA_Write_Presets_Chain.py    presets de cadena (Alt+Shift+W)
+    LGA_Write_Presets_Look.py     look del shot (.amf) al pegar un preset
+    LGA_Write_Presets_Dialogs.py  cartel para elegir el plate
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - El titulo de la seccion "Write Presets" de README.md y README_ES.md,
       a mano.
 
+  v2.79: Sin cambios en este archivo; suben los modulos de presets de
+         cadena (look del shot desde el .amf).
   v2.78: Presets de cadena. La tabla suma al final los presets que el
          usuario guarda con Alt+Shift+W (prefijo [Chain]); el clic los pega
          debajo del nodo seleccionado y el clic derecho ofrece borrarlos.
