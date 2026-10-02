@@ -681,3 +681,16 @@ def _documentation_runner():
 
 
 n.addCommand("Documentation v%s" % PRODUCT_VERSION, _documentation_runner)
+
+
+def _whats_new_runner():
+    # El modulo se importa recien al hacer click: las notas no se leen al
+    # arrancar Nuke, solo cuando el usuario las pide.
+    import LGA_ToolPack_WhatsNew
+
+    LGA_ToolPack_WhatsNew.show_whats_new()
+
+
+# Igual que Documentation, no pasa por is_enabled(): es informacion del pack,
+# no una tool que se pueda apagar.
+n.addCommand("What's new", _whats_new_runner)

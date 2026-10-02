@@ -27,6 +27,8 @@
 
 - The pack lets you **enable/disable** tools from the **TP > Enable Tools** menu, explained below.
 
+- **TP > What's new** shows what changed in each version of the pack.
+
 <br>
 
 
