@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.81 | Lega
+  LGA_Write_Presets v2.82 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -18,6 +18,10 @@ _____________________________________________________________________________
     - El titulo de la seccion "Write Presets" de README.md y README_ES.md,
       a mano.
 
+  v2.82: Compartir presets de cadena arrastrando: soltar un .nk sobre la
+         ventana lo importa (borde violeta mientras se arrastra encima) y
+         arrastrar una fila [Chain] hacia afuera la entrega como archivo.
+         Las filas se arman en _build_rows() para poder recargarlas.
   v2.81: La ventana de verificacion del path se abre centrada donde estaba la
          ventana de presets (o en el cursor, al editar un Write seleccionado),
          en vez de en el centro de la pantalla.
@@ -1035,6 +1039,9 @@ class ShiftClickTableWidget(QTableWidget):
         super().__init__(rows, columns, parent)
         self.shift_click_callback = None  # type: ignore
         self.right_click_callback = None  # type: ignore
+        # Devuelve la ruta del .nk de una fila, o None si la fila no se exporta.
+        self.drag_path_callback = None  # type: ignore
+        self._drag_start = None
         self.hovered_row = -1
 
     def mousePressEvent(self, event):
@@ -1088,9 +1095,40 @@ class ShiftClickTableWidget(QTableWidget):
                     return
         # Si no es Shift+Click, procesar normalmente
         debug_print("[ShiftClickTableWidget] No es Shift+Click, procesando normalmente")
+        if event.button() == Qt.LeftButton:
+            self._drag_start = event.pos()
         super().mousePressEvent(event)
 
+    def mouseReleaseEvent(self, event):
+        self._drag_start = None
+        super().mouseReleaseEvent(event)
+
+    def _start_file_drag(self, row):
+        """Arrastra el .nk de la fila como archivo: al escritorio, a una
+        carpeta o a un chat. El soltado copia, el preset no se mueve."""
+        path = self.drag_path_callback(row) if self.drag_path_callback else None
+        if not path or not os.path.isfile(path):
+            return False
+        mime = QtCore.QMimeData()
+        mime.setUrls([QtCore.QUrl.fromLocalFile(path)])
+        drag = QtGui.QDrag(self)
+        drag.setMimeData(mime)
+        # PySide6 nombra exec(); PySide2 solo tiene exec_().
+        ejecutar = getattr(drag, "exec", None) or drag.exec_
+        ejecutar(Qt.CopyAction)
+        return True
+
     def mouseMoveEvent(self, event):
+        if (
+            self._drag_start is not None
+            and event.buttons() & Qt.LeftButton
+            and (event.pos() - self._drag_start).manhattanLength()
+            >= QApplication.startDragDistance()
+        ):
+            fila = self.indexAt(self._drag_start).row()
+            self._drag_start = None
+            if fila >= 0 and self._start_file_drag(fila):
+                return
         index = self.indexAt(event.pos())
         new_row = index.row() if index.isValid() else -1
         if new_row != self.hovered_row:
@@ -1127,28 +1165,7 @@ class SelectedNodeInfo(QWidget):
         )
         debug_print("[Write_Presets] ========== DETECCION COMPLETADA ==========")
 
-        # Una fila por preset: primero los del .ini y despues los de cadena
-        # que guardo el usuario con Alt+Shift+W.
-        self.rows = list(self.presets.values())
-        try:
-            from LGA_Write_Presets_Chain import list_chain_presets
-
-            for chain in list_chain_presets():
-                self.rows.append(
-                    {
-                        "button_type": "chain",
-                        "button_name": chain["name"],
-                        "name": chain["name"],
-                        "path": chain["path"],
-                    }
-                )
-        except Exception as exc:
-            debug_print(f"[Write_Presets] No se pudieron listar los presets de cadena: {exc}")
-
-        self.options = [
-            f"[{preset['button_type'].capitalize()}] {preset['button_name']}"
-            for preset in self.rows
-        ]
+        self._build_rows()
 
         # Verificar si hay un Write seleccionado antes de crear la interfaz
         selected_write = None
@@ -1174,6 +1191,100 @@ class SelectedNodeInfo(QWidget):
                 return
 
         self.initUI()
+
+    def _build_rows(self):
+        """Una fila por preset: primero los del .ini y despues los de cadena
+        que guardo el usuario con Alt+Shift+W o que importo soltando un .nk."""
+        self.rows = list(self.presets.values())
+        try:
+            from LGA_Write_Presets_Chain import list_chain_presets
+
+            for chain in list_chain_presets():
+                self.rows.append(
+                    {
+                        "button_type": "chain",
+                        "button_name": chain["name"],
+                        "name": chain["name"],
+                        "path": chain["path"],
+                    }
+                )
+        except Exception as exc:
+            debug_print(f"[Write_Presets] No se pudieron listar los presets de cadena: {exc}")
+
+        self.options = [
+            f"[{preset['button_type'].capitalize()}] {preset['button_name']}"
+            for preset in self.rows
+        ]
+
+    def reload_rows(self):
+        """Rearma la tabla sin mover la ventana (despues de importar)."""
+        self._build_rows()
+        self.table.setRowCount(len(self.options))
+        self.load_render_options()
+        self.table.hovered_row = -1
+        posicion = self.pos()
+        self.adjust_window_size()
+        self.move(posicion)
+
+    def chain_path_for_row(self, row):
+        """La ruta del .nk si la fila es un preset de cadena (para exportar)."""
+        if 0 <= row < len(self.rows) and self.rows[row].get("button_type") == "chain":
+            return self.rows[row]["path"]
+        return None
+
+    # -- Soltar .nk sobre la ventana: importar como preset de cadena ----------
+    @staticmethod
+    def _dropped_nk_paths(event):
+        mime = event.mimeData()
+        if not mime.hasUrls():
+            return []
+        rutas = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()]
+        return [r for r in rutas if r.lower().endswith(".nk")]
+
+    def _set_drop_highlight(self, activo):
+        """Borde violeta mientras se arrastra un .nk encima de la ventana."""
+        contenedor = self.findChild(QWidget, "mainContainer")
+        if contenedor is None:
+            return
+        borde = ("border: 2px solid %s;" % Color.ACCENT_HOVER) if activo else "border: none;"
+        contenedor.setStyleSheet(
+            "QWidget#mainContainer { background-color: %s; border-radius: %dpx; %s }"
+            % (Color.WINDOW, Metric.RADIUS, borde)
+        )
+
+    def dragEnterEvent(self, event):
+        if self._dropped_nk_paths(event):
+            event.acceptProposedAction()
+            self._set_drop_highlight(True)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if self._dropped_nk_paths(event):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._set_drop_highlight(False)
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event):
+        self._set_drop_highlight(False)
+        rutas = self._dropped_nk_paths(event)
+        if not rutas:
+            event.ignore()
+            return
+        # Se acepta el drop ANTES de los carteles: si no, el explorador queda
+        # esperando la respuesta del drag mientras el cartel esta abierto.
+        event.acceptProposedAction()
+        QTimer.singleShot(0, lambda: self._import_dropped(rutas))
+
+    def _import_dropped(self, rutas):
+        from LGA_Write_Presets_Chain import import_preset_files
+
+        if import_preset_files(rutas):
+            self.reload_rows()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
@@ -1264,6 +1375,10 @@ class SelectedNodeInfo(QWidget):
         self.table.shift_click_callback = self.handle_render_option_shift  # type: ignore
         # Click derecho: borrar un preset de cadena
         self.table.right_click_callback = self.handle_right_click  # type: ignore
+        # Arrastrar una fila [Chain] afuera la exporta como .nk
+        self.table.drag_path_callback = self.chain_path_for_row  # type: ignore
+        # Soltar un .nk sobre la ventana lo importa como preset de cadena
+        self.setAcceptDrops(True)
 
         main_layout.addWidget(self.table)
 

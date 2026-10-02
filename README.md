@@ -154,7 +154,7 @@ If the sequence name doesn't match the script's name, or if the destination alre
 
 
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v2.81 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v2.82 | Lega
 
 To create Write nodes with predefined settings for different kinds of renders.<br>
 Opens a window with preconfigured render options that are loaded from an .ini file. It lets you create Writes based on the script name or on the name of the topmost Read node. Depending on the configuration, it can open a dialog to name the render and automatically create a backdrop with a Write and a Switch. The presets include specific settings for different formats (mov, tiff, exr) with parameters tuned for each case.<br>
@@ -163,7 +163,7 @@ Opens a window with preconfigured render options that are loaded from an .ini fi
 If run on an existing Write, the TCL editor opens:<br>
 ![](Doc_Media/write_presetsB_v01.gif)
 
-You can also save your own presets: select a Write and the nodes above it (color transforms, burn-ins, groups, even the backdrop around them) and press Alt+Shift+W. The preset appears at the end of the list as [Chain], and clicking it pastes the whole chain under the selected node. When saving, the Write's frame range is removed, Reads are left out, and no fixed paths are kept, only TCL ones. When pasting, the CDL and LUT nodes load the shot's own files from the .amf in _input/Look_Files, asking which plate to use when there is more than one. Backdrops, here and in the preRender + Switch preset, come out as LGA backdrops and above any backdrop already there. Right-click a [Chain] preset to move it to the trash.
+You can also save your own presets: select a Write and the nodes above it (color transforms, burn-ins, groups, even the backdrop around them) and press Alt+Shift+W. The preset appears at the end of the list as [Chain], and clicking it pastes the whole chain under the selected node. When saving, the Write's frame range is removed, Reads are left out, and no fixed paths are kept, only TCL ones. When pasting, the CDL and LUT nodes load the shot's own files from the .amf in _input/Look_Files, asking which plate to use when there is more than one. Backdrops, here and in the preRender + Switch preset, come out as LGA backdrops and above any backdrop already there. Right-click a [Chain] preset to move it to the trash. To share presets, drag a [Chain] row out of the window to get its .nk file, and drop a .nk on the window to add it to your presets, cleaned the same way.
 <br><br>
 <img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcuts" width="345" height="65">
 

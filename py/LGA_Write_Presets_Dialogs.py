@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_Write_Presets_Dialogs v2.81 | Lega
+  LGA_Write_Presets_Dialogs v2.82 | Lega
 
   Cartel para elegir el plate cuando se pega un preset de cadena en un
   shot con varios .amf y el Read de arriba no dice cual es.

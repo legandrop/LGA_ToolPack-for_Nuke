@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets_Chain v2.81 | Lega
+  LGA_Write_Presets_Chain v2.82 | Lega
 
   Presets de cadena de Write Presets: guarda los nodos seleccionados (un
   Write y lo que tenga arriba: OCIO, textos, groups, backdrops) como un
@@ -26,11 +26,17 @@ _____________________________________________________________________________
 
   Al pegar: con un nodo seleccionado la cadena se cuelga de el y se ubica
   debajo; sin ninguno se pega suelta y se encuadra; con varios se avisa y
-  no se pega. Los OCIOCDLTransform y OCIOFileTransform vacios se completan
+  no se pega. Soltar un .nk sobre la ventana de Shift+W lo agrega como
+  preset, limpio igual que al guardar. Los OCIOCDLTransform y OCIOFileTransform vacios se completan
   con el CDL, el LMT y el working space del .amf del shot
   (LGA_Write_Presets_Look). Los backdrops quedan como LGA_backdrop y por
   encima de lo que ya hay (LGA_Write_Presets_Backdrop). Borrar un preset lo manda a la papelera.
 
+  v2.82: import_preset_files() agrega los .nk soltados en la ventana, con la
+         misma limpieza que Alt+Shift+W (se pegan en el root con el undo
+         apagado, se copian sin Read y se borran). Las limpiezas de texto
+         recorren el .nk por estructura (_walk_nk) y no por sangria:
+         nodeCopy a veces escribe los knobs sin el espacio adelante.
   v2.80: Los backdrops del preset se pegan como LGA_backdrop y con el z
          order calculado sobre los backdrops que ya hay.
   v2.79: Sin rutas fijas: al guardar se vacian en vez de ofrecer pasarlas
@@ -74,9 +80,12 @@ LOOK_NODE_CLASSES = ("OCIOCDLTransform", "OCIOFileTransform")
 
 _INVALID_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 # Una linea "knob valor" de un .nk, sin TCL en el valor.
-_KNOB_LINE = re.compile(r'^(?P<indent>\s+)(?P<knob>\w+) (?P<q>"?)(?P<value>[^"\n\[]+)(?P=q)\s*$')
+_KNOB_LINE = re.compile(r'^(?P<indent>\s*)(?P<knob>\w+) (?P<q>"?)(?P<value>[^"\n\[]+)(?P=q)\s*$')
 # La linea que abre un nodo: las clases empiezan en mayuscula y los knobs no.
-_NODE_LINE = re.compile(r"^\s*(?P<clase>[A-Z]\w*) \{$")
+_NODE_LINE = re.compile(r"^\s*(?P<clase>[A-Z]\w*) \{\s*$")
+# Para contar llaves de una linea sin las escapadas ni las de un string.
+_NK_ESCAPED = re.compile(r"\\.")
+_NK_QUOTED = re.compile(r'"[^"]*"')
 
 
 # ---------------------------------------------------------------------------
@@ -265,18 +274,58 @@ def _copy_nodes_to_text(nodes):
     return texto
 
 
+def _brace_delta(linea):
+    """Llaves que abre menos las que cierra la linea (sin escapadas ni strings)."""
+    limpia = _NK_QUOTED.sub("", _NK_ESCAPED.sub("", linea))
+    return limpia.count("{") - limpia.count("}")
+
+
+def _walk_nk(text):
+    """Recorre un .nk linea por linea.
+
+    Devuelve tuplas (linea, clase, es_knob, nivel_de_grupo): `clase` es la
+    del nodo en el que esta la linea, `es_knob` dice si es un knob de ese
+    nodo (y no una linea de adentro del valor de un knob de varias lineas),
+    y `nivel_de_grupo` cuantos Group abiertos la contienen.
+
+    No depende de la sangria: nodeCopy a veces escribe los knobs con un
+    espacio adelante y a veces sin. Se sigue la estructura: un nodo abre con
+    "Clase {" y cierra con "}" balanceando las llaves de sus knobs; los hijos
+    de un Group van despues de su bloque, hasta "end_group".
+    """
+    clase = None
+    profundidad = 0
+    grupo = 0
+    for linea in text.split("\n"):
+        limpia = linea.strip()
+        if profundidad == 0:
+            nodo = _NODE_LINE.match(linea)
+            if nodo:
+                clase = nodo.group("clase")
+                profundidad = 1
+                yield linea, clase, False, grupo
+                continue
+            if limpia == "end_group":
+                grupo = max(0, grupo - 1)
+            yield linea, None, False, grupo
+            continue
+        if profundidad == 1 and limpia == "}":
+            profundidad = 0
+            yield linea, clase, False, grupo
+            if clase == "Group":
+                grupo += 1
+            continue
+        yield linea, clase, profundidad == 1, grupo
+        profundidad = max(1, profundidad + _brace_delta(limpia))
+
+
 def strip_write_frame_range(text):
     """Saca first/last/use_limit de los Write de primer nivel del .nk."""
     salida = []
-    en_write = False
     quitadas = 0
-    for linea in text.split("\n"):
-        if linea == "Write {":
-            en_write = True
-        elif en_write and linea == "}":
-            en_write = False
-        elif en_write and linea.startswith(" ") and not linea.startswith("  "):
-            knob = linea[1:].split(" ", 1)[0]
+    for linea, clase, es_knob, grupo in _walk_nk(text):
+        if es_knob and clase == "Write" and grupo == 0:
+            knob = linea.strip().split(" ", 1)[0]
             if knob in FRAME_RANGE_KNOBS:
                 quitadas += 1
                 continue
@@ -299,17 +348,14 @@ def strip_fixed_paths(text):
     """
     salida = []
     quitadas = []
-    clase = None
-    for linea in text.split("\n"):
-        nodo = _NODE_LINE.match(linea)
-        if nodo:
-            clase = nodo.group("clase")
-        match = _KNOB_LINE.match(linea)
-        if match and _is_path_knob(match.group("knob")):
-            valor = re.sub(r"\\(.)", r"\1", match.group("value"))
-            if "/" in valor or "\\" in valor:
-                quitadas.append((clase, match.group("knob"), valor))
-                continue
+    for linea, clase, es_knob, _grupo in _walk_nk(text):
+        if es_knob:
+            match = _KNOB_LINE.match(linea)
+            if match and _is_path_knob(match.group("knob")):
+                valor = re.sub(r"\\(.)", r"\1", match.group("value"))
+                if "/" in valor or "\\" in valor:
+                    quitadas.append((clase, match.group("knob"), valor))
+                    continue
         salida.append(linea)
     _log("Rutas fijas quitadas:", quitadas)
     return "\n".join(salida), quitadas
@@ -343,7 +389,7 @@ def _saved_notes(excluidos, quitadas):
     if excluidos:
         notas.append(
             "Left out (Reads are not saved in presets): %s."
-            % ", ".join(_html(n.name()) for n in excluidos)
+            % ", ".join(_html(n if isinstance(n, str) else n.name()) for n in excluidos)
         )
     look = [q for q in quitadas if q[0] in LOOK_NODE_CLASSES]
     otras = [q for q in quitadas if q[0] not in LOOK_NODE_CLASSES]
@@ -432,6 +478,136 @@ def save_selection_as_preset():
         "Preset <b>%s</b> saved.<br>Open Write Presets (Shift+W) to use it.%s"
         % (_html(nombre), _saved_notes(excluidos, quitadas)),
     )
+
+
+# ---------------------------------------------------------------------------
+# Compartir: importar archivos soltados en la ventana
+# ---------------------------------------------------------------------------
+
+
+def _clean_external_preset(src_path):
+    """Limpia un .nk ajeno igual que Alt+Shift+W limpia una seleccion.
+
+    Se pega en el root, se le sacan los Read, se vuelve a copiar con
+    nodeCopy y se borra todo lo pegado; despues pasan las mismas limpiezas
+    de texto que al guardar. Con el undo apagado y la seleccion del usuario
+    restaurada, el script queda como estaba.
+
+    No se pega adentro de un Group temporal: ahi nodeCopy escribe los knobs
+    sin sangria (las limpiezas no los reconocen) y con posiciones
+    disparatadas, porque el Group esta vacio.
+
+    Devuelve (texto, reads_excluidos, rutas_quitadas), con texto None si el
+    archivo no trae ningun Write.
+    """
+    seleccion_previa = nuke.selectedNodes()
+    antes = set(n.fullName() for n in nuke.allNodes())
+    undo = nuke.Undo()
+    undo.disable()
+    pegados = []
+    try:
+        for n in seleccion_previa:
+            n.setSelected(False)
+        nuke.nodePaste(src_path.replace("\\", "/"))
+        pegados = [n for n in nuke.allNodes() if n.fullName() not in antes]
+        excluidos = [n.name() for n in pegados if n.Class() in EXCLUDED_CLASSES]
+        nodos = [n for n in pegados if n.Class() not in EXCLUDED_CLASSES]
+        if not any(n.Class() == "Write" for n in nodos):
+            return None, excluidos, []
+        for n in [n for n in pegados if n.Class() in EXCLUDED_CLASSES]:
+            nuke.delete(n)
+        pegados = nodos
+        texto = _copy_nodes_to_text(nodos)
+    finally:
+        for n in pegados:
+            try:
+                nuke.delete(n)
+            except Exception as exc:
+                _log("Aviso: no se pudo borrar un nodo pegado para importar:", repr(exc))
+        for n in seleccion_previa:
+            try:
+                n.setSelected(True)
+            except Exception as exc:
+                _log("Aviso: no se pudo restaurar la seleccion:", repr(exc))
+        undo.enable()
+    texto = strip_write_frame_range(texto)
+    texto, quitadas = strip_fixed_paths(texto)
+    return texto, excluidos, quitadas
+
+
+def import_preset_files(paths):
+    """Agrega como presets de cadena los .nk soltados en la ventana.
+
+    El nombre del preset es el del archivo. Si ya hay uno con ese nombre se
+    pregunta si reemplazarlo. Devuelve la lista de nombres importados; lo
+    que no se pudo importar, y por que, sale en el cartel final.
+    """
+    from LGA_UI_MessageBox_ToolPack import ask_question, show_error, show_info, show_warning
+
+    _log_start("Importar presets soltados")
+    _log("Archivos:", paths)
+    carpeta = get_writable_presets_dir()
+    if not carpeta:
+        show_error(
+            None,
+            "Write Presets",
+            "There is no writable folder to save presets in:<br>%s"
+            % "<br>".join(_html(c) for c in _candidate_dirs()),
+        )
+        return []
+
+    importados, fallidos, excluidos, quitadas = [], [], [], []
+    for src in paths:
+        nombre = sanitize_preset_name(os.path.splitext(os.path.basename(src))[0])
+        if not src.lower().endswith(PRESET_EXT) or not nombre:
+            fallidos.append((os.path.basename(src), "it is not a .nk file"))
+            continue
+        destino = os.path.join(carpeta, nombre + PRESET_EXT)
+        if os.path.normcase(os.path.abspath(src)) == os.path.normcase(os.path.abspath(destino)):
+            _log("Ya es un preset propio, se saltea:", src)
+            continue
+        if os.path.exists(destino) and not ask_question(
+            None,
+            "Write Presets",
+            "A preset named <b>%s</b> already exists. Replace it?" % _html(nombre),
+            yes_text="Replace",
+            no_text="Skip",
+            recommended=False,
+        ):
+            _log("No se reemplaza:", nombre)
+            continue
+        try:
+            texto, sin_reads, sin_rutas = _clean_external_preset(src)
+            if texto is None:
+                fallidos.append((os.path.basename(src), "it has no Write node"))
+                continue
+            _write_atomic(destino, texto)
+        except Exception as exc:
+            _log("ERROR al importar", src, repr(exc))
+            fallidos.append((os.path.basename(src), str(exc)))
+            continue
+        importados.append(nombre)
+        excluidos.extend(sin_reads)
+        quitadas.extend(sin_rutas)
+        _log("Importado:", nombre, "->", destino)
+
+    if fallidos:
+        show_warning(
+            None,
+            "Write Presets",
+            "%sCould not import:<br>%s"
+            % (
+                ("Imported: <b>%s</b>.<br><br>" % _html(", ".join(importados))) if importados else "",
+                "<br>".join("%s: %s" % (_html(n), _html(m)) for n, m in fallidos),
+            ),
+        )
+    elif importados:
+        show_info(
+            None,
+            "Write Presets",
+            "Imported: <b>%s</b>.%s" % (_html(", ".join(importados)), _saved_notes(excluidos, quitadas)),
+        )
+    return importados
 
 
 # ---------------------------------------------------------------------------
