@@ -11,7 +11,6 @@ platforms: [win, mac]
 ## Unreleased
 
 ## v2.66
-- [new] The TP menu has a new What's new entry that shows what changed in each version.
 - [improved] Media Manager no longer scans unrelated folders when a script is saved outside a shot, so it opens instantly.
 - [new] Reset Workspace is now also available in Hiero and Nuke Studio, from a TP menu (Ctrl+Alt+W).
 - [fixed][win] Snapshot Gallery's Shift+click, which opens a snapshot in the image editor that comes with HieroTools, works again with the latest HieroTools.

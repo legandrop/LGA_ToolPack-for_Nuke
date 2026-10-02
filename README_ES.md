@@ -7,6 +7,8 @@
 </p>
 <br clear="left">
 
+**Novedades:** [Releases](https://github.com/legandrop/LGA_ToolPack-for_Nuke/releases)
+
 ## Instalación
 
 - Copiar la carpeta **LGA_ToolPack** que contiene todos los archivos del ToolPack a **%USERPROFILE%/.nuke**.<br> Debería quedar así:
@@ -26,8 +28,6 @@
   ```
 
 - El pack permite **activar/desactivar** herramientas desde el menú **TP > Enable Tools**, que se explica acá abajo.
-
-- **TP > What's new** muestra qué cambió en cada versión del pack.
 
 <br>
 
