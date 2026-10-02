@@ -10,6 +10,7 @@ Sistema para crear nodos Write con configuraciones predefinidas. Genera paths au
 - **`LGA_ToolPack/LGA_Write_Presets.py`**: Script principal que contiene la interfaz y lógica de creación de Write nodes
 - **`LGA_ToolPack/LGA_Write_Presets.ini`**: Archivo de configuración con los presets disponibles
 - **`LGA_ToolPack/LGA_Write_Presets_Check.py`**: Módulo auxiliar para verificación y edición de paths antes de crear el Write o editar Writes existentes
+- **`LGA_ToolPack/py/LGA_Write_Presets_Chain.py`**: Presets de cadena: guardar la selección con Alt+Shift+W, listarlos, pegarlos y mandarlos a la papelera
 
 ## Funcionalidad Principal
 
@@ -38,6 +39,16 @@ Las fórmulas TCL en los presets se ajustan automáticamente según el formato d
 - `adjust_tcl_formulas(presets, has_description)`: Ajusta las fórmulas TCL según el formato detectado
 - `create_write_from_preset(preset, user_text=None, modified_file_pattern=None)`: Crea el Write node con toda la configuración
 - `detect_shotname_format_from_script()`: Detecta el formato del shotname usando el módulo compartido `LGA_ToolPack_NamingUtils`
+
+## Presets de cadena
+
+Además de los presets del `.ini`, el usuario puede guardar una cadena de nodos entera: un Write y lo que tenga arriba (OCIO, CDL, LUT, burn-ins, groups, metadata) como un pedazo de `.nk`.
+
+- **Guardar (Alt+Shift+W)**: hace falta al menos un Write en la selección. Se suman solos los backdrops que encierran nodos seleccionados y no tienen adentro ningún nodo sin seleccionar; se repite hasta que no cambia nada, así un backdrop que encierra a otro también entra. Se copia con `nuke.nodeCopy` a un temporal del sistema y se guarda atómico.
+- **Limpieza al guardar**: a los Write de primer nivel se les saca `first`, `last` y `use_limit`. En los knobs de archivo (nombre con `file`, `path` o `lut`) se buscan rutas absolutas sin TCL y se ofrece pasarlas a `[file dir [value root.name]]/<relativa>`. Las rutas de red (UNC), las de otra unidad y las de un script sin guardar quedan absolutas, y el cartel final lo dice.
+- **Dónde viven**: `%APPDATA%/LGA/ToolPack/WritePresets/<nombre>.nk` (macOS: `~/Library/Application Support/...`), con respaldo en `<.nuke>/LGA_Settings/ToolPack/WritePresets/`. Nunca adentro del pack. El nombre del archivo es el nombre del preset.
+- **En la ventana (Shift+W)**: van al final con el prefijo `[Chain]`. Las filas salen de `self.rows` (presets del `.ini` y después los de cadena), no de las secciones `PresetN`. Click o Shift+Click los pega; click derecho los manda a la papelera con `send2trash`, previa confirmación.
+- **Al pegar**: con un nodo seleccionado, `nodePaste` conecta la entrada de la cadena a ese nodo y `_place_below` la mueve para que arranque debajo. Sin selección se pega suelta y se encuadra. Con varios nodos seleccionados se avisa y no se pega. Todo va en un solo paso de undo.
 
 ## Compatibilidad con OCIO
 
@@ -145,3 +156,16 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 - `handle_render_option(row, column)`: Maneja click normal y muestra la ventana de verificación
 - `handle_render_option_shift(row, column)`: Maneja Shift+Click y crea el Write directamente sin ventana
 - `_create_write_from_pending(modified_file_pattern=None)`: Callback que crea el Write usando el file_pattern modificado si aplica
+
+**`LGA_ToolPack/py/LGA_Write_Presets_Chain.py`**:
+- `save_selection_as_preset()`: Entrada de Alt+Shift+W; pide nombre, confirma reemplazo, ofrece rutas relativas y guarda
+- `collect_preset_nodes()`: Selección más los backdrops que la encierran
+- `strip_write_frame_range(text)`, `find_absolute_paths(text)`, `make_paths_relative(text, script_dir)`: Limpieza del texto `.nk` antes de guardar
+- `list_chain_presets()`: Presets de las dos carpetas posibles, sin repetir nombre
+- `apply_chain_preset(preset)` y `_place_below(anchor, pasted)`: Pegado y ubicación de la cadena
+- `delete_chain_preset(preset)`: Confirmación y envío a la papelera
+
+**`LGA_ToolPack/LGA_Write_Presets.py`** (presets de cadena):
+- `SelectedNodeInfo.rows`: Lista de filas de la tabla, presets del `.ini` y de cadena
+- `apply_if_chain(preset)` y `handle_right_click(row, column)`: Pegar y borrar presets de cadena desde la tabla
+- `NameInputDialog(initial_text, title, width)` y `show_name_input_dialog(...)`: Diálogo de nombre, compartido entre el nombre de render y el de preset

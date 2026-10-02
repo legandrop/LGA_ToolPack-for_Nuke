@@ -136,7 +136,8 @@ Creates a Read node from the path and file of the selected Write node.
 
 ## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Open in Shot Player v1.01 | Lega
 
-Opens in LGA Shot Player the media of the selected Read node.<br><br>
+Opens in LGA Shot Player the media of the selected Read node.
+<br><br>
 <img src="Doc_Media/open_in_shot_player_shortcut.svg" alt="Open in Shot Player shortcuts" width="355" height="59">
 
 <br>
@@ -153,7 +154,7 @@ If the sequence name doesn't match the script's name, or if the destination alre
 
 
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v1.9 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v2.78 | Lega
 
 To create Write nodes with predefined settings for different kinds of renders.<br>
 Opens a window with preconfigured render options that are loaded from an .ini file. It lets you create Writes based on the script name or on the name of the topmost Read node. Depending on the configuration, it can open a dialog to name the render and automatically create a backdrop with a Write and a Switch. The presets include specific settings for different formats (mov, tiff, exr) with parameters tuned for each case.<br>
@@ -161,8 +162,10 @@ Opens a window with preconfigured render options that are loaded from an .ini fi
 
 If run on an existing Write, the TCL editor opens:<br>
 ![](Doc_Media/write_presetsB_v01.gif)
+
+You can also save your own presets: select a Write and the nodes above it (color transforms, burn-ins, groups, even the backdrop around them) and press Alt+Shift+W. The preset appears at the end of the list as [Chain], and clicking it pastes the whole chain under the selected node. When saving, the Write's frame range is removed, and if there are absolute paths, such as a LUT, it offers to make them relative to the script. Right-click a [Chain] preset to move it to the trash.
 <br><br>
-<img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcut" width="150" height="43">
+<img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcuts" width="345" height="65">
 
 <br>
 

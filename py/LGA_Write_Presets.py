@@ -1,11 +1,27 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.77 | Lega
+  LGA_Write_Presets v2.78 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
 
+  Modulos de esta tool (todos van con la misma version):
+    LGA_Write_Presets.py          <- este, el principal (ventana Shift+W)
+    LGA_Write_Presets_Check.py    ventana de verificacion del path
+    LGA_Write_Presets_Chain.py    presets de cadena (Alt+Shift+W)
+
+  Donde mas se ve esta version, y hay que moverla junto con el header:
+    - El titulo de la seccion "Write Presets" de README.md y README_ES.md,
+      a mano.
+
+  v2.78: Presets de cadena. La tabla suma al final los presets que el
+         usuario guarda con Alt+Shift+W (prefijo [Chain]); el clic los pega
+         debajo del nodo seleccionado y el clic derecho ofrece borrarlos.
+         Las filas salen de self.rows y no de "Preset<N>", que ya no alcanza
+         para nombrar presets que no vienen del .ini. El dialogo de nombre
+         acepta titulo y ancho, usa la fuente del pack y pide el semibold
+         con semibold_css() en vez de un font-size a mano.
   v2.77: El error de Write invalido pasa al helper
          LGA_UI_MessageBox_ToolPack (show_error), con fallback a
          nuke.message.
@@ -67,7 +83,7 @@ _____________________________________________________________________________
 """
 
 from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore, QGuiApplication
-from LGA_UI_Style_ToolPack import Color, Metric, Style
+from LGA_UI_Style_ToolPack import Color, Metric, Style, apply_ui_font, semibold_css
 
 QApplication = QtWidgets.QApplication
 QWidget = QtWidgets.QWidget
@@ -152,6 +168,7 @@ except ImportError:
 # Color del prefijo que dice de donde sale cada preset.
 PREFIX_COLOR_SCRIPT = "#FF5C88"
 PREFIX_COLOR_READ = "#66E2FF"
+PREFIX_COLOR_CHAIN = "#F5C26B"
 
 # Colores de identidad de cada formato de salida. No son estados ni parte de
 # la paleta de la app: cada uno identifica un formato de un vistazo.
@@ -285,7 +302,7 @@ def apply_colorspace_settings(write_node, preset, color_context):
 
 
 class NameInputDialog(QDialog):
-    def __init__(self, initial_text=""):
+    def __init__(self, initial_text="", title="Render Name", width=220):
         super().__init__()
         self.esc_exit = False
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -301,11 +318,9 @@ class NameInputDialog(QDialog):
         layout = QVBoxLayout(main_widget)
         layout.setContentsMargins(12, 6, 12, 6)
 
-        title = QLabel("Render Name")
+        title = QLabel(title)
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet(
-            "color: %s; font-weight: bold; font-size: 10pt;" % Color.TEXT_STRONG
-        )
+        title.setStyleSheet("color: %s; %s" % (Color.TEXT_STRONG, semibold_css()))
         layout.addWidget(title)
 
         # Crear layout horizontal para el line_edit y el botón OK
@@ -343,7 +358,7 @@ class NameInputDialog(QDialog):
         dialog_layout.setContentsMargins(0, 0, 0, 0)
         dialog_layout.addWidget(main_widget)
 
-        self.resize(220, 90)
+        self.resize(width, 90)
 
         self.line_edit.installEventFilter(self)
         self.line_edit.setFocus()  # Asegurar que el line_edit tenga el foco
@@ -371,8 +386,9 @@ class NameInputDialog(QDialog):
         return super().eventFilter(widget, event)
 
 
-def show_name_input_dialog(initial_text=""):
-    dialog = NameInputDialog(initial_text)
+def show_name_input_dialog(initial_text="", title="Render Name", width=220):
+    dialog = NameInputDialog(initial_text, title, width)
+    apply_ui_font(dialog)
     cursor_pos = QCursor.pos()
     screen = QGuiApplication.screenAt(cursor_pos) or QGuiApplication.primaryScreen()
     if screen:
@@ -893,6 +909,7 @@ class ColoredItemDelegate(QStyledItemDelegate):
                 base_color = QColor(Color.TEXT_DIM)  # Gris para items deshabilitados
                 prefix_color_script = QColor(Color.TEXT_DIM)
                 prefix_color_read = QColor(Color.TEXT_DIM)
+                prefix_color_chain = QColor(Color.TEXT_DIM)
             else:
                 base_color = QColor(Color.TEXT_STRONG)
                 # Los dos prefijos identifican de donde sale el preset. No son
@@ -900,9 +917,16 @@ class ColoredItemDelegate(QStyledItemDelegate):
                 # entre si de un vistazo.
                 prefix_color_script = QColor(PREFIX_COLOR_SCRIPT)
                 prefix_color_read = QColor(PREFIX_COLOR_READ)
+                prefix_color_chain = QColor(PREFIX_COLOR_CHAIN)
 
             # Dibujar prefijo
-            if prefix == "[Script]":
+            if prefix == "[Chain]":
+                painter.setPen(prefix_color_chain)
+                painter.drawText(
+                    adjusted_rect, Qt.AlignLeft | Qt.AlignVCenter, prefix + " "
+                )
+                prefix_width = painter.fontMetrics().horizontalAdvance(prefix + " ")
+            elif prefix == "[Script]":
                 painter.setPen(prefix_color_script)
                 painter.drawText(
                     adjusted_rect, Qt.AlignLeft | Qt.AlignVCenter, prefix + " "
@@ -921,9 +945,12 @@ class ColoredItemDelegate(QStyledItemDelegate):
             remaining_rect = adjusted_rect.adjusted(prefix_width, 0, 0, 0)
             painter.setPen(base_color)
 
-            # Buscar formatos en el nombre
-            for fmt, color in FORMAT_COLORS.items():
-                if fmt in name.upper():
+            # Buscar formatos en el nombre. Los presets de cadena tienen nombre
+            # libre ("Remove Dot" contiene MOV): ahi no se pinta ningun formato.
+            # La busqueda distingue mayusculas, igual que el split de abajo.
+            formatos = {} if prefix == "[Chain]" else FORMAT_COLORS
+            for fmt, color in formatos.items():
+                if fmt in name:
                     # Dividir el texto en partes
                     parts = name.split(fmt, 1)
 
@@ -969,6 +996,7 @@ class ShiftClickTableWidget(QTableWidget):
     def __init__(self, rows, columns, parent=None):
         super().__init__(rows, columns, parent)
         self.shift_click_callback = None  # type: ignore
+        self.right_click_callback = None  # type: ignore
         self.hovered_row = -1
 
     def mousePressEvent(self, event):
@@ -993,6 +1021,12 @@ class ShiftClickTableWidget(QTableWidget):
                 )
                 event.ignore()
                 return
+
+        if event.button() == Qt.RightButton:
+            if item is not None and self.right_click_callback:
+                self.right_click_callback(item.row(), item.column())
+            event.accept()
+            return
 
         if event.button() == Qt.LeftButton and event.modifiers() & Qt.ShiftModifier:
             debug_print("[ShiftClickTableWidget] Shift+Click detectado!")
@@ -1055,10 +1089,28 @@ class SelectedNodeInfo(QWidget):
         )
         debug_print("[Write_Presets] ========== DETECCION COMPLETADA ==========")
 
-        self.options = []
-        for section, preset in self.presets.items():
-            prefix = "[Script]" if preset["button_type"] == "script" else "[Read]"
-            self.options.append(f"{prefix} {preset['button_name']}")
+        # Una fila por preset: primero los del .ini y despues los de cadena
+        # que guardo el usuario con Alt+Shift+W.
+        self.rows = list(self.presets.values())
+        try:
+            from LGA_Write_Presets_Chain import list_chain_presets
+
+            for chain in list_chain_presets():
+                self.rows.append(
+                    {
+                        "button_type": "chain",
+                        "button_name": chain["name"],
+                        "name": chain["name"],
+                        "path": chain["path"],
+                    }
+                )
+        except Exception as exc:
+            debug_print(f"[Write_Presets] No se pudieron listar los presets de cadena: {exc}")
+
+        self.options = [
+            f"[{preset['button_type'].capitalize()}] {preset['button_name']}"
+            for preset in self.rows
+        ]
 
         # Verificar si hay un Write seleccionado antes de crear la interfaz
         selected_write = None
@@ -1172,6 +1224,8 @@ class SelectedNodeInfo(QWidget):
         self.table.cellEntered.connect(self.handle_cell_hover)
         # Conectar Shift+Click
         self.table.shift_click_callback = self.handle_render_option_shift  # type: ignore
+        # Click derecho: borrar un preset de cadena
+        self.table.right_click_callback = self.handle_right_click  # type: ignore
 
         main_layout.addWidget(self.table)
 
@@ -1231,10 +1285,7 @@ class SelectedNodeInfo(QWidget):
         # Verificar si el script esta guardado
         script_saved = self.is_script_saved()
 
-        for row, name in enumerate(self.options):
-            # Extraer el nombre real del preset
-            preset_number = row + 1
-            preset = self.presets[f"Preset{preset_number}"]
+        for row, preset in enumerate(self.rows):
             display_name = preset["button_name"]
 
             item = QTableWidgetItem(
@@ -1387,9 +1438,9 @@ class SelectedNodeInfo(QWidget):
             self.handle_render_option_shift(row, column)
             return
 
-        selected_option = self.options[row]
-        preset_number = row + 1
-        preset = self.presets[f"Preset{preset_number}"]
+        preset = self.rows[row]
+        if self.apply_if_chain(preset):
+            return
 
         # Verificar si es un preset de tipo script y el script no esta guardado
         if preset["button_type"] == "script" and not self.is_script_saved():
@@ -1425,9 +1476,9 @@ class SelectedNodeInfo(QWidget):
 
     def handle_render_option_shift(self, row, column):
         """Maneja Shift+Click en un preset, creando el Write directamente sin ventana."""
-        selected_option = self.options[row]
-        preset_number = row + 1
-        preset = self.presets[f"Preset{preset_number}"]
+        preset = self.rows[row]
+        if self.apply_if_chain(preset):
+            return
 
         # Verificar si es un preset de tipo script y el script no esta guardado
         if preset["button_type"] == "script" and not self.is_script_saved():
@@ -1448,6 +1499,36 @@ class SelectedNodeInfo(QWidget):
                 create_write_from_preset(preset, user_text)
         else:
             create_write_from_preset(preset)
+
+    def apply_if_chain(self, preset):
+        """Si la fila es un preset de cadena, lo pega y devuelve True."""
+        if preset.get("button_type") != "chain":
+            return False
+        self.close()
+        from LGA_Write_Presets_Chain import apply_chain_preset
+
+        apply_chain_preset(preset)
+        return True
+
+    def handle_right_click(self, row, column):
+        """Click derecho en un preset de cadena: ofrece borrarlo."""
+        if row < 0 or row >= len(self.rows):
+            return
+        preset = self.rows[row]
+        if preset.get("button_type") != "chain":
+            return
+        from LGA_Write_Presets_Chain import delete_chain_preset
+
+        if delete_chain_preset(preset):
+            self.rows.pop(row)
+            self.options.pop(row)
+            self.table.removeRow(row)
+            self.table.hovered_row = -1
+            # adjust_window_size recentra bajo el cursor: se conserva el lugar
+            # para que la ventana no salte con cada borrado.
+            posicion = self.pos()
+            self.adjust_window_size()
+            self.move(posicion)
 
     def handle_cell_hover(self, row, column):
         if hasattr(self.table, "hovered_row"):

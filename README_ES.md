@@ -136,7 +136,8 @@ Genera un nodo Read a partir de la ruta y archivo del nodo Write seleccionado.
 
 ## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Open in Shot Player v1.01 | Lega
 
-Abre en LGA Shot Player la media del nodo Read seleccionado.<br><br>
+Abre en LGA Shot Player la media del nodo Read seleccionado.
+<br><br>
 <img src="Doc_Media/open_in_shot_player_shortcut.svg" alt="Open in Shot Player shortcuts" width="355" height="59">
 
 <br>
@@ -153,7 +154,7 @@ Si el nombre de la secuencia no coincide con el del script, o si el destino ya t
 
 
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v1.9 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v2.78 | Lega
 
 Para crear nodos Write con configuraciones predefinidas para diferentes tipos de render.<br>
 Abre una ventana con opciones de render pre configuradas que se cargan desde un archivo .ini. Permite crear Writes basados en el nombre del script o en el nombre del nodo Read más alto. Según la configuración, puede abrir un diálogo para nombrar el render y crear automáticamente un backdrop con Write y Switch. Los presets incluyen configuraciones específicas para diferentes formatos (mov, tiff, exr) con parámetros optimizados para cada caso.<br>
@@ -161,8 +162,10 @@ Abre una ventana con opciones de render pre configuradas que se cargan desde un 
 
 Si se ejecuta sobre un write existente se abre el editor de TLC:<br>
 ![](Doc_Media/write_presetsB_v01.gif)
+
+También se pueden guardar presets propios: se seleccionan un Write y los nodos que tiene arriba (transformaciones de color, burn-ins, groups, incluso el backdrop que los rodea) y se aprieta Alt+Shift+W. El preset aparece al final de la lista como [Chain], y al hacerle clic pega la cadena entera debajo del nodo seleccionado. Al guardar se saca el rango de frames del Write, y si hay rutas absolutas, como una LUT, ofrece pasarlas a relativas al script. Con clic derecho sobre un preset [Chain] se lo manda a la papelera.
 <br><br>
-<img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcut" width="150" height="43">
+<img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcuts" width="345" height="65">
 
 <br>
 

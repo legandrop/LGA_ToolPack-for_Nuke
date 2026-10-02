@@ -218,6 +218,18 @@ add_tool(
 
 add_tool(
     n,
+    label="  Write Presets - Save Selection",
+    key="Write_Presets",
+    module="LGA_Write_Presets_Chain",
+    attr="save_selection_as_preset",
+    shortcut="alt+shift+w",
+    icon=icon_RnW,
+    context=2,
+)
+
+
+add_tool(
+    n,
     label="  Write Focus",
     key="Write_Focus",
     module="LGA_Write_Focus",
