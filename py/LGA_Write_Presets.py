@@ -24,7 +24,9 @@ _____________________________________________________________________________
          un backdrop comun con z fijo en 4. Sin nada seleccionado, el NoOp
          temporal nace en el centro de la vista del Node Graph
          (_create_temp_noop_in_view) y no en el lugar fijo donde lo dejaba
-         createNode.
+         createNode. get_selected_node() ya no toma un nodo seleccionado
+         adentro de un grupo o gizmo, que nuke.selectedNode() devolvia aunque
+         el Node Graph no tuviera seleccion: ahi colgaba el Write.
   v2.79: Sin cambios en este archivo; suben los modulos de presets de
          cadena (look del shot desde el .amf).
   v2.78: Presets de cadena. La tabla suma al final los presets que el
@@ -409,10 +411,24 @@ def show_name_input_dialog(initial_text="", title="Render Name", width=220):
 
 
 def get_selected_node():
-    try:
-        return nuke.selectedNode()
-    except ValueError:
+    """El nodo seleccionado en el grafo actual, o None.
+
+    nuke.selectedNode() solo no alcanza: tambien devuelve un nodo que quedo
+    seleccionado ADENTRO de un grupo o gizmo (p. ej. el GizmoControl de un
+    DespillMadness), aunque en el Node Graph no haya nada seleccionado. Se
+    usaba ese nodo de ancla: el Write salia siempre en el mismo lugar y el
+    Dot quedaba conectado a un nodo de adentro de otro grupo. Por eso se
+    valida contra selectedNodes(), que mira solo el grafo actual.
+    """
+    seleccion = nuke.selectedNodes()
+    if not seleccion:
         return None
+    try:
+        ultimo = nuke.selectedNode()
+    except ValueError:
+        return seleccion[0]
+    nombres = set(n.fullName() for n in seleccion)
+    return ultimo if ultimo.fullName() in nombres else seleccion[0]
 
 
 def find_top_read_node(node):
