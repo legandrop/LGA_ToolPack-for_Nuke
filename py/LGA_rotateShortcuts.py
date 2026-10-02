@@ -1,13 +1,17 @@
 """
 _____________________________________________________________
 
-  LGA_rotateShorcut v1.2 | Lega
+  LGA_rotateShortcuts v1.21 | Lega
   Rotates selected nodes by a user-defined amount if they have a 'rotate' knob
+
+  v1.21: Sin nada seleccionado en el Node Graph ya no toma un nodo seleccionado
+         adentro de un grupo o gizmo (LGA_ToolPack_Selection).
 _____________________________________________________________
 
 """
 
 import nuke
+from LGA_ToolPack_Selection import selected_node as graph_selected_node
 
 
 # Variable global para activar o desactivar los prints
@@ -33,7 +37,7 @@ def increment_rotate(increment):
     # Verifica si hay un nodo seleccionado
     selected_node = None
     try:
-        selected_node = nuke.selectedNode()
+        selected_node = graph_selected_node()
     except ValueError:
         pass
 

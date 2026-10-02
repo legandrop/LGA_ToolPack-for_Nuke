@@ -1,13 +1,17 @@
 """
 _____________________________________________________________________________________________________
 
-  LGA_channelsCycle v1.1 - Lega
+  LGA_channelsCycle v1.11 | Lega
   Cambia el valor del knob 'channels' de un nodo seleccionado rotando entre 'rgb', 'alpha' y 'rgba'
+
+  v1.11: Sin nada seleccionado en el Node Graph ya no toma un nodo seleccionado
+         adentro de un grupo o gizmo (LGA_ToolPack_Selection).
 _____________________________________________________________________________________________________
 
 """
 
 import nuke
+from LGA_ToolPack_Selection import selected_node as graph_selected_node
 
 # Variable global para activar o desactivar los prints
 DEBUG = False
@@ -46,7 +50,7 @@ def main():
     # Verifica si hay un nodo seleccionado
     selected_node = None
     try:
-        selected_node = nuke.selectedNode()
+        selected_node = graph_selected_node()
     except ValueError:
         pass
 

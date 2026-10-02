@@ -259,7 +259,7 @@ Esta lista se puede editar en los settings del ToolPack.
 <br><br>
 <img src="Doc_Media/frame_range.svg" alt="FRAME RANGE" width="245" height="33">
 
-## <img src="Doc_Media/image8.png" alt="" width="6" height="16" style="margin-right:3px;"> Frame range | Read to Project v1.0 | Lega</strong>
+## <img src="Doc_Media/image8.png" alt="" width="6" height="16" style="margin-right:3px;"> Frame range | Read to Project v1.01 | Lega
 
 Útil para cuando se empieza un proyecto nuevo y se quiere usar el frame range de un nodo Read en los settings del proyecto.
 <br><br>
@@ -271,7 +271,7 @@ Esta lista se puede editar en los settings del ToolPack.
 
 
 
-## <img src="Doc_Media/image8.png" alt="" width="6" height="16" style="margin-right:3px;"> Frame range | Read to Project (+Res) v1.0 | Lega
+## <img src="Doc_Media/image8.png" alt="" width="6" height="16" style="margin-right:3px;"> Frame range | Read to Project (+Res) v1.02 | Lega
 
 Igual que el anterior, pero además de copiar el frame range del Read, también se copia la resolución a los settings del proyecto.
 <br><br>
@@ -286,7 +286,7 @@ Igual que el anterior, pero además de copiar el frame range del Read, también 
 <br><br>
 <img src="Doc_Media/rotate_transform.svg" alt="ROTATE TRANSFORM" width="335" height="33">
 
-## <img src="Doc_Media/image21.png" alt="" width="6" height="16" style="margin-right:3px;"> Rotate Transform v1.0 | Lega
+## <img src="Doc_Media/image21.png" alt="" width="6" height="16" style="margin-right:3px;"> Rotate Transform v1.21 | Lega
 
 Cambia los valores de rotación de los nodos Transform seleccionados.<br>
 Shortcuts (usando las teclas / y * del teclado numérico):
@@ -312,7 +312,7 @@ Similar al uso de toolSets, pero más ágil y con más posibilidades.
 
 
 
-## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Iteration v1.1 | Lega
+## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Iteration v1.25 | Lega
 
 ![](Doc_Media/Build_Iteration_v01.gif)
 <br><br>
@@ -322,7 +322,7 @@ Similar al uso de toolSets, pero más ágil y con más posibilidades.
 
 
 
-## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build RotoBlur in input mask v1.1 | Lega
+## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build RotoBlur in input mask v1.16 | Lega
 
 Agrega un nodo Roto y un Blur en el input mask del nodo seleccionado.<br>
 ![](Doc_Media/Build_RotoBlur_v01.gif)
@@ -333,7 +333,7 @@ Agrega un nodo Roto y un Blur en el input mask del nodo seleccionado.<br>
 
 
 
-## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Merge | Switch Merge operations v1.31 | Lega
+## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Merge | Switch Merge operations v1.72 | Lega
 
 Si NO hay un nodo Merge seleccionado, crea un nodo Merge con operación en Mask y bbx en ‘A’, y en el input A suma un nodo Roto y un Blur.<br>
 ![](Doc_Media/build_mergeMaskA_v01.gif)<br>
@@ -347,7 +347,7 @@ Si en cambio se ejecuta con un nodo Merge seleccionado, cambia sus operaciones y
 
 
 
-## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Grade v1.1 | Lega
+## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Grade v1.66 | Lega
 
 Crea un nodo Grade y en el input Mask suma un nodo Roto y un Blur.<br>
 ![](Doc_Media/build_grade_v01.gif)
@@ -358,7 +358,7 @@ Crea un nodo Grade y en el input Mask suma un nodo Roto y un Blur.<br>
 
 
 
-## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Grade Highlights v1.1 | Lega
+## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Build Grade Highlights v1.66 | Lega
 
 Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del grade y un Shuffle para poder evaluar el canal alpha con el viewer en RGB.<br>
 ![](Doc_Media/Build+Grade_Highlights_v01.gif)
@@ -372,7 +372,7 @@ Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del
 <br><br>
 <img src="Doc_Media/knobs.svg" alt="KNOBS" width="120" height="33">
 
-## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Channels Cycle v1.1 | Lega
+## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Channels Cycle v1.11 | Lega
 
 Cambia el valor del knob 'channels' de un nodo seleccionado. Rota el valor entre 'rgb', 'alpha' y 'rgba'.<br>
 ![](Doc_Media/image12.png)

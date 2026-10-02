@@ -1,12 +1,14 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Roto v1.15 | Lega
+  LGA_build_Roto v1.16 | Lega
 
   Crea nodos Roto, Blur y Dot conectados al input mask del nodo Merge (llamado Merge2 en Nuke) o al input 1 de cualquier otro nodo.
   Requiere que haya un nodo seleccionado para funcionar.
   Diseñado para añadir rápidamente máscaras a nodos existentes.
 
+  v1.16: Sin nada seleccionado en el Node Graph ya no toma un nodo seleccionado
+         adentro de un grupo o gizmo (LGA_ToolPack_Selection).
   v1.15: El nuke.message pasa al helper LGA_UI_MessageBox_ToolPack
          (show_warning), con fallback a nuke.message.
   v1.14 - Se agregó regla para nodo dissolve
@@ -15,6 +17,7 @@ _____________________________________________________________________________
 """
 
 import nuke
+from LGA_ToolPack_Selection import selected_node as graph_selected_node
 
 
 def _aviso(texto):
@@ -52,7 +55,7 @@ def get_common_variables():
 
 def get_selected_node():
     try:
-        selected_node = nuke.selectedNode()
+        selected_node = graph_selected_node()
         return selected_node
     except ValueError:
         return None

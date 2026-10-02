@@ -1,13 +1,15 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Grade v1.65 | Lega
+  LGA_build_Grade v1.66 | Lega
 
   Crea nodos Grade con diferentes configuraciones de máscaras.
   Soporta creación desde un nodo seleccionado o desde la posición del cursor.
   Incluye dos modos: Grade con máscara de luminancia y Grade con Roto.
 
 
+  v1.66: Sin nada seleccionado en el Node Graph ya no toma un nodo seleccionado
+         adentro de un grupo o gizmo (LGA_ToolPack_Selection).
   v1.65: En Grade Highlight se centra todo el subárbol nuevo en el espacio disponible; si no entra, se prioriza el dot superior.
   v1.64: Se agregó un ajuste por colisión para evitar que el Grade se pase hacia abajo del nodo siguiente.
 
@@ -16,6 +18,7 @@ _____________________________________________________________________________
 """
 
 import nuke
+from LGA_ToolPack_Selection import selected_node as graph_selected_node
 from LGA_QtAdapter_ToolPack import QtGui, QtWidgets, QtCore
 
 QCursor = QtGui.QCursor
@@ -80,7 +83,7 @@ def simulate_dag_click():
 # Funcion para obtener el nodo seleccionado
 def get_selected_node():
     try:
-        selected_node = nuke.selectedNode()
+        selected_node = graph_selected_node()
         debug_print(
             f"Nodo seleccionado: {selected_node.name()} ({selected_node.Class()}) id={id(selected_node)}"
         )

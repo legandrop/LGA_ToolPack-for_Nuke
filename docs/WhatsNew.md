@@ -13,6 +13,7 @@ platforms: [win, mac]
 ## v2.66
 - [new] Write Presets can save your own presets: select a Write and the nodes above it, press Alt+Shift+W, and the whole chain appears in the Shift+W list, ready to paste under any node. When pasted, its CDL and LUT load the shot's own look files from the .amf, and its backdrops land above the ones already there.
 - [fixed] Write Presets' preRender + Switch creates an LGA backdrop again, placed above the backdrops already in the Node Graph.
+- [fixed] Build Grade, Build Merge, Build RotoBlur, Iteration, Channels Cycle, Rotate Transform and Read to Project no longer act on a node left selected inside a gizmo when nothing is selected in the Node Graph.
 - [fixed] With nothing selected, Write Presets creates the Write in the middle of the Node Graph view, instead of always in the same spot and connected to a node inside a gizmo.
 - [improved] Media Manager no longer scans unrelated folders when a script is saved outside a shot, so it opens instantly.
 - [new] Reset Workspace is now also available in Hiero and Nuke Studio, from a TP menu (Ctrl+Alt+W).

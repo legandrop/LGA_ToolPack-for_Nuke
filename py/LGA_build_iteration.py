@@ -1,17 +1,21 @@
 """
 __________________________________________________________
 
-  LGA_build_iteration v1.24 | Lega
+  LGA_build_iteration v1.25 | Lega
   Genera un arbol de nodos usado para generar variaciones
   de una imagen.
 
   Si no hay nodo seleccionado, crea el árbol de nodos
   en la posición del cursor.
+
+  v1.25: Sin nada seleccionado en el Node Graph ya no toma un nodo seleccionado
+         adentro de un grupo o gizmo (LGA_ToolPack_Selection).
 __________________________________________________________
 
 """
 
 import nuke
+from LGA_ToolPack_Selection import selected_node as graph_selected_node
 from LGA_QtAdapter_ToolPack import QtGui, QtWidgets, QtCore
 
 QCursor = QtGui.QCursor
@@ -168,7 +172,7 @@ def gen_iteration():
     no_op = None
 
     try:
-        selected_node = nuke.selectedNode()
+        selected_node = graph_selected_node()
     except ValueError:
         # Si no hay nodo seleccionado, simular click en el DAG antes de crear el NoOp
         simulate_dag_click()
@@ -375,7 +379,7 @@ def gen_iteration_simple():
     no_op = None
 
     try:
-        selected_node = nuke.selectedNode()
+        selected_node = graph_selected_node()
     except ValueError:
         # Si no hay nodo seleccionado, simular click en el DAG antes de crear el NoOp
         simulate_dag_click()

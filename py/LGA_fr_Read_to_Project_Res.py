@@ -1,9 +1,12 @@
 """
 ________________________________________________________________________________
 
-  LGA_fr_Read_to_Project_Res v1.01 | Lega
+  LGA_fr_Read_to_Project_Res v1.02 | Lega
   Copia el frame range y la resolucion del nodo Read seleccionado al proyecto.
 
+  v1.02: Sin nada seleccionado en el Node Graph ya no toma un nodo seleccionado
+         adentro de un grupo o gizmo (LGA_ToolPack_Selection). El aviso
+         pasa a ingles.
   v1.01: Los nuke.message pasan al helper LGA_UI_MessageBox_ToolPack
          (show_warning), con fallback a nuke.message.
 ________________________________________________________________________________
@@ -11,6 +14,7 @@ ________________________________________________________________________________
 """
 
 import nuke
+from LGA_ToolPack_Selection import selected_node as graph_selected_node
 
 
 def _aviso(texto):
@@ -26,10 +30,10 @@ def _aviso(texto):
 def main():
     try:
         # Obtener el nodo Read seleccionado
-        selected_node = nuke.selectedNode()
+        selected_node = graph_selected_node()
 
         if selected_node.Class() != "Read":
-            _aviso("Por favor, selecciona un nodo Read.")
+            _aviso("Please select a Read node.")
             return
 
         # Obtener el rango de frames del nodo Read seleccionado
@@ -55,7 +59,7 @@ def main():
 
     except Exception as e:
         print(str(e))  # Para debug
-        _aviso("Por favor, selecciona un nodo Read.")
+        _aviso("Please select a Read node.")
 
 
 # Ejecutar la funcion

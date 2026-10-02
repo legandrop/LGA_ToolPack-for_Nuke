@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_build_Merge v1.71 | Lega
+  LGA_build_Merge v1.72 | Lega
 
   Crea nodos Merge con configuración de máscara predefinida.
   Soporta creación desde un nodo seleccionado o desde la posición del cursor.
@@ -10,6 +10,8 @@ _____________________________________________________________________________
   Si hay nodos Merge seleccionados, rota sus operaciones entre:
   over -> mask -> stencil -> over
 
+  v1.72: Sin nada seleccionado en el Node Graph ya no toma un nodo seleccionado
+         adentro de un grupo o gizmo (LGA_ToolPack_Selection).
   v1.71: Se agregó un ajuste por colisión para evitar que el Merge se pase hacia abajo del nodo siguiente.
   
 _____________________________________________________________________________
@@ -17,6 +19,7 @@ _____________________________________________________________________________
 """
 
 import nuke
+from LGA_ToolPack_Selection import selected_node as graph_selected_node
 from LGA_QtAdapter_ToolPack import QtGui, QtWidgets, QtCore
 
 QCursor = QtGui.QCursor
@@ -44,7 +47,7 @@ def get_common_variables():
 
 def get_selected_node():
     try:
-        selected_node = nuke.selectedNode()
+        selected_node = graph_selected_node()
         return selected_node
     except ValueError:
         return None
