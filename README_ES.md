@@ -434,7 +434,7 @@ Cambia el viewer a Rec709.
 
 
 
-## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.08 | Lega</strong>
+## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.09 | Lega</strong>
 
 Take: Toma un snapshot (jpg) de lo que se ve en el viewer —con el viewerProcess, el gain y el gamma aplicados, y respetando el encuadre—, lo copia al portapapeles, lo guarda en la carpeta de archivos temporales y también en una galería.<br>
 Take and append: Con Shift se generan dos imágenes: la captura suelta y la compo con la anterior pegada a su izquierda. Repitiendo el shortcut se va armando la tira de comparación —plate, versión del vendor, propuesta— sin pasar por Photoshop.<br>
@@ -442,7 +442,7 @@ Show: Muestra el último snapshot tomado, el de la carpeta de archivos temporale
 Además de los shortcuts en el menú, también se agregan estos botones al viewer:<br>
 ![](Doc_Media/image9.png)
 
-El último botón abre una galería con todos los snapshots que se guardan, separados por proyecto. Sobre cada thumbnail: click para abrirlo en el visor por defecto, Shift+click para abrirlo en el ShareX Image Editor —opción que aparece sólo si están instaladas las HieroTools—, y Alt+click para revelarlo en el explorador:<br>
+El último botón abre una galería con todos los snapshots que se guardan, separados por proyecto. Sobre cada thumbnail: click para abrirlo en el visor por defecto, Shift+click para abrirlo en FrameRev y anotarlo —opción que aparece sólo si está instalado FrameRev 0.265 o posterior—, y Alt+click para revelarlo en el explorador:<br>
 ![](Doc_Media/image27.png)
 <br><br>
 <img src="Doc_Media/take_show_snapshot_shortcut.svg" alt="Take Show Snapshot shortcuts" width="330" height="83">

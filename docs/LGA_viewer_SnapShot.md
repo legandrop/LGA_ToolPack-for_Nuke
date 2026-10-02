@@ -57,7 +57,7 @@ Sistema de botones personalizados para el viewer de Nuke que permite tomar snaps
   - Thumbnails ordenados alfabéticamente por proyecto
   - Soporte para múltiples formatos de imagen (jpg, png, tiff, exr)
   - Interfaz responsiva con hover effects en thumbnails
-  - `get_hierotools_image_editor()` resuelve el ejecutable del editor (ver "Editor de imágenes")
+  - `get_image_editor()` resuelve el ejecutable de FrameRev (ver "Editor de imágenes: FrameRev")
 
 ## Funcionamiento del Sistema
 
@@ -102,7 +102,7 @@ Sistema de botones personalizados para el viewer de Nuke que permite tomar snaps
 
 ### ThumbnailWidget
 - **Función**: Widget personalizado para mostrar un thumbnail de imagen
-- **Acciones**: Click abre el JPG en el visor por defecto, Shift+click lo abre en el ShareX Image Editor y Alt+click lo revela en el explorador
+- **Acciones**: Click abre el JPG en el visor por defecto, Shift+click lo abre en FrameRev para anotarlo y Alt+click lo revela en el explorador
 - **Características**:
   - Carga y escala imágenes manteniendo relación de aspecto
   - Redimensionamiento dinámico con el slider
@@ -316,22 +316,30 @@ Detalles que importan si se toca ese código:
   ventana que tenía el portapapeles por OLE, y desde un worker ese `SendMessage`
   puede quedarse esperando al hilo principal.
 
-## Editor de imágenes
+## Editor de imágenes: FrameRev
 
-`Shift+click` sobre un thumbnail abre el JPG en el **ShareX Image Editor LGA**, el
-mismo que usa el panel de HieroTools para anotar capturas — y con el mismo
-modificador que alla.
+`Shift+click` sobre un thumbnail abre el JPG en **FrameRev**, la app de anotación de
+LGA, el mismo editor que usan Review Pic y Snapshot en HieroTools. Al guardar con
+Save en FrameRev, la anotación queda en el mismo JPG de la galería.
 
-El ejecutable no es del pack: lo trae HieroTools, que es un repo aparte y puede
-no estar instalado. `get_hierotools_image_editor()` lo busca subiendo dos niveles
-desde `py/` para llegar al `.nuke`, y prueba también la carpeta del usuario por si
-el pack se instaló en otro lado. Devuelve `None` si no está, o si el sistema no es
-Windows —el editor es un `.exe`, así que sólo se busca la grafía `Python/Startup`—.
+FrameRev se instala aparte y no viaja en ningún pack. `get_image_editor()` lo
+encuentra por el **registro compartido de apps LGA**: cada app escribe al arrancar
+un `FrameRev.json` con su ejecutable y su versión, en `%APPDATA%\LGA\` (Windows) o
+`~/Library/Application Support/LGA/` (macOS). Devuelve `None` si el JSON falta, si
+el ejecutable registrado ya no existe o si la versión es anterior a
+`FRAMEREV_MIN_VERSION` (0.265).
+
+**Por qué se exige la 0.265.** Se lanza `FrameRev --edit-image <ruta>`, que abre una
+ventana aparte de FrameRev (sin bandeja ni atajos globales) y no borra el archivo.
+Una versión anterior ignora el flag en silencio y arranca una segunda copia completa
+de la app, con su ícono en la bandeja y peleando por los atajos globales con la que
+ya está abierta. Por eso, por debajo de esa versión la opción directamente no se
+ofrece.
 
 El resultado se cachea por sesión, porque la galería crea un thumbnail por
 archivo y si no serían dos accesos a disco por cada uno. `open_snapshot_gallery()`
-invalida esa caché al abrir, así que si las HieroTools se instalan con Nuke
-abierto alcanza con cerrar y reabrir la galería.
+invalida esa caché al abrir, así que si FrameRev se instala con Nuke abierto
+alcanza con cerrar y reabrir la galería.
 
 De ese resultado dependen las dos puntas: la fila `Shift-click` del tooltip sólo
 se arma si hay editor; `Alt-click` (revelar) se lista siempre. Sin editor, el
@@ -342,11 +350,6 @@ abre el editor cuando está instalado, y revela en el explorador cuando no** —
 dos `if` son independientes, la intención de Alt no se pierde—. Ojo con la
 asimetría: en el menú, `Alt+Shift+F9` es el que compone la tira. La misma
 combinación hace cosas distintas según dónde se apriete.
-
-Al editor se le pasa **el archivo como argumento**, igual que hace `ReviewPic` en
-HieroTools. La versión del panel de Hiero manda la imagen por el portapapeles
-porque ahí no existe como archivo; acá sí, así que no hace falta pisarle el
-portapapeles al usuario.
 
 ## Funciones Principales
 

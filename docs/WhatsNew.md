@@ -13,4 +13,5 @@ platforms: [win, mac]
 ## v2.66
 - [improved] Media Manager no longer scans unrelated folders when a script is saved outside a shot, so it opens instantly.
 - [new] Reset Workspace is now also available in Hiero and Nuke Studio, from a TP menu (Ctrl+Alt+W).
-- [fixed][win] Snapshot Gallery's Shift+click, which opens a snapshot in the image editor that comes with HieroTools, works again with the latest HieroTools.
+- [improved] Snapshot Gallery's Shift+click opens the snapshot in FrameRev to annotate it, and no longer needs HieroTools. It requires FrameRev 0.265 or later.
+- [new][mac] Snapshot Gallery's Shift+click, which opens a snapshot in FrameRev to annotate it, now works on macOS too.

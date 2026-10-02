@@ -1,9 +1,14 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v1.08 | Lega
+  LGA_viewer_SnapShot_Gallery v1.09 | Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
+  v1.09 - Shift+click abre el JPG en FrameRev (--edit-image), la app de
+          anotacion de LGA, en vez del ShareX Image Editor que traian las
+          HieroTools. FrameRev se ubica por el registro de apps LGA y la
+          opcion aparece solo desde la 0.265; ya no depende de HieroTools y
+          funciona tambien en macOS.
   v1.08 - La integracion con HieroTools sigue la carpeta privada renombrada
           LGA_NKS_Flow_Rev_Panel_py al localizar ShareX Image Editor.
   v1.07 - Se enrocan los modificadores: Shift+click abre el JPG en el
@@ -36,6 +41,7 @@ import shutil
 import subprocess  # Importar subprocess para abrir archivos en macOS/Linux
 import platform  # Importar platform para detectar el SO
 import configparser
+import json
 from LGA_QtAdapter_ToolPack import (
     QtWidgets,
     QtCore,
@@ -95,74 +101,99 @@ CONFIG_THUMBNAIL_SIZE_KEY = "thumbnail_size"
 # refactor. El de revelar se arma con el nombre del explorador de cada sistema.
 TOOLTIP_ACCION_ABRIR = "Open JPG in your default viewer"
 TOOLTIP_ACCION_REVELAR = "Show in {destino}"
-TOOLTIP_ACCION_EDITAR = "Open JPG in ShareX Image Editor"
+TOOLTIP_ACCION_EDITAR = "Open JPG in FrameRev to annotate it"
 
 app = None
 window = None
 
 
-# El editor se busca una sola vez por sesion: la galeria crea un thumbnail por
+# FrameRev se busca una sola vez por sesion: la galeria crea un thumbnail por
 # archivo y no tiene sentido ir al disco por cada uno.
 _image_editor_path = None
 _image_editor_buscado = False
 
+# Primera version de FrameRev que entiende --edit-image. Una version vieja
+# ignora el flag y arranca una segunda copia completa de la app, asi que por
+# debajo de esta la opcion no se ofrece.
+FRAMEREV_MIN_VERSION = (0, 265)
 
-def get_hierotools_image_editor():
+
+def framerev_registry_file():
     """
-    Devuelve la ruta del ShareX ImageEditor LGA que traen las HieroTools, o
-    None si no estan instaladas.
+    Ruta del FrameRev.json del registro compartido de apps LGA.
 
-    Las HieroTools son un pack aparte que puede no estar; ademas el editor es
-    un .exe, asi que fuera de Windows no aplica. Por eso la opcion de la
-    galeria aparece solo cuando el archivo existe de verdad. Como solo corre en
-    Windows, se busca unicamente la grafia Python/Startup.
+    Cada app LGA escribe al arrancar un <App>.json con su ejecutable y su
+    version, en la carpeta LGA de los datos de aplicacion del usuario.
+    """
+    if platform.system() == "Windows":
+        base = os.environ.get("APPDATA") or os.path.join(
+            os.path.expanduser("~"), "AppData", "Roaming"
+        )
+        return os.path.join(base, "LGA", "FrameRev.json")
+    if platform.system() == "Darwin":
+        return os.path.join(
+            os.path.expanduser("~"), "Library", "Application Support", "LGA", "FrameRev.json"
+        )
+    return os.path.join(os.path.expanduser("~"), ".local", "share", "LGA", "FrameRev.json")
 
-    El pack vive en <.nuke>/LGA_ToolPack/py/, asi que subiendo dos niveles se
-    llega al .nuke donde vive tambien HieroTools. Se prueba igual la carpeta
-    del usuario, por si el pack se instalo en otro lado.
 
-    Se usa abspath y no realpath a proposito: con LGA_ToolPack symlinkeado,
-    realpath saldria del .nuke y la primera ruta no resolveria.
+def _parse_version(texto):
+    try:
+        return tuple(int(parte) for parte in str(texto).strip().split("."))
+    except (TypeError, ValueError):
+        return None
+
+
+def get_image_editor():
+    """
+    Devuelve el ejecutable de FrameRev, la app de anotacion de LGA, o None si
+    no esta instalada o es anterior a FRAMEREV_MIN_VERSION.
+
+    FrameRev se instala aparte y NO viaja en el pack: su ubicacion sale del
+    registro compartido de apps LGA (ver framerev_registry_file()). La opcion
+    de la galeria aparece solo cuando FrameRev se puede usar de verdad.
     """
     global _image_editor_path, _image_editor_buscado
     if _image_editor_buscado:
         return _image_editor_path
 
     _image_editor_buscado = True
-    if platform.system() != "Windows":
-        debug_print("ShareX ImageEditor LGA solo existe en Windows")
+    registro = framerev_registry_file()
+    if not os.path.isfile(registro):
+        debug_print(f"FrameRev no registrado: no existe {registro}")
+        return None
+    try:
+        # utf-8-sig: un JSON editado a mano en Windows puede traer BOM.
+        with open(registro, "r", encoding="utf-8-sig") as archivo:
+            datos = json.load(archivo)
+    except (OSError, ValueError) as e:
+        debug_print(f"No se pudo leer el registro de FrameRev: {e}")
+        return None
+    if not isinstance(datos, dict):
+        debug_print("El registro de FrameRev no es un objeto JSON")
         return None
 
-    relativo = os.path.join(
-        "Python",
-        "Startup",
-        "LGA_HieroTools",
-        "LGA_NKS_Flow_Rev_Panel_py",
-        "ShareX_ImageEditor_LGA",
-        "ShareX_ImageEditor_LGA.exe",
-    )
-    raiz_pack = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    )
-    nuke_home = os.path.join(os.path.expanduser("~"), ".nuke")
-    for base in (raiz_pack, nuke_home):
-        ruta = os.path.join(base, relativo)
-        if os.path.isfile(ruta):
-            debug_print(f"ShareX ImageEditor LGA encontrado en: {ruta}")
-            _image_editor_path = ruta
-            return _image_editor_path
+    ejecutable = str(datos.get("executable") or "")
+    version = _parse_version(datos.get("version"))
+    if not ejecutable or not os.path.isfile(ejecutable):
+        debug_print(f"El ejecutable registrado de FrameRev no existe: {ejecutable}")
+        return None
+    if version is None or version < FRAMEREV_MIN_VERSION:
+        debug_print(f"FrameRev {datos.get('version')} es anterior a la minima: sin opcion")
+        return None
 
-    debug_print("No se encontro ShareX ImageEditor LGA: HieroTools no instaladas")
-    return None
+    debug_print(f"FrameRev encontrado en: {ejecutable}")
+    _image_editor_path = ejecutable
+    return _image_editor_path
 
 
 def reset_image_editor_cache():
     """
-    Vuelve a habilitar la busqueda del editor.
+    Vuelve a habilitar la busqueda de FrameRev.
 
-    El resultado se cachea por sesion, asi que si alguien instala las
-    HieroTools con Nuke abierto el Alt+click no aparecería hasta reiniciar.
-    La galeria llama a esto al abrirse: cerrarla y volver a abrirla alcanza.
+    El resultado se cachea por sesion, asi que si alguien instala FrameRev con
+    Nuke abierto el Shift+click no aparecería hasta reiniciar. La galeria
+    llama a esto al abrirse: cerrarla y volver a abrirla alcanza.
     """
     global _image_editor_path, _image_editor_buscado
     _image_editor_path = None
@@ -609,10 +640,10 @@ class ThumbnailWidget(QLabel):
         acciones = [
             ("Click", TOOLTIP_ACCION_ABRIR),
         ]
-        # La fila del editor aparece solo si estan instaladas las HieroTools,
-        # que son las que traen el ejecutable. Sin editor, Shift no se lista:
-        # su unica accion seria caer al visor por defecto, que ya es el Click.
-        if get_hierotools_image_editor():
+        # La fila del editor aparece solo si FrameRev esta instalado y alcanza
+        # la version minima. Sin editor, Shift no se lista: su unica accion
+        # seria caer al visor por defecto, que ya es el Click.
+        if get_image_editor():
             acciones.append(("Shift-click", TOOLTIP_ACCION_EDITAR))
         acciones.append(
             ("Alt-click", TOOLTIP_ACCION_REVELAR.format(destino=reveal_target))
@@ -703,27 +734,35 @@ class ThumbnailWidget(QLabel):
 
     def open_in_image_editor(self):
         """
-        Abre el JPG en el ShareX ImageEditor LGA de las HieroTools.
+        Abre el JPG en FrameRev para anotarlo; Save lo guarda en el mismo archivo.
 
-        Se le pasa el archivo como argumento, igual que hace ReviewPic, en vez
-        de mandarlo por el portapapeles: la galeria ya tiene el archivo en
-        disco y asi no se le pisa el portapapeles al usuario.
+        Se usa --edit-image, que abre una ventana aparte de FrameRev (sin
+        bandeja ni atajos globales) y no borra el archivo. Lanzar el ejecutable
+        a secas con FrameRev ya abierto arrancaria una segunda copia completa.
 
         Devuelve False si no hay editor, para que el click caiga en el
         comportamiento de siempre.
         """
-        editor_path = get_hierotools_image_editor()
+        editor_path = get_image_editor()
         if not editor_path:
-            debug_print("Alt+click sin editor disponible: se abre el visor default")
+            debug_print("Shift+click sin FrameRev disponible: se abre el visor default")
             return False
+        kwargs = {"close_fds": True}
+        if platform.system() == "Windows":
+            # Sin consola heredada y en su propio grupo: cerrar Nuke no cierra FrameRev.
+            kwargs["creationflags"] = (
+                getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+            )
+        comando = [editor_path, "--edit-image", os.path.abspath(self.image_path)]
         try:
-            subprocess.Popen([editor_path, os.path.normpath(self.image_path)])
-            debug_print(f"Abriendo {self.image_path} en {editor_path}")
+            subprocess.Popen(comando, **kwargs)
+            debug_print(f"Abriendo en FrameRev: {comando}")
             return True
         except Exception as e:
-            log_error(f"Error al abrir el editor de imagenes: {e}")
+            log_error(f"Error al abrir FrameRev: {e}")
             QMessageBox.warning(
-                self, "Error", f"No se pudo abrir el editor de imágenes:\n{str(e)}"
+                self, "Error", f"FrameRev could not be started:\n{str(e)}"
             )
             return True
 
@@ -732,8 +771,8 @@ class ThumbnailWidget(QLabel):
         if event.button() == Qt.LeftButton:
             self.hide_custom_tooltip()
 
-            # Shift abre el editor de imagenes, igual que en el panel de
-            # HieroTools. Sin editor instalado la rama no consume el click, y
+            # Shift abre el JPG en FrameRev, igual que el Snapshot de
+            # HieroTools. Sin FrameRev instalado la rama no consume el click, y
             # el if de Alt es independiente a proposito: Shift+Alt sin editor
             # cae a revelar (la intencion de Alt se respeta) en vez de perderse
             # en el visor por defecto.
@@ -1362,9 +1401,8 @@ def open_snapshot_gallery():
 
     debug_print("Abriendo galeria de snapshots...")
 
-    # Se vuelve a mirar si estan las HieroTools: si se instalaron con Nuke
-    # abierto, cerrar y reabrir la galeria alcanza para que aparezca el
-    # Alt+click, sin reiniciar.
+    # Se vuelve a buscar FrameRev: si se instalo con Nuke abierto, cerrar y
+    # reabrir la galeria alcanza para que aparezca el Shift+click, sin reiniciar.
     reset_image_editor_cache()
 
     # Verificar si ya existe una ventana abierta con el mismo nombre de objeto

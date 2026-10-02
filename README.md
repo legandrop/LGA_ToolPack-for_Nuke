@@ -434,7 +434,7 @@ Switches the viewer to Rec709.
 
 
 
-## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.08 | Lega</strong>
+## <img src="Doc_Media/image13.png" alt="" width="6" height="16" style="margin-right:3px;"> Take/Show Snapshot v1.09 | Lega</strong>
 
 Take: Takes a snapshot (jpg) of what you see in the viewer —with the viewerProcess, gain and gamma applied, and respecting the framing—, copies it to the clipboard, saves it in the temp files folder and also in a gallery.<br>
 Take and append: With Shift, two images are generated: the standalone capture and a composite with the previous one attached to its left. Repeating the shortcut builds up a comparison strip —plate, vendor version, proposal— without going through Photoshop.<br>
@@ -442,7 +442,7 @@ Show: Shows the last snapshot taken, the one in the temp files folder.<br>
 Besides the shortcuts in the menu, these buttons are also added to the viewer:<br>
 ![](Doc_Media/image9.png)
 
-The last button opens a gallery with all the saved snapshots, separated by project. On each thumbnail: click to open it in the default viewer, Shift+click to open it in the ShareX Image Editor —an option that only appears if HieroTools is installed—, and Alt+click to reveal it in the file browser:<br>
+The last button opens a gallery with all the saved snapshots, separated by project. On each thumbnail: click to open it in the default viewer, Shift+click to open it in FrameRev to annotate it —an option that only appears if FrameRev 0.265 or later is installed—, and Alt+click to reveal it in the file browser:<br>
 ![](Doc_Media/image27.png)
 <br><br>
 <img src="Doc_Media/take_show_snapshot_shortcut.svg" alt="Take Show Snapshot shortcuts" width="330" height="83">
