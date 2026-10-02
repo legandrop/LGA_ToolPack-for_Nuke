@@ -5,6 +5,9 @@ ________________________________________________________________________________
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 
+  v2.80: evaluate_file_pattern ya no conecta el Write temporal a un nodo
+         seleccionado adentro de un grupo o gizmo: lo valida contra
+         selectedNodes(), como get_selected_node de Write Presets.
   v2.72: El look de PathCheckWindow sale del modulo de estilo
          LGA_UI_Style_ToolPack (fondo, secciones, spinners y botones;
          OK pasa a BTN_PRIMARY y Cancel a BTN_SECONDARY). Los colores
@@ -257,11 +260,18 @@ def evaluate_file_pattern(file_pattern):
 
     try:
         # Obtener el nodo seleccionado o crear un NoOp temporal para tener contexto
+        # selectedNode() tambien devuelve un nodo seleccionado ADENTRO de un
+        # grupo o gizmo; solo vale si esta en selectedNodes(), que mira el
+        # grafo actual (mismo criterio que get_selected_node de Write Presets).
         selected_node = None
-        try:
-            selected_node = nuke.selectedNode()
-        except ValueError:
-            pass
+        seleccion = nuke.selectedNodes()
+        if seleccion:
+            try:
+                ultimo = nuke.selectedNode()
+            except ValueError:
+                ultimo = None
+            nombres = set(n.fullName() for n in seleccion)
+            selected_node = ultimo if ultimo and ultimo.fullName() in nombres else seleccion[0]
 
         # Crear un Write temporal solo para evaluar el path
         # Esto es necesario porque algunas expresiones TCL de Nuke requieren un nodo para evaluarse
