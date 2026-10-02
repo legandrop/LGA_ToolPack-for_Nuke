@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.80 | Lega
+  LGA_Write_Presets v2.81 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -18,6 +18,9 @@ _____________________________________________________________________________
     - El titulo de la seccion "Write Presets" de README.md y README_ES.md,
       a mano.
 
+  v2.81: La ventana de verificacion del path se abre centrada donde estaba la
+         ventana de presets (o en el cursor, al editar un Write seleccionado),
+         en vez de en el centro de la pantalla.
   v2.80: El backdrop del preset preRender + Switch sale como LGA_backdrop
          y por encima de los backdrops que ya hay (LGA_Write_Presets_Backdrop).
          Antes buscaba LGA_oz_backdropReplacer, que ya no existe, y quedaba
@@ -1495,19 +1498,23 @@ class SelectedNodeInfo(QWidget):
                 self._pending_preset = preset
                 self._pending_user_text = user_text
 
-                # Cerrar y mostrar ventana de verificacion
+                # Cerrar y mostrar ventana de verificacion donde estaba esta
+                centro = self.frameGeometry().center()
                 self.close()
                 show_path_check_window(
-                    preset, user_text, self._create_write_from_pending
+                    preset, user_text, self._create_write_from_pending, center_at=centro
                 )
         else:
             # Guardar preset para usar en el callback
             self._pending_preset = preset
             self._pending_user_text = None
 
-            # Cerrar y mostrar ventana de verificacion
+            # Cerrar y mostrar ventana de verificacion donde estaba esta
+            centro = self.frameGeometry().center()
             self.close()
-            show_path_check_window(preset, None, self._create_write_from_pending)
+            show_path_check_window(
+                preset, None, self._create_write_from_pending, center_at=centro
+            )
 
     def handle_render_option_shift(self, row, column):
         """Maneja Shift+Click en un preset, creando el Write directamente sin ventana."""
@@ -1657,6 +1664,8 @@ class SelectedNodeInfo(QWidget):
             shot_folder_parts,
             apply_changes_to_write,
             original_extensions=original_extensions,
+            # Sin ventana de presets abierta: donde se habria abierto, en el cursor.
+            center_at=QCursor.pos(),
         )
         window.exec_()
 

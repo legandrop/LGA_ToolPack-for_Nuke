@@ -1,10 +1,12 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.80 | Lega
+  LGA_Write_Presets_Check v2.81 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 
+  v2.81: PathCheckWindow acepta center_at: al abrirse se centra en ese punto
+         y se reacomoda si no entra en la pantalla (_center_on).
   v2.80: evaluate_file_pattern ya no conecta el Write temporal a un nodo
          seleccionado adentro de un grupo o gizmo: lo valida contra
          selectedNodes(), como get_selected_node de Write Presets.
@@ -57,7 +59,7 @@ ________________________________________________________________________________
 import nuke
 import os
 import re
-from LGA_QtAdapter_ToolPack import QtWidgets, QtCore
+from LGA_QtAdapter_ToolPack import QtWidgets, QtCore, QtGui
 from LGA_UI_Style_ToolPack import Style as UIStyle, Color as UIColor
 
 QApplication = QtWidgets.QApplication
@@ -783,9 +785,14 @@ class PathCheckWindow(QDialog):
         shot_folder_parts,
         callback=None,
         original_extensions=None,
+        center_at=None,
     ):
         super().__init__()
         self.callback = callback
+        # Punto global donde centrar la ventana al abrirla (el centro de la
+        # ventana de presets, o el cursor). None: donde la ponga Qt.
+        self._center_at = center_at
+        self._centered = False
         self.original_file_pattern = file_pattern
         self.current_file_pattern = file_pattern
         self.shot_folder_parts = shot_folder_parts
@@ -1271,9 +1278,24 @@ Verifica que el Write esté conectado correctamente y que el pattern TCL sea vá
     def showEvent(self, event):
         """Se llama cuando la ventana se muestra. Activa la ventana y le da foco."""
         super().showEvent(event)
+        if self._center_at is not None and not self._centered:
+            self._centered = True
+            self._center_on(self._center_at)
         self.activateWindow()  # Activar la ventana
         self.raise_()  # Traer al frente
         self.setFocus()  # Dar foco a la ventana
+
+    def _center_on(self, punto):
+        """Centra la ventana en `punto` sin que se salga de la pantalla."""
+        screen = QtGui.QGuiApplication.screenAt(punto) or QtGui.QGuiApplication.primaryScreen()
+        marco = self.frameGeometry()
+        x = punto.x() - marco.width() // 2
+        y = punto.y() - marco.height() // 2
+        if screen:
+            area = screen.availableGeometry()
+            x = max(area.left(), min(x, area.right() - marco.width() + 1))
+            y = max(area.top(), min(y, area.bottom() - marco.height() + 1))
+        self.move(x, y)
 
     def keyPressEvent(self, event):
         """Maneja eventos de teclado: ESC para cancelar, Enter para aceptar."""
@@ -1596,7 +1618,7 @@ Verifica que el Write esté conectado correctamente y que el pattern TCL sea vá
         super().reject()
 
 
-def show_path_check_window(preset, user_text=None, callback=None):
+def show_path_check_window(preset, user_text=None, callback=None, center_at=None):
     """
     Muestra la ventana de verificacion del path.
     Funciona igual que el comportamiento original de mostrar paths (inspirado en LGA_Write_PathToText.py)
@@ -1606,6 +1628,7 @@ def show_path_check_window(preset, user_text=None, callback=None):
         user_text: Texto ingresado por el usuario (si aplica)
         callback: Funcion a llamar cuando el usuario confirma (OK)
                   El callback recibira el file_pattern modificado (o None si no hubo cambios)
+        center_at: QPoint global donde centrar la ventana (opcional)
     """
     global app, window
 
@@ -1642,5 +1665,6 @@ def show_path_check_window(preset, user_text=None, callback=None):
         shot_folder_parts,
         callback_wrapper,
         original_extensions=original_extensions,
+        center_at=center_at,
     )
     window.exec_()
