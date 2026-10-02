@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets_Chain v2.79 | Lega
+  LGA_Write_Presets_Chain v2.80 | Lega
 
   Presets de cadena de Write Presets: guarda los nodos seleccionados (un
   Write y lo que tenga arriba: OCIO, textos, groups, backdrops) como un
@@ -28,8 +28,11 @@ _____________________________________________________________________________
   debajo; sin ninguno se pega suelta y se encuadra; con varios se avisa y
   no se pega. Los OCIOCDLTransform y OCIOFileTransform vacios se completan
   con el CDL, el LMT y el working space del .amf del shot
-  (LGA_Write_Presets_Look). Borrar un preset lo manda a la papelera.
+  (LGA_Write_Presets_Look). Los backdrops quedan como LGA_backdrop y por
+  encima de lo que ya hay (LGA_Write_Presets_Backdrop). Borrar un preset lo manda a la papelera.
 
+  v2.80: Los backdrops del preset se pegan como LGA_backdrop y con el z
+         order calculado sobre los backdrops que ya hay.
   v2.79: Sin rutas fijas: al guardar se vacian en vez de ofrecer pasarlas
          a relativas, que solo servia desde un script dentro del shot. Al
          pegar, el look se toma del .amf del shot. Los Read quedan afuera.
@@ -535,6 +538,19 @@ def apply_chain_preset(preset):
             # Sin ancla quedan en las coordenadas del script donde se guardo:
             # se encuadran para que se vean.
             nuke.zoomToFitSelected()
+
+        # Los backdrops del preset: LGA_backdrop y por encima de lo que ya hay.
+        import LGA_Write_Presets_Backdrop as wp_backdrop
+
+        wp_backdrop.set_logger(_log)
+        backdrops = []
+        for n in [n for n in pasted if n.Class() == "BackdropNode"]:
+            nuevo = wp_backdrop.to_lga_backdrop(n)
+            if nuevo is not n:
+                nuevo.setSelected(True)
+                pasted = [p for p in pasted if p is not n] + [nuevo]
+            backdrops.append(nuevo)
+        wp_backdrop.raise_backdrops(backdrops)
 
         vacios = _empty_look_nodes(pasted)
         if vacios and plan:

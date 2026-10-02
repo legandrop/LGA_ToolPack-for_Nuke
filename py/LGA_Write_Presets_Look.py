@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_Write_Presets_Look v2.79 | Lega
+  LGA_Write_Presets_Look v2.80 | Lega
 
   Resuelve los archivos de look (CDL y LMT) de un preset de cadena
   contra el shot donde se pega. Los presets se guardan sin rutas fijas;

@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.79 | Lega
+  LGA_Write_Presets v2.80 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -12,11 +12,19 @@ _____________________________________________________________________________
     LGA_Write_Presets_Chain.py    presets de cadena (Alt+Shift+W)
     LGA_Write_Presets_Look.py     look del shot (.amf) al pegar un preset
     LGA_Write_Presets_Dialogs.py  cartel para elegir el plate
+    LGA_Write_Presets_Backdrop.py backdrops LGA y su z order
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - El titulo de la seccion "Write Presets" de README.md y README_ES.md,
       a mano.
 
+  v2.80: El backdrop del preset preRender + Switch sale como LGA_backdrop
+         y por encima de los backdrops que ya hay (LGA_Write_Presets_Backdrop).
+         Antes buscaba LGA_oz_backdropReplacer, que ya no existe, y quedaba
+         un backdrop comun con z fijo en 4. Sin nada seleccionado, el NoOp
+         temporal nace en el centro de la vista del Node Graph
+         (_create_temp_noop_in_view) y no en el lugar fijo donde lo dejaba
+         createNode.
   v2.79: Sin cambios en este archivo; suben los modulos de presets de
          cadena (look del shot desde el .amf).
   v2.78: Presets de cadena. La tabla suma al final los presets que el
@@ -143,19 +151,8 @@ except ImportError:
     )
 
 
-# Intentar importar el modulo LGA_oz_backdropReplacer
 script_dir = os.path.dirname(__file__)
 sys.path.append(script_dir)
-
-try:
-    import LGA_oz_backdropReplacer
-
-    oz_backdrop_available = True
-except ImportError:
-    oz_backdrop_available = False
-    debug_print(
-        "El modulo LGA_oz_backdropReplacer no esta disponible. Continuando sin reemplazar el backdrop."
-    )
 
 # Importar modulo de verificacion de path
 try:
@@ -618,6 +615,28 @@ def load_presets():
     return {section: dict(config[section]) for section in config.sections()}
 
 
+def _create_temp_noop_in_view():
+    """NoOp temporal en el centro de lo que se ve del Node Graph.
+
+    Sin nada seleccionado, createNode lo dejaba donde Nuke decide, siempre
+    en el mismo lugar y no donde esta mirando el usuario. No se usa el click
+    simulado en el cursor de otras tools: cuando esto corre, la ventana de
+    verificacion del path todavia esta abierta bajo el cursor. Se sube la
+    mitad de lo que ocupa el preset (Dot, Switch y Write van debajo) para
+    que el conjunto quede centrado.
+    """
+    no_op = nuke.createNode("NoOp", inpanel=False)
+    try:
+        centro_x, centro_y = nuke.center()
+        no_op.setXYpos(
+            int(centro_x - no_op.screenWidth() / 2),
+            int(centro_y - no_op.screenHeight() / 2 - 150),
+        )
+    except Exception as exc:
+        debug_print(f"[Write_Presets] No se pudo centrar el NoOp temporal: {exc}")
+    return no_op
+
+
 def create_write_from_preset(preset, user_text=None, modified_file_pattern=None):
     """
     Crea un Write node y nodos adicionales según el preset
@@ -631,7 +650,7 @@ def create_write_from_preset(preset, user_text=None, modified_file_pattern=None)
 
     # Obtener nodo seleccionado o crear NoOp
     selected_node = get_selected_node()
-    current_node = selected_node or nuke.createNode("NoOp")
+    current_node = selected_node or _create_temp_noop_in_view()
 
     # Variables para posicionamiento
     preferences_node = nuke.toNode("preferences")
@@ -850,15 +869,11 @@ def create_write_from_preset(preset, user_text=None, modified_file_pattern=None)
 
         backdrop_node.hideControlPanel()
 
-        if oz_backdrop_available:
-            backdrop_node["selected"].setValue(True)
-            LGA_oz_backdropReplacer.replace_with_oz_backdrop()
-            # Obtener el nuevo backdrop después del reemplazo
-            selected_nodes = nuke.selectedNodes("BackdropNode")
-            if selected_nodes:
-                new_backdrop_node = selected_nodes[0]
-                new_backdrop_node.hideControlPanel()
-                new_backdrop_node["selected"].setValue(False)
+        # LGA_backdrop (si Layout esta instalado) y por encima de lo que ya hay.
+        import LGA_Write_Presets_Backdrop as wp_backdrop
+
+        backdrop_node = wp_backdrop.to_lga_backdrop(backdrop_node)
+        wp_backdrop.raise_backdrops([backdrop_node])
 
     # Eliminar NoOp temporal si se creó y es un NoOp
     if not selected_node and current_node.Class() == "NoOp":
