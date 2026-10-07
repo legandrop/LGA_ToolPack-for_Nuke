@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_Write_Presets_Dialogs v2.82 | Lega
+  LGA_Write_Presets_Dialogs v2.84 | Lega
 
   Cartel para elegir el plate cuando se pega un preset de cadena en un
   shot con varios .amf y el Read de arriba no dice cual es.
@@ -15,12 +15,69 @@ ____________________________________________________________________
       tecla del numero confirma. Esc o cerrar cancela (None). Con 0 o 1
       entradas no se muestra nada.
 
+  v2.84: Comparte el centro entre carteles y ajusta a la pantalla activa.
   v2.79: Modulo nuevo.
 ____________________________________________________________________
 """
 
-from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, Qt, QShortcut as _QShortcut
+from LGA_QtAdapter_ToolPack import QtWidgets, QtGui, QtCore, Qt, QShortcut as _QShortcut
 from LGA_UI_Style_ToolPack import Style, Color, Metric, apply_ui_font, semibold
+
+
+# Punto compartido por los dialogos de una misma operacion de presets.
+_dialog_center = None
+
+
+def set_dialog_center(point=None):
+    global _dialog_center
+    _dialog_center = QtCore.QPoint(point if point is not None else QtGui.QCursor.pos())
+
+
+def position_dialog(dialog):
+    point = _dialog_center if _dialog_center is not None else QtGui.QCursor.pos()
+    screen = QtGui.QGuiApplication.screenAt(point) or QtGui.QGuiApplication.primaryScreen()
+    frame = dialog.frameGeometry()
+    x, y = point.x() - frame.width() // 2, point.y() - frame.height() // 2
+    if screen:
+        area = screen.availableGeometry()
+        x = max(area.left(), min(x, area.right() - frame.width() + 1))
+        y = max(area.top(), min(y, area.bottom() - frame.height() + 1))
+    dialog.move(x, y)
+
+
+class _PositionDialogs(QtCore.QObject):
+    def eventFilter(self, widget, event):
+        if event.type() == QtCore.QEvent.Show and isinstance(widget, QtWidgets.QDialog):
+            position_dialog(widget)
+        return False
+
+
+def _message(name, *args, **kwargs):
+    # El filtro vive solo mientras se ejecuta este cartel; se retira al cerrar.
+    from LGA_UI_MessageBox_ToolPack import __dict__ as helpers
+    app = QtWidgets.QApplication.instance()
+    placement = _PositionDialogs()
+    app.installEventFilter(placement)
+    try:
+        return helpers[name](*args, **kwargs)
+    finally:
+        app.removeEventFilter(placement)
+
+
+def ask_question(*args, **kwargs):
+    return _message("ask_question", *args, **kwargs)
+
+
+def show_warning(*args, **kwargs):
+    return _message("show_warning", *args, **kwargs)
+
+
+def show_error(*args, **kwargs):
+    return _message("show_error", *args, **kwargs)
+
+
+def show_info(*args, **kwargs):
+    return _message("show_info", *args, **kwargs)
 
 
 # No hay hoja para un "chip numerado": se arma con tokens, nunca con un hex.
@@ -225,6 +282,7 @@ class _PickPlateDialog(QtWidgets.QDialog):
             return
         self._height_fitted = True
         _fit_height(self)
+        position_dialog(self)
 
 
 def _plate_label(entry):

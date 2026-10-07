@@ -13,6 +13,7 @@ Sistema para crear nodos Write con configuraciones predefinidas. Genera paths au
 - **`LGA_ToolPack/py/LGA_Write_Presets_Chain.py`**: Presets de cadena: guardar la selección con Alt+Shift+W, listarlos, pegarlos y mandarlos a la papelera
 - **`LGA_ToolPack/py/LGA_Write_Presets_Look.py`**: Al pegar un preset, carga el CDL y el LMT del shot desde su `.amf` (copia de la lógica de AMF de ToolPack-B)
 - **`LGA_ToolPack/py/LGA_Write_Presets_Dialogs.py`**: Cartel para elegir el plate (copia del de AMF)
+- **`LGA_ToolPack/py/LGA_Write_Presets_Range.py`**: Ofrece limitar los Write MOV/MXF nuevos al rango del TimeClip del EditRef
 - **`LGA_ToolPack/py/LGA_Write_Presets_Backdrop.py`**: Backdrops como LGA_backdrop y su z order, para el preset preRender + Switch y para los presets de cadena
 
 ## Funcionalidad Principal
@@ -56,6 +57,14 @@ Además de los presets del `.ini`, el usuario puede guardar una cadena de nodos 
 - **Lectura del `.nk`**: `strip_write_frame_range` y `strip_fixed_paths` recorren el texto con `_walk_nk`, que sigue la estructura (nodo que abre con `Clase {`, llaves balanceadas de los knobs de varias líneas, hijos de un Group hasta `end_group`) y no la sangría: `nodeCopy` a veces escribe los knobs con un espacio adelante y a veces sin.
 - **Backdrops**: los del preset se convierten en LGA_backdrop con `to_lga_backdrop`, que le agrega al mismo nodo la pestaña `backdrop` con los knobs de Layout (copia de la estructura de `LGA_BD_knobs.add_all_knobs`). No depende de Layout: sin él los knobs quedan inertes, como en un script con LGA_backdrops abierto en otra máquina; con él se agregan con `suppress_callbacks` y el margen sale de sus defaults guardados. Después `raise_backdrops` fija `z_order` (y el slider `zorder`): uno más que el mayor de los backdrops existentes que se le superponen, o uno menos que el menor de los que encierra entero. Los backdrops pegados se resuelven del más grande al más chico. Lo mismo hace el preset preRender + Switch del `.ini`.
 - **Look del shot**: si el preset trae `OCIOCDLTransform` u `OCIOFileTransform`, antes de pegar se arma el plan con `LGA_Write_Presets_Look.resolve_look_plan`: sube desde el `.nk` hasta la carpeta con `_input`, lista los `.amf` de `_input/Look_Files` por plate (versión más alta), y elige el plate: uno solo, el que nombra la ruta de un Read de arriba del ancla (como bloque y sin distinguir mayúsculas: `APLATE` → `aPlate`), o el cartel `pick_plate`. Del `.amf` salen el `.cdl` hermano con su `cccid`, el `.clf` del LMT y el working space de cada uno (sin `.amf`: un `.cdl` y un `.clf` por extensión). Después de pegar, `apply_look_plan` carga eso en los nodos de look que quedaron sin archivo, por tipo y en orden de cadena; los que tienen TCL no se tocan. Lo que no se pudo resolver sale en un cartel.
+
+## Rango del EditRef en los Write MOV/MXF
+
+Al crear un Write MOV o MXF (desde un preset del `.ini` o pegando un preset de cadena, incluidos los Write dentro de Groups), `LGA_Write_Presets_Range.offer_editref_range` busca en el grafo actual los Read cuyo archivo contiene "editref" (sin distinguir mayúsculas ni separadores) y los TimeClip que dependen de ellos, directa o indirectamente. Si todos dan el mismo rango, pregunta si limitar los Writes nuevos a ese rango: `firstFrame()`/`lastFrame()` del TimeClip, que ya incluyen start at y offset (1–68 con start at 1009 da 1009–1076). Con «Limit range» copia `first`/`last` y prende `use_limit`; con «Keep range» no toca nada. Si los TimeClip dan rangos distintos o inválidos avisa y no elige ninguno. No modifica Writes existentes. Log: `py/logs/DebugPy_LGA_Write_Presets_Range.log`.
+
+## Posición de los diálogos
+
+Todos los diálogos que siguen a la ventana de presets se abren centrados donde estaba ella, ajustados a la pantalla de ese punto: el nombre del render o del preset, la elección de plate, el rango del EditRef y los carteles de guardar, importar y borrar. `LGA_Write_Presets_Dialogs.set_dialog_center` guarda el punto (el centro de la ventana de presets, o el cursor si no hubo ventana) y `position_dialog` lo aplica. Los carteles del helper del pack se envuelven (`ask_question`, `show_info`, `show_warning`, `show_error` de `LGA_Write_Presets_Dialogs`) con un filtro de eventos que vive solo mientras el cartel está abierto.
 
 ## Compatibilidad con OCIO
 
@@ -195,3 +204,11 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 **`LGA_ToolPack/LGA_Write_Presets.py`** (compartir):
 - `dragEnterEvent`, `dropEvent`, `_import_dropped`, `reload_rows`: Soltar `.nk` sobre la ventana
 - `chain_path_for_row(row)` y `ShiftClickTableWidget._start_file_drag(row)`: Arrastrar una fila `[Chain]` hacia afuera
+
+**`LGA_ToolPack/py/LGA_Write_Presets_Range.py`**:
+- `offer_editref_range(created_nodes)`: Pregunta y aplica el rango del EditRef a los Write MOV/MXF nuevos
+- `find_editref_clips(nodes)`: TimeClips que dependen de un Read de EditRef
+
+**`LGA_ToolPack/py/LGA_Write_Presets_Dialogs.py`** (posición):
+- `set_dialog_center(point=None)` y `position_dialog(dialog)`: Centro compartido de los diálogos de una operación
+- `ask_question`, `show_info`, `show_warning`, `show_error`: Carteles del pack ubicados en ese centro

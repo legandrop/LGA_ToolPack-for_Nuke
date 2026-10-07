@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_Write_Presets_Backdrop v2.82 | Lega
+  LGA_Write_Presets_Backdrop v2.84 | Lega
 
   Los backdrops que crea o pega Write Presets: que sean LGA_backdrop y
   que queden por encima de lo que ya hay en el Node Graph.

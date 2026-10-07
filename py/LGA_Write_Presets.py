@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.82 | Lega
+  LGA_Write_Presets v2.84 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -13,11 +13,14 @@ _____________________________________________________________________________
     LGA_Write_Presets_Look.py     look del shot (.amf) al pegar un preset
     LGA_Write_Presets_Dialogs.py  cartel para elegir el plate
     LGA_Write_Presets_Backdrop.py backdrops LGA y su z order
+    LGA_Write_Presets_Range.py    rango opcional del EditRef
 
   Donde mas se ve esta version, y hay que moverla junto con el header:
     - El titulo de la seccion "Write Presets" de README.md y README_ES.md,
       a mano.
 
+  v2.84: Los dialogos posteriores comparten el centro de la ventana de presets.
+  v2.83: Ofrece limitar Writes MOV/MXF al TimeClip del EditRef.
   v2.82: Compartir presets de cadena arrastrando: soltar un .nk sobre la
          ventana lo importa (borde violeta mientras se arrastra encima) y
          arrastrar una fila [Chain] hacia afuera la entrega como archivo.
@@ -376,6 +379,9 @@ class NameInputDialog(QDialog):
     def showEvent(self, event):
         """Se llama cuando el diálogo se muestra"""
         super().showEvent(event)
+        from LGA_Write_Presets_Dialogs import position_dialog
+
+        position_dialog(self)
         self.activateWindow()  # Activar la ventana
         self.raise_()  # Traer al frente
         self.line_edit.setFocus()  # Dar foco al line_edit
@@ -399,17 +405,11 @@ class NameInputDialog(QDialog):
 def show_name_input_dialog(initial_text="", title="Render Name", width=220):
     dialog = NameInputDialog(initial_text, title, width)
     apply_ui_font(dialog)
-    cursor_pos = QCursor.pos()
-    screen = QGuiApplication.screenAt(cursor_pos) or QGuiApplication.primaryScreen()
-    if screen:
-        avail_space = screen.availableGeometry()
-        posx = min(
-            max(cursor_pos.x() - 100, avail_space.left()), avail_space.right() - 200
-        )
-        posy = min(
-            max(cursor_pos.y() - 80, avail_space.top()), avail_space.bottom() - 150
-        )
-        dialog.move(posx, posy)
+    from LGA_Write_Presets_Dialogs import position_dialog
+
+    dialog.ensurePolished()
+    dialog.adjustSize()
+    position_dialog(dialog)
 
     if dialog.exec_() == QDialog.Accepted:
         return dialog.esc_exit, dialog.line_edit.text()
@@ -908,7 +908,12 @@ def create_write_from_preset(preset, user_text=None, modified_file_pattern=None)
         node["selected"].setValue(False)
     write_node["selected"].setValue(True)
 
-    nuke.Undo().end()
+    import LGA_Write_Presets_Range as wp_range
+
+    try:
+        wp_range.offer_editref_range([write_node])
+    finally:
+        nuke.Undo().end()
 
 
 class ColoredItemDelegate(QStyledItemDelegate):
@@ -1281,6 +1286,9 @@ class SelectedNodeInfo(QWidget):
         QTimer.singleShot(0, lambda: self._import_dropped(rutas))
 
     def _import_dropped(self, rutas):
+        from LGA_Write_Presets_Dialogs import set_dialog_center
+
+        set_dialog_center(self.window().frameGeometry().center())
         from LGA_Write_Presets_Chain import import_preset_files
 
         if import_preset_files(rutas):
@@ -1414,7 +1422,7 @@ class SelectedNodeInfo(QWidget):
         try:
             # Cartel estilado del pack; nuke.message queda como fallback
             try:
-                from LGA_UI_MessageBox_ToolPack import show_error
+                from LGA_Write_Presets_Dialogs import show_error
 
                 show_error(None, "Write Presets", texto)
             except Exception:
@@ -1500,6 +1508,10 @@ class SelectedNodeInfo(QWidget):
 
     def adjust_window_size(self):
         """Ajusta el tamaño de la ventana basado en el contenido de la tabla y la posición del cursor."""
+        # La pantalla del cursor se usa ya para el ancho maximo: el punto se
+        # lee al principio, antes de cualquier uso.
+        cursor_pos = QCursor.pos()
+
         # Desactivar temporalmente el estiramiento de la última columna
         self.table.horizontalHeader().setStretchLastSection(False)
 
@@ -1523,7 +1535,7 @@ class SelectedNodeInfo(QWidget):
             width = max(width, text_width)
 
         # Asegurarse de que el ancho no supera el 80% del ancho de pantalla
-        screen = QApplication.primaryScreen()
+        screen = QGuiApplication.screenAt(cursor_pos) or QApplication.primaryScreen()
         screen_rect = screen.availableGeometry()
         max_width = screen_rect.width() * 0.8
         final_width = min(width, max_width)
@@ -1562,7 +1574,7 @@ class SelectedNodeInfo(QWidget):
 
         # Obtener la posición actual del puntero del mouse
         cursor_pos = QCursor.pos()
-        screen = QApplication.primaryScreen()
+        screen = QGuiApplication.screenAt(cursor_pos) or QApplication.primaryScreen()
         screen_rect = screen.availableGeometry()
 
         # Calcular la posición inicial centrada en el cursor
@@ -1586,6 +1598,9 @@ class SelectedNodeInfo(QWidget):
 
     def handle_render_option(self, row, column):
         """Maneja el clic normal en un preset, mostrando ventana de verificacion."""
+        from LGA_Write_Presets_Dialogs import set_dialog_center
+
+        set_dialog_center(self.window().frameGeometry().center())
         if not path_check_available:
             # Si el modulo no esta disponible, comportarse como Shift+Click (crear directamente)
             self.handle_render_option_shift(row, column)
@@ -1633,6 +1648,9 @@ class SelectedNodeInfo(QWidget):
 
     def handle_render_option_shift(self, row, column):
         """Maneja Shift+Click en un preset, creando el Write directamente sin ventana."""
+        from LGA_Write_Presets_Dialogs import set_dialog_center
+
+        set_dialog_center(self.window().frameGeometry().center())
         preset = self.rows[row]
         if self.apply_if_chain(preset):
             return
@@ -1669,6 +1687,9 @@ class SelectedNodeInfo(QWidget):
 
     def handle_right_click(self, row, column):
         """Click derecho en un preset de cadena: ofrece borrarlo."""
+        from LGA_Write_Presets_Dialogs import set_dialog_center
+
+        set_dialog_center(self.window().frameGeometry().center())
         if row < 0 or row >= len(self.rows):
             return
         preset = self.rows[row]
@@ -1855,6 +1876,9 @@ window = None
 
 def main():
     global app, window
+    from LGA_Write_Presets_Dialogs import set_dialog_center
+
+    set_dialog_center()
 
     # Verificar y corregir Write seleccionado antes de mostrar la interfaz
     # Si se corrigio un Write, se mostrara un mensaje en la consola de Nuke.

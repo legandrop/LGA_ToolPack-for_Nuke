@@ -1,5 +1,11 @@
 # ChangeLog
 
+## v2.67
+
+- **Los dialogos de Write Presets comparten posicion.** El rango del EditRef, la eleccion de plate y los carteles de guardar, importar y borrar se centran donde estaba la ventana de presets, con ajuste a la pantalla de ese punto. Sin ventana previa usan el cursor. Write Presets v2.84. [ WritePresets - Mantener los dialogos junto a los presets ]
+
+- **Write Presets ofrece el rango del EditRef para salidas MOV/MXF.** Busca el Read por su archivo y sigue conexiones indirectas hasta TimeClip en el grafo actual; muestra sus frames y, con aceptación, copia el rango de salida calculado por Nuke (incluyendo start at y offset) y activa use_limit solo en los Writes nuevos, incluidos los de cadena. Si hay rangos incompatibles no elige uno arbitrariamente. Write Presets v2.83. [ WritePresets - Ofrecer limite de render del EditRef ]
+
 ## v2.66
 
 - **Los presets de cadena se comparten arrastrando.** Para pasarle un preset a otro usuario había que buscar el `.nk` en la carpeta de datos. Ahora una fila `[Chain]` se arrastra fuera de la ventana de Shift+W y sale como archivo, y un `.nk` soltado sobre la ventana se agrega como preset, limpio igual que con Alt+Shift+W: se pega en el root con el undo apagado, se copia sin Read y se borra. Las limpiezas de texto recorren el `.nk` por estructura y no por sangría, porque `nodeCopy` a veces escribe los knobs sin el espacio adelante y entonces no se sacaban ni las rutas ni el rango. Write Presets v2.82. [ WritePresets - Compartir presets arrastrando ]

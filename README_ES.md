@@ -154,7 +154,7 @@ Si el nombre de la secuencia no coincide con el del script, o si el destino ya t
 
 
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v2.82 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v2.84 | Lega
 
 Para crear nodos Write con configuraciones predefinidas para diferentes tipos de render.<br>
 Abre una ventana con opciones de render pre configuradas que se cargan desde un archivo .ini. Permite crear Writes basados en el nombre del script o en el nombre del nodo Read más alto. Según la configuración, puede abrir un diálogo para nombrar el render y crear automáticamente un backdrop con Write y Switch. Los presets incluyen configuraciones específicas para diferentes formatos (mov, tiff, exr) con parámetros optimizados para cada caso.<br>
@@ -164,6 +164,8 @@ Si se ejecuta sobre un write existente se abre el editor de TLC:<br>
 ![](Doc_Media/write_presetsB_v01.gif)
 
 También se pueden guardar presets propios: se seleccionan un Write y los nodos que tiene arriba (transformaciones de color, burn-ins, groups, incluso el backdrop que los rodea) y se aprieta Alt+Shift+W. El preset aparece al final de la lista como [Chain], y al hacerle clic pega la cadena entera debajo del nodo seleccionado. Al guardar se saca el rango de frames del Write, se dejan afuera los Read y no se guarda ninguna ruta fija, sólo las de TCL. Al pegar, los nodos de CDL y LUT cargan los archivos del shot desde el .amf de _input/Look_Files, y si hay más de un plate pregunta cuál usar. Los backdrops, acá y en el preset preRender + Switch, salen como LGA backdrops y por encima de los backdrops que ya hay. Con clic derecho sobre un preset [Chain] se lo manda a la papelera. Para compartir presets, se arrastra una fila [Chain] fuera de la ventana y sale su archivo .nk, y se suelta un .nk sobre la ventana para sumarlo a los presets propios, limpio de la misma manera.
+Al crear un Write MOV o MXF, también dentro de un preset de cadena, Write Presets busca un TimeClip conectado directa o indirectamente a un Read EditRef y ofrece usar sus frames de salida inicial y final, incluyendo start at y offset, como límite de render. Keep range conserva el rango del preset.
+Todos los diálogos posteriores se abren cerca de la ventana de presets y se ajustan a la pantalla disponible.
 <br><br>
 <img src="Doc_Media/write_presets_shortcut.svg" alt="Write Presets shortcuts" width="345" height="65">
 

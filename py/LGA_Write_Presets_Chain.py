@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets_Chain v2.82 | Lega
+  LGA_Write_Presets_Chain v2.84 | Lega
 
   Presets de cadena de Write Presets: guarda los nodos seleccionados (un
   Write y lo que tenga arriba: OCIO, textos, groups, backdrops) como un
@@ -32,6 +32,7 @@ _____________________________________________________________________________
   (LGA_Write_Presets_Look). Los backdrops quedan como LGA_backdrop y por
   encima de lo que ya hay (LGA_Write_Presets_Backdrop). Borrar un preset lo manda a la papelera.
 
+  v2.83: Ofrece limitar los MOV/MXF nuevos al TimeClip del EditRef.
   v2.82: import_preset_files() agrega los .nk soltados en la ventana, con la
          misma limpieza que Alt+Shift+W (se pegan en el root con el undo
          apagado, se copian sin Read y se borran). Las limpiezas de texto
@@ -408,9 +409,12 @@ def _saved_notes(excluidos, quitadas):
 
 def save_selection_as_preset():
     """Alt+Shift+W: guarda la seleccion como preset de cadena."""
-    from LGA_UI_MessageBox_ToolPack import ask_question, show_error, show_info, show_warning
+    from LGA_Write_Presets_Dialogs import ask_question, show_error, show_info, show_warning
     from LGA_Write_Presets import show_name_input_dialog
 
+    from LGA_Write_Presets_Dialogs import set_dialog_center
+
+    set_dialog_center()
     _log_start("Guardar preset de cadena")
     nodes, excluidos = collect_preset_nodes()
     if not nodes:
@@ -542,7 +546,7 @@ def import_preset_files(paths):
     pregunta si reemplazarlo. Devuelve la lista de nombres importados; lo
     que no se pudo importar, y por que, sale en el cartel final.
     """
-    from LGA_UI_MessageBox_ToolPack import ask_question, show_error, show_info, show_warning
+    from LGA_Write_Presets_Dialogs import ask_question, show_error, show_info, show_warning
 
     _log_start("Importar presets soltados")
     _log("Archivos:", paths)
@@ -660,7 +664,7 @@ def _empty_look_nodes(pasted):
 
 def apply_chain_preset(preset):
     """Pega el preset colgando del nodo seleccionado, o suelto si no hay."""
-    from LGA_UI_MessageBox_ToolPack import show_error, show_warning
+    from LGA_Write_Presets_Dialogs import show_error, show_warning
 
     _log_start("Usar preset de cadena")
     path = preset["path"]
@@ -735,6 +739,9 @@ def apply_chain_preset(preset):
             problemas = look.apply_look_plan(vacios, plan)
         elif vacios and problema:
             problemas = [problema, "The CDL and LUT nodes were left empty."]
+        import LGA_Write_Presets_Range as wp_range
+
+        wp_range.offer_editref_range(pasted)
     except Exception as exc:
         _log("ERROR al pegar:", repr(exc))
         show_error(
@@ -769,7 +776,7 @@ def _send_to_trash(path):
 
 def delete_chain_preset(preset):
     """Manda el preset a la papelera, previa confirmacion. True si lo hizo."""
-    from LGA_UI_MessageBox_ToolPack import ask_question, show_error
+    from LGA_Write_Presets_Dialogs import ask_question, show_error
 
     _log_start("Borrar preset de cadena")
     if not ask_question(
