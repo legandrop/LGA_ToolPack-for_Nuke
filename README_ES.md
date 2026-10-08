@@ -154,7 +154,7 @@ Si el nombre de la secuencia no coincide con el del script, o si el destino ya t
 
 
 
-## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v2.84 | Lega
+## <img src="Doc_Media/image7.png" alt="" width="6" height="16" style="margin-right:3px;"> Write Presets v2.85 | Lega
 
 Para crear nodos Write con configuraciones predefinidas para diferentes tipos de render.<br>
 Abre una ventana con opciones de render pre configuradas que se cargan desde un archivo .ini. Permite crear Writes basados en el nombre del script o en el nombre del nodo Read más alto. Según la configuración, puede abrir un diálogo para nombrar el render y crear automáticamente un backdrop con Write y Switch. Los presets incluyen configuraciones específicas para diferentes formatos (mov, tiff, exr) con parámetros optimizados para cada caso.<br>

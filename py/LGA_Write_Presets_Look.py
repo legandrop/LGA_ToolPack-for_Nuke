@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_Write_Presets_Look v2.84 | Lega
+  LGA_Write_Presets_Look v2.85 | Lega
 
   Resuelve los archivos de look (CDL y LMT) de un preset de cadena
   contra el shot donde se pega. Los presets se guardan sin rutas fijas;
@@ -18,12 +18,21 @@ ____________________________________________________________________
        y el working space de cada uno. Sin .amf: un .cdl y un .clf por
        extension.
 
-  COPIA de LGA_ApplyAMF v0.13 (repo LGA_ToolPack-B). Los repos no pueden
+  COPIA de LGA_ApplyAMF (repo LGA_ToolPack-B): la busqueda de Look_Files y
+  la lectura del .amf son las de v0.13; match_colorspace_option y el chequeo
+  de hasError de configure_node son los de v0.15. Los repos no pueden
   importarse entre si, asi que esta logica viaja por copia: un arreglo en
   la busqueda de Look_Files, en la lectura del .amf o en el matcheo del
   working space se aplica en los dos archivos en la misma pasada.
   Lo propio de aca: plate_from_read() y resolve_look_plan().
 
+  v2.85: Los configs OCIO v2 de Foundry de Nuke 17 listan cada colorspace como
+         'ACEScct<TAB>Colorspaces/...<TAB><TAB>alias': match_colorspace_option
+         devolvia la cadena entera, el nodo quedaba con error y el look sin
+         aplicar, sin aviso. Ahora matchea y devuelve el nombre corto (lo
+         anterior al TAB) y deja los alias de aces_1.2 para el final. Un nodo
+         que queda con error (archivo vacio, corrupto o inexistente) sube al
+         cartel de problemas de look.
   v2.79: Modulo nuevo.
 ____________________________________________________________________
 """
@@ -274,7 +283,7 @@ def plate_from_read(anchor, entries):
     """La entrada cuyo plate nombra la ruta de un Read de arriba, o None.
 
     Las carpetas de plate se nombran con el token en cualquier caja
-    (ERSO_1013_0800_WAN_APLATE_V002), asi que se compara sin distinguir
+    (PROJA_1013_0800_WAN_APLATE_V002), asi que se compara sin distinguir
     mayusculas y como bloque entero: 'aPlate' no debe matchear 'cbPlate'.
     """
     rutas = _upstream_read_paths(anchor)
@@ -437,30 +446,71 @@ def _set_knob(node, knob_name, value):
 
 
 def match_colorspace_option(node, knob_name, wanted):
-    """La opcion del enum que corresponde a `wanted` (ver LGA_ApplyAMF).
+    """Encuentra en el enum del knob la opcion que corresponde a `wanted`.
 
-    Dos pasadas: primero los espacios nombrados directo y despues la lista
-    entera, para que un ROL del config solo gane si nada directo sirve.
+    El nombre exacto del espacio depende del OCIO config del proyecto: el
+    mismo ACEScct puede figurar como 'ACEScct' o 'ACES - ACEScct'. Por eso no
+    se hardcodea el string, se busca contra las opciones reales del knob.
+
+    Cada opcion del enum de Nuke 17 trae el nombre del colorspace seguido de
+    campos separados por TAB: en aces_1.2 'ACES - ACEScct<TAB>Colorspaces/ACES/ACES -
+    ACEScct', y en los configs v2 de Foundry (fn-nuke_cg-config-v2.2.0_aces-v1.3,
+    studio v2.2.0, los v3.0.0 de ACES 2.0) 'ACEScct<TAB>Colorspaces/ACES/ACEScct<TAB><TAB>ACES -
+    ACEScct,acescct_ap1'. El knob ACEPTA la cadena entera, pero el nodo queda con
+    hasError=True y el LUT no se aplica (pixel 0.0), sin ningun aviso. Lo valido
+    es SOLO el primer campo, asi que se matchea contra el y se devuelve ese.
     """
     if not wanted:
         return None
+
     try:
         options = list(node[knob_name].values())
     except Exception as e:
         debug_print("    [WARN] No se pudieron leer las opciones de %s: %s" % (knob_name, e))
         return None
+
     target = _normalize(wanted)
-    directas = [o for o in options if "(" not in str(o)]
-    for candidatas in (directas, options):
-        for opcion in candidatas:
-            if _normalize(opcion) == target:
-                return opcion
-        for opcion in candidatas:
-            if _normalize(opcion).endswith(target):
-                return opcion
-        for opcion in candidatas:
-            if target in _normalize(opcion):
-                return opcion
+
+    # Cada opcion es (cadena entera, nombre corto). El nombre corto es lo que va
+    # antes del primer TAB; sin TAB (otras versiones de Nuke) es la cadena entera
+    # y todo sigue como antes. Se matchea contra el nombre corto y no contra la
+    # cadena larga: esa trae la ruta y los alias del colorspace, y 'acescc'
+    # aparece adentro de los de 'ACEScct'. Se DEVUELVE el corto.
+    pares = [(str(o), str(o).split("\t")[0]) for o in options]
+
+    # Los alias van al final. aces_1.2 trae una familia 'Utility/Aliases' con
+    # nombres en minuscula ('acescct', 'acescg'...) que son colorspaces validos
+    # pero no son el nombre del espacio: con el matcheo por nombre corto ganarian
+    # por igualdad exacta y el nodo quedaria con 'acescct' en vez de
+    # 'ACES - ACEScct'. Solo se usan si nada mas sirve.
+    sin_alias = [par for par in pares if "/aliases/" not in par[0].lower()]
+
+    # Tres pasadas: primero los espacios nombrados DIRECTO (sin alias), despues
+    # los demas sin alias, y recien al final todo. Los ROLES del config aparecen
+    # en versiones viejas del enum con formato 'scene_linear (ACES - ACEScg)' y son
+    # una INDIRECCION: pidiendo ACES2065-1 matchean 'ACES - ACES2065-1' y
+    # 'default (ACES - ACES2065-1)', y cual gana depende del orden del enum. La
+    # segunda pasada no es un adorno: hay colorspaces directos con parentesis en
+    # su propio nombre -en aces_1.2 hay 34, del tipo 'Input - ARRI - V3 LogC
+    # (EI160) - Wide Gamut'-, y descartarlos de una dejaria sin resolver a quien
+    # pida uno de esos. Un rol o un alias solo gana si NADA directo sirve.
+    directas = [par for par in sin_alias if "(" not in par[1]]
+
+    for candidatas in (directas, sin_alias, pares):
+        # De mas estricto a mas laxo. El orden importa: buscando 'ACEScc'
+        # primero por igualdad y sufijo se evita que matchee 'ACEScct' por
+        # contencion.
+        for _entera, corto in candidatas:
+            if _normalize(corto) == target:
+                return corto
+        for _entera, corto in candidatas:
+            if _normalize(corto).endswith(target):
+                return corto
+        for _entera, corto in candidatas:
+            if target in _normalize(corto):
+                return corto
+
+    debug_print("    [WARN] '%s' no figura entre las opciones de %s" % (wanted, knob_name))
     return None
 
 
@@ -484,6 +534,22 @@ def configure_node(node, spec):
         else:
             motivo = "%s: the project OCIO config has no '%s' colorspace" % (node.name(), wanted)
             debug_print("    [ERROR] " + motivo)
+
+    # Un archivo vacio, corrupto o inexistente deja el nodo con error y sin
+    # ningun aviso: el setValue del knob file sale bien igual. Se mira DESPUES
+    # de configurar todo. El motivo sube al mismo cartel que los demas.
+    try:
+        con_error = bool(node.hasError())
+    except Exception as e:
+        con_error = False
+        debug_print("    [WARN] No se pudo leer hasError de %s: %s" % (node.name(), e))
+    if con_error:
+        aviso_archivo = "%s: could not load '%s'" % (
+            node.name(),
+            os.path.basename(str(spec["file"])),
+        )
+        debug_print("    [ERROR] " + aviso_archivo)
+        motivo = aviso_archivo if not motivo else "%s; %s" % (motivo, aviso_archivo)
     return motivo
 
 

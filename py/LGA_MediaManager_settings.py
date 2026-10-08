@@ -201,7 +201,7 @@ COL_NAME = (None, 9, 130)
 # -es el contenido mas largo- pero ya no absorbe sola el crecimiento.
 COL_PATH = (None, 9, 190)
 # "Resolves to" muestra el nombre de una carpeta real -no un patron- y esos
-# nombres son largos: ERSO_000_10133B_Test entra justo en 180. Con 120 la
+# nombres son largos: PROJA_000_10133B_Test entra justo en 180. Con 120 la
 # columna se comia el nombre justo en la fila donde hay algo que verificar,
 # que es para lo que existe. Estira un poco mas que el nombre porque su
 # contenido no se puede acortar: o entra o dice "2 folders".

@@ -56,7 +56,7 @@ Además de los presets del `.ini`, el usuario puede guardar una cadena de nodos 
 - **Compartir**: una fila `[Chain]` se arrastra fuera de la ventana como archivo (`ShiftClickTableWidget._start_file_drag`, un `QDrag` con la URL del `.nk`; el soltado copia). Un `.nk` soltado sobre la ventana (`dropEvent`, con borde violeta mientras se arrastra) pasa por `import_preset_files`: el nombre del preset es el del archivo, si existe se pregunta si reemplazarlo, y `_clean_external_preset` lo pega en el root con el undo apagado y la selección guardada, saca los Read, lo copia con `nodeCopy`, borra lo pegado y aplica las mismas limpiezas que al guardar. Después `reload_rows` rearma la tabla sin mover la ventana.
 - **Lectura del `.nk`**: `strip_write_frame_range` y `strip_fixed_paths` recorren el texto con `_walk_nk`, que sigue la estructura (nodo que abre con `Clase {`, llaves balanceadas de los knobs de varias líneas, hijos de un Group hasta `end_group`) y no la sangría: `nodeCopy` a veces escribe los knobs con un espacio adelante y a veces sin.
 - **Backdrops**: los del preset se convierten en LGA_backdrop con `to_lga_backdrop`, que le agrega al mismo nodo la pestaña `backdrop` con los knobs de Layout (copia de la estructura de `LGA_BD_knobs.add_all_knobs`). No depende de Layout: sin él los knobs quedan inertes, como en un script con LGA_backdrops abierto en otra máquina; con él se agregan con `suppress_callbacks` y el margen sale de sus defaults guardados. Después `raise_backdrops` fija `z_order` (y el slider `zorder`): uno más que el mayor de los backdrops existentes que se le superponen, o uno menos que el menor de los que encierra entero. Los backdrops pegados se resuelven del más grande al más chico. Lo mismo hace el preset preRender + Switch del `.ini`.
-- **Look del shot**: si el preset trae `OCIOCDLTransform` u `OCIOFileTransform`, antes de pegar se arma el plan con `LGA_Write_Presets_Look.resolve_look_plan`: sube desde el `.nk` hasta la carpeta con `_input`, lista los `.amf` de `_input/Look_Files` por plate (versión más alta), y elige el plate: uno solo, el que nombra la ruta de un Read de arriba del ancla (como bloque y sin distinguir mayúsculas: `APLATE` → `aPlate`), o el cartel `pick_plate`. Del `.amf` salen el `.cdl` hermano con su `cccid`, el `.clf` del LMT y el working space de cada uno (sin `.amf`: un `.cdl` y un `.clf` por extensión). Después de pegar, `apply_look_plan` carga eso en los nodos de look que quedaron sin archivo, por tipo y en orden de cadena; los que tienen TCL no se tocan. Lo que no se pudo resolver sale en un cartel.
+- **Look del shot**: si el preset trae `OCIOCDLTransform` u `OCIOFileTransform`, antes de pegar se arma el plan con `LGA_Write_Presets_Look.resolve_look_plan`: sube desde el `.nk` hasta la carpeta con `_input`, lista los `.amf` de `_input/Look_Files` por plate (versión más alta), y elige el plate: uno solo, el que nombra la ruta de un Read de arriba del ancla (como bloque y sin distinguir mayúsculas: `APLATE` → `aPlate`), o el cartel `pick_plate`. Del `.amf` salen el `.cdl` hermano con su `cccid`, el `.clf` del LMT y el working space de cada uno (sin `.amf`: un `.cdl` y un `.clf` por extensión). Después de pegar, `apply_look_plan` carga eso en los nodos de look que quedaron sin archivo, por tipo y en orden de cadena; los que tienen TCL no se tocan. Lo que no se pudo resolver sale en un cartel, y también un nodo que quedó con error al cargar su archivo (`.clf` o `.cdl` vacío, corrupto o inexistente: el knob `file` acepta cualquier ruta, así que sin este chequeo el nodo quedaba con `hasError()` y sin aviso). El nombre del colorspace de cada nodo se resuelve contra las opciones del knob `working_space` del config OCIO activo, y se usa solo el **nombre corto**: en Nuke 17 cada opción trae campos separados por TAB (`ACEScct<TAB>Colorspaces/ACES/ACEScct<TAB><TAB>ACES - ACEScct,acescct_ap1` en los configs v2 de Foundry) y el nodo con la cadena entera queda con error y el look sin aplicar (píxel 0.0), sin aviso. Los alias de aces_1.2 (`acescct`, `acescg`…) se dejan para el final.
 
 ## Rango del EditRef en los Write MOV/MXF
 
@@ -117,8 +117,8 @@ El sistema detecta automáticamente cuando los nombres de carpetas o archivos ge
 - Esto ayuda a identificar rápidamente cuando hay un problema en la configuración del preset
 
 **Ejemplo de problema detectado:**
-- Archivo original: `ERSO_DAY007_102_059_010.%04d.exr`
-- Path generado problemático: `ERSO_DAY007_102_059_010.%04d.exr_Denoised_v01` (subcarpeta en rojo)
+- Archivo original: `PROJA_DAY007_102_059_010.%04d.exr`
+- Path generado problemático: `PROJA_DAY007_102_059_010.%04d.exr_Denoised_v01` (subcarpeta en rojo)
 - El sistema detecta que `.%04d.exr` es parte de la extensión original y marca el segmento completo en rojo
 
 ### Edición de Índices Ajustables
@@ -190,7 +190,7 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 - `resolve_look_plan(anchor, ask_plate)`: Look_Files del shot, elección de plate y plan desde el `.amf`
 - `plate_from_read(anchor, entries)`: Plate que nombra un Read de arriba del ancla
 - `apply_look_plan(look_nodes, plan)`: Carga archivo, `cccid` y working space en los nodos de look
-- `scan_amf_entries`, `build_effect_plan`, `configure_node`, `match_colorspace_option`: Copias de `LGA_ApplyAMF.py` (ToolPack-B)
+- `scan_amf_entries`, `build_effect_plan`, `configure_node`, `match_colorspace_option`: Copias de `LGA_ApplyAMF.py` (ToolPack-B). `match_colorspace_option` y el chequeo de `hasError` de `configure_node` son los de ApplyAMF v0.15; el resto, los de v0.13
 
 **`LGA_ToolPack/py/LGA_Write_Presets_Dialogs.py`**:
 - `pick_plate(parent, entries)`: Cartel de elección de plate

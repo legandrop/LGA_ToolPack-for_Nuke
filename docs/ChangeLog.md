@@ -2,6 +2,8 @@
 
 ## v2.67
 
+- **Write Presets completaba mal los looks con los configs OCIO v2 de Nuke 17.** En esos configs cada opción del colorspace trae campos separados por TAB y `match_colorspace_option` devolvía la cadena entera: el nodo de look quedaba con error y sin aplicar, sin aviso. Ahora usa el nombre corto y deja los alias de aces_1.2 al final, así que en aces_1.2 resuelve los mismos nombres de siempre. Un nodo de look que no carga su archivo se suma al cartel de problemas de look. Write Presets v2.85. Se pasan a nombres ficticios dos referencias a un proyecto real en un test y un comentario de Media Manager. [ WritePresets - Looks con configs OCIO v2 y aviso si un archivo no carga ]
+
 - **Los dialogos de Write Presets comparten posicion.** El rango del EditRef, la eleccion de plate y los carteles de guardar, importar y borrar se centran donde estaba la ventana de presets, con ajuste a la pantalla de ese punto. Sin ventana previa usan el cursor. Write Presets v2.84. [ WritePresets - Mantener los dialogos junto a los presets ]
 
 - **Write Presets ofrece el rango del EditRef para salidas MOV/MXF.** Busca el Read por su archivo y sigue conexiones indirectas hasta TimeClip en el grafo actual; muestra sus frames y, con aceptación, copia el rango de salida calculado por Nuke (incluyendo start at y offset) y activa use_limit solo en los Writes nuevos, incluidos los de cadena. Si hay rangos incompatibles no elige uno arbitrariamente. Write Presets v2.83. [ WritePresets - Ofrecer limite de render del EditRef ]

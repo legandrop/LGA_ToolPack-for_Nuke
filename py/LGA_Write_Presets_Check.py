@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.84 | Lega
+  LGA_Write_Presets_Check v2.85 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 

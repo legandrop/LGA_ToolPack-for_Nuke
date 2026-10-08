@@ -10,14 +10,14 @@ import LGA_MediaManager_collect as collect
 
 
 # El shot de la auditoria, con las locations de fabrica ya resueltas.
-SHOT = "N:/VFX-ERSO/000/ERSO_5076_0400_SUP"
+SHOT = "N:/VFX-PROJA/000/PROJA_5076_0400_SUP"
 LOCATIONS = [
     ("Input", SHOT + "/_input"),
     ("Assets", SHOT + "/Comp/0_assets"),
     ("Prerenders", SHOT + "/Comp/2_prerenders"),
     ("Publish", SHOT + "/Comp/3_publish"),
 ]
-DESTINO = "D:/entregas/ERSO_5076_0400"
+DESTINO = "D:/entregas/PROJA_5076_0400"
 
 
 def entrada(knob, path, role="input", node="Read1", clase="Read", carpeta=False,
@@ -52,12 +52,12 @@ class TestClasificacion(unittest.TestCase):
 
     def test_conserva_la_estructura_de_adentro(self):
         bucket, sub = collect.clasificar(
-            SHOT + "/_input/ERSO_aPlate_v001/ERSO_aPlate_v001.%04d.exr",
+            SHOT + "/_input/PROJA_aPlate_v001/PROJA_aPlate_v001.%04d.exr",
             LOCATIONS,
             SHOT,
         )
         self.assertEqual(bucket, "input")
-        self.assertEqual(sub, "ERSO_aPlate_v001/ERSO_aPlate_v001.%04d.exr")
+        self.assertEqual(sub, "PROJA_aPlate_v001/PROJA_aPlate_v001.%04d.exr")
 
     def test_gana_la_location_mas_especifica(self):
         # Prerenders vive adentro del shot; si ganara el shot, todo caeria ahi.
@@ -77,13 +77,13 @@ class TestClasificacion(unittest.TestCase):
     def test_afuera_del_shot_conserva_la_carpeta_padre(self):
         # El caso real: los Reads del CopyCat viven en T:, otro disco.
         bucket, sub = collect.clasificar(
-            "T:/VFX-ERSO/000/ERSO_5076_0400_SUP/Comp/2_prerenders/lga_faceLock/"
-            "groundtruth/ERSO_envejecido.%04d.png",
+            "T:/VFX-PROJA/000/PROJA_5076_0400_SUP/Comp/2_prerenders/lga_faceLock/"
+            "groundtruth/PROJA_envejecido.%04d.png",
             LOCATIONS,
             SHOT,
         )
         self.assertEqual(bucket, "outside")
-        self.assertEqual(sub, "groundtruth/ERSO_envejecido.%04d.png")
+        self.assertEqual(sub, "groundtruth/PROJA_envejecido.%04d.png")
 
     def test_comparacion_insensible_a_mayusculas_y_barras(self):
         bucket, _ = collect.clasificar(
@@ -121,7 +121,7 @@ class TestEstructura(unittest.TestCase):
     def test_la_estructura_del_shot_de_ejemplo(self):
         e = _estructura()
         self.assertTrue(e.reproducible)
-        self.assertEqual(e.nombre_shot, "ERSO_5076_0400_SUP")
+        self.assertEqual(e.nombre_shot, "PROJA_5076_0400_SUP")
         self.assertEqual(e.rel_nk, "Comp/1_projects")
         self.assertEqual(e.rel_externos, "_input")
         self.assertEqual(e.nombre_externos, "Input")
@@ -182,18 +182,18 @@ class TestEstructura(unittest.TestCase):
 class TestRaizYScript(unittest.TestCase):
     def test_se_le_cuelga_la_carpeta_del_shot(self):
         self.assertEqual(
-            collect.raiz_de_collect("D:/entregas", "ERSO_5076_0400_SUP"),
-            "D:/entregas/ERSO_5076_0400_SUP",
+            collect.raiz_de_collect("D:/entregas", "PROJA_5076_0400_SUP"),
+            "D:/entregas/PROJA_5076_0400_SUP",
         )
 
     def test_si_ya_se_llama_como_el_shot_no_anida(self):
         self.assertEqual(
-            collect.raiz_de_collect("D:/entregas/ERSO_5076_0400_SUP", "ERSO_5076_0400_SUP"),
-            "D:/entregas/ERSO_5076_0400_SUP",
+            collect.raiz_de_collect("D:/entregas/PROJA_5076_0400_SUP", "PROJA_5076_0400_SUP"),
+            "D:/entregas/PROJA_5076_0400_SUP",
         )
         self.assertEqual(
-            collect.raiz_de_collect("D:/entregas/erso_5076_0400_sup", "ERSO_5076_0400_SUP"),
-            "D:/entregas/erso_5076_0400_sup",
+            collect.raiz_de_collect("D:/entregas/proja_5076_0400_sup", "PROJA_5076_0400_SUP"),
+            "D:/entregas/proja_5076_0400_sup",
         )
 
     def test_el_script_va_a_su_posicion_del_shot(self):
@@ -201,7 +201,7 @@ class TestRaizYScript(unittest.TestCase):
         raiz = collect.raiz_de_collect("D:/entregas", e.nombre_shot)
         self.assertEqual(
             collect.destino_del_script(raiz, e, "comp_v008.nk"),
-            "D:/entregas/ERSO_5076_0400_SUP/Comp/1_projects/comp_v008.nk",
+            "D:/entregas/PROJA_5076_0400_SUP/Comp/1_projects/comp_v008.nk",
         )
 
     def test_sin_estructura_el_script_va_a_la_raiz(self):
