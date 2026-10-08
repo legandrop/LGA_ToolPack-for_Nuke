@@ -1,5 +1,11 @@
 # What's new in LGA ToolPack
 
+## v2.67 (2026-10-08)
+
+- **Improved:** Write Presets loads the shot's look files correctly with the OCIO v2 configs that ship with Nuke 17, uses the shot's .cube LUT when there is no .clf, and warns when a look file can't be loaded.
+- **Improved:** Write Presets keeps its follow-up dialogs, including the frame range question and plate selection, near the presets window instead of opening them in the middle of the screen.
+- **Improved:** Write Presets offers to limit new MOV and MXF Writes, including those in chain presets, to the frame range of the TimeClip connected to your EditRef Read, including its start frame or offset and showing the exact first and last frames before you choose.
+
 ## v2.66 (2026-10-04)
 
 - **New:** Write Presets can now save your own presets: select a Write together with the nodes above it (color transforms, burn-ins, a backdrop) and press Alt+Shift+W, and that whole setup appears at the end of the Shift+W list, ready to paste under any node in any script.
