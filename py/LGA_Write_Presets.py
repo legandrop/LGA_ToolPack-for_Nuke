@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.85 | Lega
+  LGA_Write_Presets v2.86 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -10,8 +10,8 @@ _____________________________________________________________________________
     LGA_Write_Presets.py          <- este, el principal (ventana Shift+W)
     LGA_Write_Presets_Check.py    ventana de verificacion del path
     LGA_Write_Presets_Chain.py    presets de cadena (Alt+Shift+W)
-    LGA_Write_Presets_Look.py     look del shot (.amf) al pegar un preset
-    LGA_Write_Presets_Dialogs.py  cartel para elegir el plate
+    LGA_Write_Presets_Look.py     look del shot (.amf, .cdl, .clf, .cube) al pegar un preset
+    LGA_Write_Presets_Dialogs.py  cartel para elegir el plate o el LUT
     LGA_Write_Presets_Backdrop.py backdrops LGA y su z order
     LGA_Write_Presets_Range.py    rango opcional del EditRef
 

@@ -11,7 +11,7 @@ platforms: [win, mac]
 ## Unreleased
 
 ## v2.67
-- [fixed] Write Presets applies the shot's look files correctly with the OCIO v2 configs that ship with Nuke 17, and warns when a look file can't be loaded.
+- [improved] Write Presets loads the shot's look files correctly with the OCIO v2 configs that ship with Nuke 17, uses the shot's .cube LUT when there is no .clf, and warns when a look file can't be loaded.
 - [improved] Write Presets keeps its follow-up dialogs, including the frame range question and plate selection, near the presets window instead of opening them in the middle of the screen.
 - [improved] Write Presets offers to limit new MOV and MXF Writes, including those in chain presets, to the frame range of the TimeClip connected to your EditRef Read, including its start frame or offset and showing the exact first and last frames before you choose.
 

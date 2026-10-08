@@ -2,6 +2,8 @@
 
 ## v2.67
 
+- **Write Presets reconoce el `.cube` como LMT del shot.** Al pegar un preset de cadena el LMT solo se completaba con un `.clf`, así que un shot con el look en `.cube` dejaba el nodo vacío. Ahora, sin `.amf`, el plan es el `.cdl` suelto y un solo LMT: el `.clf` y, si no hay, el `.cube` (nunca los dos), con el working space sacado del nombre y, por defecto, ACEScct. Con varios `.cube` distintos pregunta cuál. El nodo LMT del preset recibe el LMT del shot sea cual sea su formato, también con ruta fija en un preset armado a mano. Con `.amf` no cambia nada. Las versiones de un LUT se reconocen también con `_V` mayúscula. Write Presets v2.86. [ WritePresets - El LMT del shot puede ser un .cube ]
+
 - **Write Presets completaba mal los looks con los configs OCIO v2 de Nuke 17.** En esos configs cada opción del colorspace trae campos separados por TAB y `match_colorspace_option` devolvía la cadena entera: el nodo de look quedaba con error y sin aplicar, sin aviso. Ahora usa el nombre corto y deja los alias de aces_1.2 al final, así que en aces_1.2 resuelve los mismos nombres de siempre. Un nodo de look que no carga su archivo se suma al cartel de problemas de look. Write Presets v2.85. Se pasan a nombres ficticios dos referencias a un proyecto real en un test y un comentario de Media Manager. [ WritePresets - Looks con configs OCIO v2 y aviso si un archivo no carga ]
 
 - **Los dialogos de Write Presets comparten posicion.** El rango del EditRef, la eleccion de plate y los carteles de guardar, importar y borrar se centran donde estaba la ventana de presets, con ajuste a la pantalla de ese punto. Sin ventana previa usan el cursor. Write Presets v2.84. [ WritePresets - Mantener los dialogos junto a los presets ]

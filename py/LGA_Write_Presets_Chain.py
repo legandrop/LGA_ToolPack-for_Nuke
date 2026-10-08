@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets_Chain v2.85 | Lega
+  LGA_Write_Presets_Chain v2.86 | Lega
 
   Presets de cadena de Write Presets: guarda los nodos seleccionados (un
   Write y lo que tenga arriba: OCIO, textos, groups, backdrops) como un
@@ -32,6 +32,10 @@ _____________________________________________________________________________
   (LGA_Write_Presets_Look). Los backdrops quedan como LGA_backdrop y por
   encima de lo que ya hay (LGA_Write_Presets_Backdrop). Borrar un preset lo manda a la papelera.
 
+  v2.86: Con un shot que trae .cube el nodo LMT del preset se completa con el
+         .cube (si no hay .clf). Ademas del nodo sin archivo, se completa un
+         OCIOFileTransform con ruta fija a un .cube o .clf (preset a mano); el
+         de TCL no se toca. El cartel de eleccion recibe la extension.
   v2.83: Ofrece limitar los MOV/MXF nuevos al TimeClip del EditRef.
   v2.82: import_preset_files() agrega los .nk soltados en la ventana, con la
          misma limpieza que Alt+Shift+W (se pegan en el root con el undo
@@ -397,7 +401,7 @@ def _saved_notes(excluidos, quitadas):
     if look:
         notas.append(
             "CDL and LUT files are not saved: when pasting, they are loaded "
-            "from the shot's .amf in _input/Look_Files."
+            "from the shot's look files in _input/Look_Files."
         )
     if otras:
         notas.append(
@@ -654,10 +658,26 @@ def _preset_has_look_nodes(path):
 
 
 def _empty_look_nodes(pasted):
-    """Los nodos de look del preset que quedaron sin archivo (no los de TCL)."""
+    """Los nodos de look del preset que hay que completar con el look del shot.
+
+    Son los que quedaron sin archivo y los OCIOFileTransform con una ruta FIJA
+    a un .cube o un .clf (un preset armado a mano: al guardar o importar, las
+    rutas fijas se quitan). Los de TCL no se tocan: se resuelven solos. Se mira
+    el texto crudo del knob (toScript), no su valor: un [glob ...*.cube]
+    evalua a una ruta fija y se tomaria por una.
+    """
     vacios = []
     for n in pasted:
-        if n.Class() in LOOK_NODE_CLASSES and not n["file"].value().strip():
+        if n.Class() not in LOOK_NODE_CLASSES:
+            continue
+        crudo = n["file"].toScript().strip('" ')
+        if not n["file"].value().strip():
+            vacios.append(n)
+        elif (
+            n.Class() == "OCIOFileTransform"
+            and "[" not in crudo
+            and crudo.lower().endswith((".cube", ".clf"))
+        ):
             vacios.append(n)
     return vacios
 
@@ -696,7 +716,9 @@ def apply_chain_preset(preset):
 
         look.set_logger(_log)
         _log("Resolviendo look del shot")
-        plan, problema = look.resolve_look_plan(anchor, lambda entries: pick_plate(None, entries))
+        plan, problema = look.resolve_look_plan(
+            anchor, lambda entries, extension=".amf": pick_plate(None, entries, extension)
+        )
         _log("Plan de look:", plan, "| problema:", problema)
 
     problemas = []
@@ -738,7 +760,7 @@ def apply_chain_preset(preset):
 
             problemas = look.apply_look_plan(vacios, plan)
         elif vacios and problema:
-            problemas = [problema, "The CDL and LUT nodes were left empty."]
+            problemas = [problema, "The CDL and LUT nodes were left as they came in the preset."]
         import LGA_Write_Presets_Range as wp_range
 
         wp_range.offer_editref_range(pasted)

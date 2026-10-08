@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_Write_Presets_Dialogs v2.85 | Lega
+  LGA_Write_Presets_Dialogs v2.86 | Lega
 
   Cartel para elegir el plate cuando se pega un preset de cadena en un
   shot con varios .amf y el Read de arriba no dice cual es.
@@ -10,11 +10,13 @@ ____________________________________________________________________
   LGA_ToolPack-B), con el modulo de estilo y el adapter de este pack. Un
   cambio de forma en uno se replica en el otro.
 
-  pick_plate(parent, entries) -> entry|None
-      Filas numeradas, una por plate. La fila ES la accion: click o la
+  pick_plate(parent, entries, extension=".amf") -> entry|None
+      Filas numeradas, una por plate (o una por .cube con extension=".cube"). La fila ES la accion: click o la
       tecla del numero confirma. Esc o cerrar cancela (None). Con 0 o 1
       entradas no se muestra nada.
 
+  v2.86: El cartel tambien elige entre varios .cube: pick_plate recibe la
+         extension (".amf" por default) y los textos nombran plate o LUT.
   v2.84: Comparte el centro entre carteles y ajusta a la pantalla activa.
   v2.79: Modulo nuevo.
 ____________________________________________________________________
@@ -187,14 +189,33 @@ class _RowWidget(QtWidgets.QWidget):
         super(_RowWidget, self).mousePressEvent(event)
 
 
+# Textos del cartel segun lo que se elige: (titulo, subtitulo, que se elige).
+# Cualquier extension que no figure cae en la de .amf.
+_PICK_TEXT = {
+    ".amf": (
+        "Select Plate",
+        "This shot has more than one .amf. Choose which plate's CDL and LUT "
+        "the preset should load.",
+        "a plate",
+    ),
+    ".cube": (
+        "Select LUT",
+        "This shot has more than one .cube. Choose which LUT the preset "
+        "should load.",
+        "a LUT",
+    ),
+}
+
+
 class _PickPlateDialog(QtWidgets.QDialog):
-    def __init__(self, parent, entries):
+    def __init__(self, parent, entries, extension=".amf"):
         super(_PickPlateDialog, self).__init__(parent)
         self.selected_entry = None
         self._entries = entries
         self._height_fitted = False
+        self._titulo, self._subtitulo, self._que = _PICK_TEXT.get(extension, _PICK_TEXT[".amf"])
 
-        self.setWindowTitle("Select Plate")
+        self.setWindowTitle(self._titulo)
         self.setModal(True)
         self.setStyleSheet(Style.FORM)
         self.setMinimumWidth(Metric.DIALOG_MIN_WIDTH)
@@ -211,15 +232,11 @@ class _PickPlateDialog(QtWidgets.QDialog):
         )
         root.setSpacing(Metric.SPACING + 4)
 
-        title = QtWidgets.QLabel("Select Plate", self)
+        title = QtWidgets.QLabel(self._titulo, self)
         title.setProperty("lgaTitle", True)
         root.addWidget(title)
 
-        subtitle = QtWidgets.QLabel(
-            "This shot has more than one .amf. Choose which plate's CDL and LUT "
-            "the preset should load.",
-            self,
-        )
+        subtitle = QtWidgets.QLabel(self._subtitulo, self)
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("color: %s;" % Color.TEXT_DIM)
         root.addWidget(subtitle)
@@ -246,9 +263,9 @@ class _PickPlateDialog(QtWidgets.QDialog):
         hint.setTextFormat(Qt.RichText)
         hint.setText(
             "Press <span style='color:%s'><b>1</b></span>-"
-            "<span style='color:%s'><b>%d</b></span> to choose a plate.<br/>"
+            "<span style='color:%s'><b>%d</b></span> to choose %s.<br/>"
             "Press <span style='color:%s'><b>Esc</b></span> to leave the look nodes empty."
-            % (Color.ACCENT_HOVER, Color.ACCENT_HOVER, min(9, len(self._entries)), Color.ACCENT_HOVER)
+            % (Color.ACCENT_HOVER, Color.ACCENT_HOVER, min(9, len(self._entries)), self._que, Color.ACCENT_HOVER)
         )
         hint.setStyleSheet("color: %s;" % Color.TEXT_DIM)
         root.addWidget(hint)
@@ -291,13 +308,16 @@ def _plate_label(entry):
     return "%s v%03d" % (entry["plate"], entry["version"])
 
 
-def pick_plate(parent, entries):
-    """Devuelve la entrada elegida, o None si se cancelo."""
+def pick_plate(parent, entries, extension=".amf"):
+    """Devuelve la entrada elegida, o None si se cancelo.
+
+    `extension` ('.amf' o '.cube') solo cambia los textos del cartel.
+    """
     if not entries:
         return None
     if len(entries) == 1:
         return entries[0]
-    dialog = _PickPlateDialog(parent, entries)
+    dialog = _PickPlateDialog(parent, entries, extension)
     if dialog.exec_() == QtWidgets.QDialog.Accepted:
         return dialog.selected_entry
     return None

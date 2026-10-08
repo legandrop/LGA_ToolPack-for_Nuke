@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_Write_Presets_Look v2.85 | Lega
+  LGA_Write_Presets_Look v2.86 | Lega
 
   Resuelve los archivos de look (CDL y LMT) de un preset de cadena
   contra el shot donde se pega. Los presets se guardan sin rutas fijas;
@@ -15,17 +15,25 @@ ____________________________________________________________________
        ruta del Read que esta arriba del nodo donde se pega; si tampoco,
        el usuario elige (LGA_Write_Presets_Dialogs.pick_plate).
     4. Del .amf: el .cdl hermano con su cccid, el .clf que nombra el LMT,
-       y el working space de cada uno. Sin .amf: un .cdl y un .clf por
-       extension.
+       y el working space de cada uno. Sin .amf: el .cdl suelto (si hay) y
+       UN LMT, que es el .clf y, si no hay, el .cube (nunca los dos).
 
   COPIA de LGA_ApplyAMF (repo LGA_ToolPack-B): la busqueda de Look_Files y
   la lectura del .amf son las de v0.13; match_colorspace_option y el chequeo
-  de hasError de configure_node son los de v0.15. Los repos no pueden
+  de hasError de configure_node son los de v0.15; el .cube (cube_working_space,
+  parse_lut_name, scan_look_entries, el plan fijo .cdl + LMT) es el de v0.16. Los repos no pueden
   importarse entre si, asi que esta logica viaja por copia: un arreglo en
   la busqueda de Look_Files, en la lectura del .amf o en el matcheo del
   working space se aplica en los dos archivos en la misma pasada.
   Lo propio de aca: plate_from_read() y resolve_look_plan().
 
+  v2.86: Reconoce el .cube de Look_Files como LMT del shot. Sin .amf el plan
+         fijo es el .cdl suelto y UN LMT: el .clf y, si no hay, el .cube
+         (nunca los dos). Su working space sale del nombre del archivo (por
+         defecto ACEScct). Con varios .cube (distinto nombre sin _vNNN) se
+         pregunta cual. El nodo LMT del preset recibe el LMT del shot sea
+         .clf o .cube, y tambien un OCIOFileTransform con ruta fija a un .cube
+         o .clf (presets armados a mano: los guardados ya no traen rutas).
   v2.85: Los configs OCIO v2 de Foundry de Nuke 17 listan cada colorspace como
          'ACEScct<TAB>Colorspaces/...<TAB><TAB>alias': match_colorspace_option
          devolvia la cadena entera, el nodo quedaba con error y el look sin
@@ -53,6 +61,35 @@ AMF_WORKING_SPACE = "ACES2065-1"
 FALLBACK_EFFECTS = (
     {"type": "OCIOCDLTransform", "extension": ".cdl"},
     {"type": "OCIOFileTransform", "extension": ".clf"},
+)
+
+# Un .cube es un LUT 1D/3D pelado: no trae metadata, ni siquiera dice en que
+# espacio de color espera su entrada. Se deduce del nombre del archivo y, sin
+# pista, se asume ACEScct, que es la convencion de los LMT de ACES (un LMT en
+# un OCIOFileTransform con working space ACEScct es la forma en que el estudio
+# arma el look del shot). El nombre que se pide es el LOGICO ('ACEScct'): el
+# nombre real del colorspace lo resuelve match_colorspace_option contra el
+# config OCIO activo, porque cambia de config en config ('ACEScct' a secas o
+# 'ACES - ACEScct').
+CUBE_EXTENSION = ".cube"
+CUBE_DEFAULT_SPACE = "ACEScct"
+
+# Pista del nombre -> espacio logico. 'linear' se lee como lineal ACES (AP0),
+# no como cualquier lineal: el .cube de un LMT de ACES que dice 'Linear' habla
+# de ACES2065-1. Los lookahead evitan que 'acescc' matchee adentro de
+# 'acescct' y que 'linear' matchee adentro de 'nonlinear'.
+_CUBE_SPACE_HINTS = {
+    "acescct": "ACEScct",
+    "acescc": "ACEScc",
+    "acescg": "ACEScg",
+    "ap1": "ACEScg",
+    "aces2065": "ACES2065-1",
+    "ap0": "ACES2065-1",
+    "linear": "ACES2065-1",
+}
+_CUBE_SPACE_RE = re.compile(
+    r"(?<![a-z0-9])(%s)(?![a-z])"
+    % "|".join(sorted(_CUBE_SPACE_HINTS, key=len, reverse=True))
 )
 
 LOOK_NODE_CLASSES = ("OCIOCDLTransform", "OCIOFileTransform")
@@ -187,19 +224,49 @@ def parse_plate_name(basename):
     return match.group("plate"), int(match.group("version"))
 
 
-def scan_amf_entries(look_dir):
-    """Los .amf agrupados por plate, con la version mas alta de cada uno.
+_LUT_VERSION_RE = re.compile(r"^(?P<base>.+)_v(?P<version>\d+)$", re.IGNORECASE)
 
-    Devuelve dicts {plate, version, path, name} ordenados por plate; los que
-    no matchean el patron van al final, cada uno como su propia entrada.
+
+def parse_lut_name(basename):
+    """Devuelve (nombre sin version, version) de un .cube, o (None, None).
+
+    A diferencia de un .amf, el token que precede a '_vNNN' NO identifica un
+    plate: en 'PROJA_Preview_LMT_v001.cube' y 'PROJA_Final_LMT_v001.cube' los
+    dos terminan en 'LMT' y son LUT distintos. Por eso la clave de agrupado es el
+    nombre ENTERO sin el '_vNNN' final: las versiones de un mismo LUT colapsan
+    en una entrada y dos LUT distintos quedan separados para el cartel.
+    """
+    stem = os.path.splitext(basename)[0]
+    match = _LUT_VERSION_RE.match(stem)
+    if not match:
+        return None, None
+    return match.group("base"), int(match.group("version"))
+
+
+def scan_look_entries(look_dir, extension):
+    """Los archivos de esa extension, agrupados por plate y con la version mas alta.
+
+    Un shot tipico trae un .amf por version de cada plate
+    (aPlate_v001, cbPlate_v001..v004). Ofrecer las cinco versiones no ayuda:
+    lo que se aplica es el plate, y de cada plate la ultima version. Los
+    archivos cuyo nombre no matchea el patron se ofrecen igual, cada uno como
+    su propia entrada, para no esconderlos.
+
+    Sirve para .amf y para .cube. En un .amf el token anterior a '_vNNN' es el
+    plate; en un .cube se agrupa por el nombre entero sin el '_vNNN' final (ver
+    parse_lut_name).
+
+    Devuelve una lista de dicts {plate, version, path, name}, ordenada por
+    nombre de plate.
     """
     if not look_dir:
         return []
+
     try:
         amf_files = [
             entry.path
             for entry in os.scandir(look_dir)
-            if entry.is_file() and entry.name.lower().endswith(".amf")
+            if entry.is_file() and entry.name.lower().endswith(extension)
         ]
     except OSError as e:
         debug_print("  [ERROR] No se pudo listar '%s': %s" % (look_dir, e))
@@ -209,20 +276,38 @@ def scan_amf_entries(look_dir):
     sueltos = []
     for path in sorted(amf_files):
         nombre = os.path.basename(path)
-        plate, version = parse_plate_name(nombre)
+        if extension == CUBE_EXTENSION:
+            plate, version = parse_lut_name(nombre)
+        else:
+            plate, version = parse_plate_name(nombre)
         if plate is None:
             sueltos.append(
-                {"plate": os.path.splitext(nombre)[0], "version": None, "path": _slash(path), "name": nombre}
+                {
+                    "plate": os.path.splitext(nombre)[0],
+                    "version": None,
+                    "path": _slash(path),
+                    "name": nombre,
+                }
             )
             continue
         clave = plate.lower()
         anterior = por_plate.get(clave)
         if anterior is None or version > anterior["version"]:
-            por_plate[clave] = {"plate": plate, "version": version, "path": _slash(path), "name": nombre}
+            por_plate[clave] = {
+                "plate": plate,
+                "version": version,
+                "path": _slash(path),
+                "name": nombre,
+            }
 
     entradas = sorted(por_plate.values(), key=lambda e: e["plate"].lower())
     entradas.extend(sueltos)
     return entradas
+
+
+def scan_amf_entries(look_dir):
+    """Los .amf de la carpeta (ver scan_look_entries)."""
+    return scan_look_entries(look_dir, ".amf")
 
 
 def sibling_look_file(amf_path, extension):
@@ -361,11 +446,14 @@ def read_amf(amf_path):
     ]
 
 
-def build_effect_plan(look_dir, amf_path=None):
-    """Lista de specs {type, file, cccid, working_space} en orden de cadena."""
+def build_effect_plan(look_dir, amf_path=None, cube_path=None):
+    """Lista de specs {type, file, cccid, working_space} en orden de cadena.
+
+    `cube_path` es el .cube ya elegido; solo se usa en el plan fijo sin .amf.
+    """
     if not amf_path:
         debug_print("  [AVISO] El shot no trae .amf: plan fijo por extension.")
-        return _fallback_plan(look_dir)
+        return _fallback_plan(look_dir, cube_path)
     debug_print("  amf: %s" % amf_path)
     look_transforms = read_amf(amf_path)
     if not look_transforms:
@@ -411,8 +499,13 @@ def build_effect_plan(look_dir, amf_path=None):
     return plan
 
 
-def _fallback_plan(look_dir):
-    """Sin .amf: un .cdl (working space sin tocar) y un .clf en ACES2065-1."""
+def _fallback_plan(look_dir, cube_path=None):
+    """Sin .amf: el .cdl suelto (working space sin tocar) y UN LMT.
+
+    El LMT es el .clf (en ACES2065-1) y, si no hay, el `cube_path` (working
+    space por el nombre, ver cube_working_space). Nunca los dos: son ambos el
+    LMT del shot y aplicarlos juntos dobla el look.
+    """
     plan = []
     for spec in FALLBACK_EFFECTS:
         file_path = find_look_file(look_dir, spec["extension"])
@@ -427,7 +520,97 @@ def _fallback_plan(look_dir):
                 "working_space": None if es_cdl else AMF_WORKING_SPACE,
             }
         )
+    hay_lmt = any(spec["type"] == "OCIOFileTransform" for spec in plan)
+    if cube_path and not hay_lmt:
+        plan.append(cube_spec(cube_path))
+    elif cube_path:
+        debug_print("  [INFO] Hay .clf y .cube: se usa el .clf como LMT.")
     return plan
+
+
+# ============================
+# .cube como look del shot
+# ============================
+
+
+def has_look_file(look_dir, extension):
+    """True si la carpeta trae al menos un archivo de esa extension."""
+    if not look_dir:
+        return False
+    try:
+        for entry in os.scandir(look_dir):
+            if entry.is_file() and entry.name.lower().endswith(extension):
+                return True
+    except OSError as e:
+        debug_print("  [WARN] No se pudo listar '%s': %s" % (look_dir, e))
+    return False
+
+
+def cube_working_space(cube_path):
+    """Espacio de color en el que corre el .cube. Devuelve (espacio, origen).
+
+    Un .cube no declara su espacio de entrada, asi que se lee del nombre
+    (ACEScct, ACEScc, ACEScg, AP1, ACES2065, AP0, Linear; sin distinguir
+    mayusculas ni exigir un separador concreto) y, sin pista, se asume
+    CUBE_DEFAULT_SPACE. Si el nombre trae mas de un espacio ('ACEScg_to_ACEScct')
+    gana el PRIMERO, que por convencion es el de entrada, y queda avisado en el
+    log. El espacio devuelto es el nombre logico: configure_node lo resuelve
+    contra el config OCIO real.
+
+    `origen` es 'nombre' o 'default', para el log.
+    """
+    stem = os.path.splitext(os.path.basename(cube_path))[0].lower()
+    hallados = [m.group(1) for m in _CUBE_SPACE_RE.finditer(stem)]
+    if not hallados:
+        return CUBE_DEFAULT_SPACE, "default"
+
+    espacios = []
+    for pista in hallados:
+        espacio = _CUBE_SPACE_HINTS[pista]
+        if espacio not in espacios:
+            espacios.append(espacio)
+    if len(espacios) > 1:
+        debug_print(
+            "  [AVISO] El nombre del .cube menciona varios espacios (%s): "
+            "se usa el primero." % ", ".join(espacios)
+        )
+    return espacios[0], "nombre"
+
+
+def pick_cube(look_dir, ask_plate):
+    """Elige el .cube a usar. Devuelve (ruta, cancelado).
+
+    Con uno solo no se pregunta. Con varios se agrupan por nombre sin version
+    (scan_look_entries) y, si queda mas de uno, se usa el cartel de eleccion
+    (`ask_plate(entradas, ".cube")`). Sin ningun .cube devuelve (None, False).
+    """
+    entradas = scan_look_entries(look_dir, CUBE_EXTENSION)
+    debug_print("  .cube por nombre:", [e["name"] for e in entradas])
+    if not entradas:
+        return None, False
+    if len(entradas) == 1:
+        return entradas[0]["path"], False
+    elegido = ask_plate(entradas, CUBE_EXTENSION)
+    if elegido is None:
+        debug_print("  Eleccion de .cube cancelada")
+        return None, True
+    return elegido["path"], False
+
+
+def cube_spec(cube_path):
+    """El .cube como eslabon LMT: un OCIOFileTransform con su working space."""
+    espacio, origen = cube_working_space(cube_path)
+    debug_print(
+        "    [APLICAR] LUT -> %s (working space: %s, segun %s)"
+        % (os.path.basename(cube_path), espacio, origen)
+    )
+    return {
+        "type": "OCIOFileTransform",
+        "file": _slash(cube_path),
+        "cccid": None,
+        "working_space": espacio,
+        "label": "LMT",
+    }
 
 
 # ============================
@@ -587,9 +770,22 @@ def resolve_look_plan(anchor, ask_plate):
                 return None, None
         amf_path = elegida["path"]
 
-    plan = build_effect_plan(look_dir, amf_path)
+    # El .cube es el LMT cuando no hay .amf (manda el .amf) ni .clf (el .clf y el
+    # .cube son los dos LMT: se usa uno solo y gana el .clf). Se elige ACA y no
+    # adentro del plan porque con varios .cube abre el cartel de eleccion.
+    cube_path = None
+    if not entries:
+        if has_look_file(look_dir, ".clf"):
+            if has_look_file(look_dir, CUBE_EXTENSION):
+                debug_print("  Hay .clf y .cube: se usa el .clf como LMT")
+        else:
+            cube_path, cancelado = pick_cube(look_dir, ask_plate)
+            if cancelado:
+                return None, None
+
+    plan = build_effect_plan(look_dir, amf_path, cube_path)
     if not plan:
-        return [], "No .cdl or .clf was found in %s." % look_dir
+        return [], "No .cdl, .clf or .cube was found in %s." % look_dir
     return plan, None
 
 
@@ -604,7 +800,8 @@ def apply_look_plan(look_nodes, plan):
         specs = [s for s in plan if s["type"] == clase]
         for i, node in enumerate(nodos):
             if i >= len(specs):
-                problemas.append("%s: the shot has no matching look file, left empty" % node.name())
+                quedo = "unchanged" if node["file"].toScript().strip('" ') else "empty"
+                problemas.append("%s: the shot has no matching look file, left %s" % (node.name(), quedo))
                 continue
             motivo = configure_node(node, specs[i])
             if motivo:
