@@ -36,9 +36,9 @@ Pasos aplicados en orden:
 **Ejemplos concretos:**
 
 ```
-MOR_2029A_040_comp_v004.nk      → MOR_2029A_040_comp
-MOR_2033_050_comp_v005_1001.exr → MOR_2033_050_comp
-MOR_2033_050_comp_v005_%04d.exr → MOR_2033_050_comp
+PROJA_2029A_040_comp_v004.nk      → PROJA_2029A_040_comp
+PROJA_2033_050_comp_v005_1001.exr → PROJA_2033_050_comp
+PROJA_2033_050_comp_v005_%04d.exr → PROJA_2033_050_comp
 ```
 
 ### 2.3 Extracción del project_name
@@ -48,47 +48,48 @@ Fuente: `LGA_NKS_Flow_NamingUtils.extract_project_name(base_name)`
 Simplemente toma el primer campo separado por `_`.
 
 ```
-MOR_2029A_040_comp → project_name = "MOR"
-MOR_2033_050_comp  → project_name = "MOR"
+PROJA_2029A_040_comp → project_name = "PROJA"
+PROJA_2033_050_comp  → project_name = "PROJA"
 ```
 
 ### 2.4 Extracción del shot_code
 
 Fuente: `LGA_NKS_Flow_NamingUtils.extract_shot_code(base_name)`
 
-Internamente llama a `_analyze_shotname(base_name)` que determina:
+Internamente llama a `_analyze_shotname(base_name)`, que separa shot y task en dos pasos:
 
-- **¿Es formato de serie?** (`_is_series_format`): si `parts[1]`, `parts[2]` y `parts[3]` empiezan todos con dígito → formato de serie (4 bloques base: `PROYECTO_TEMPEP_SEQ_SHOT`). Si no, formato estándar (3 bloques base: `PROYECTO_SEQ_SHOT`).
-- **¿Tiene descripción?** (`has_description`): si después de los bloques base hay al menos 2 bloques más antes de la task.
+1. **Ancla.** Si el último bloque es una task con track (`comp`, `roto`, `cleanup`, `cg`, o el alias `compo`) o un plate (`aPlate`, `bPlate`…), el shot es todo lo anterior. No cuenta bloques, así que no importa si la descripción tiene uno o dos bloques.
+2. **Conteo**, si el último bloque no se reconoce: base de 3 bloques (`PROYECTO_SEQ_SHOT`), más 2 de descripción si sobran al menos dos bloques.
+
+Ya no hay formato de serie (`PROYECTO_TEMP_EP_SEQ_SHOT`): no se usa más, y detectarlo por "tres bloques numéricos tras el proyecto" confundía un shot con descripción cuyo primer bloque es numérico. Con `PROJA_000_115_010_Desc_comp` el shot code se llevaba la task y no se encontraba en la DB.
 
 El `shot_code` devuelto incluye el nombre del proyecto y es el valor que se busca en la columna `shot_name` de la DB local:
 
-| Nombre de archivo limpio | ¿Serie? | ¿Desc? | `shot_code` |
-|--------------------------|---------|--------|-------------|
-| `MOR_2029A_040_comp` | No | No | `MOR_2029A_040` |
-| `MOR_2033_050_comp` | No | No | `MOR_2033_050` |
-| `MOR_000_140_Chroma_Auto_comp` | No | Sí | `MOR_000_140_Chroma_Auto` |
+| Nombre de archivo limpio | Resuelve por | `shot_code` |
+|--------------------------|--------------|-------------|
+| `PROJA_2029A_040_comp` | ancla `comp` | `PROJA_2029A_040` |
+| `PROJA_000_140_Chroma_Auto_comp` | ancla `comp` | `PROJA_000_140_Chroma_Auto` |
+| `PROJA_000_115_010_Desc_comp` | ancla `comp` | `PROJA_000_115_010_Desc` |
+| `PROJA_000_140_Chroma_Auto_layout` | conteo (3 + 2) | `PROJA_000_140_Chroma_Auto` |
 
-> **Importante:** el `shot_code` incluye el prefijo del proyecto (`MOR_...`), no solo `SEQ_SHOT`. Así está guardado en la columna `shots.shot_name` de `pipesync.db`.
+Límite: el conteo supone dos bloques de descripción. Una task sin track con un solo bloque de descripción (`PROJA_000_140_Chroma_layout`) no se separa bien; con task con track el ancla lo resuelve.
+
+> **Importante:** el `shot_code` incluye el prefijo del proyecto (`PROJA_...`), no solo `SEQ_SHOT`. Así está guardado en la columna `shots.shot_name` de `pipesync.db`.
 
 ### 2.5 Detección de la task
 
 Fuente: `NukeOperations.infer_task_name(base_name)` → `LGA_NKS_Flow_NamingUtils.extract_task_name(base_name)`
 
-`extract_task_name` calcula el índice de la task como:
-```
-task_index = base_count + (2 si has_description else 0)
-```
-y devuelve `core_parts[task_index]`.
+`extract_task_name` devuelve el bloque que `_analyze_shotname` separó como task (el ancla, o el que sigue al shot en el conteo), tal cual viene en el nombre.
 
 Luego `infer_task_name` valida que sea uno de `("comp", "roto", "cleanup")`. Si no encaja, devuelve `"comp"` como fallback.
 
 **Ejemplos:**
 
 ```
-MOR_2029A_040_comp  → task = "comp"
-MOR_2033_050_roto   → task = "roto"
-MOR_000_140_Chroma_Auto_cleanup → task = "cleanup"
+PROJA_2029A_040_comp  → task = "comp"
+PROJA_2033_050_roto   → task = "roto"
+PROJA_000_140_Chroma_Auto_cleanup → task = "cleanup"
 ```
 
 ### 2.6 Consulta en la DB local
@@ -103,8 +104,8 @@ WHERE p.project_name = ? AND s.shot_name = ?
 
 Con los valores extraídos en los pasos anteriores. Por ejemplo:
 ```python
-find_shot("MOR", "MOR_2029A_040")
-find_shot("MOR", "MOR_2033_050")
+find_shot("PROJA", "PROJA_2029A_040")
+find_shot("PROJA", "PROJA_2033_050")
 ```
 
 Luego `find_task(shot, task_name)` busca dentro de `shot["tasks"]` por `task_type.lower() == task_name`.
@@ -113,29 +114,29 @@ Luego `find_task(shot, task_name)` busca dentro de `shot["tasks"]` por `task_typ
 
 ## 3. Flujo completo — ejemplo con Read node
 
-**Path en el Read:** `T:\VFX-MOR\102\MOR_2033_050\Comp\4_publish\MOR_2033_050_comp_v005\MOR_2033_050_comp_v005_1001.exr`
+**Path en el Read:** `T:\VFX-PROJA\102\PROJA_2033_050\Comp\4_publish\PROJA_2033_050_comp_v005\PROJA_2033_050_comp_v005_1001.exr`
 
 | Paso | Resultado |
 |------|-----------|
-| `_get_source_file_name` | `"MOR_2033_050_comp_v005_1001.exr"`, source=`read_node` |
-| `clean_base_name` | `"MOR_2033_050_comp"` |
-| `extract_project_name` | `"MOR"` |
-| `extract_shot_code` | `"MOR_2033_050"` |
+| `_get_source_file_name` | `"PROJA_2033_050_comp_v005_1001.exr"`, source=`read_node` |
+| `clean_base_name` | `"PROJA_2033_050_comp"` |
+| `extract_project_name` | `"PROJA"` |
+| `extract_shot_code` | `"PROJA_2033_050"` |
 | `infer_task_name` | `"comp"` |
-| DB query | `find_shot("MOR", "MOR_2033_050")` → task `"comp"` |
+| DB query | `find_shot("PROJA", "PROJA_2033_050")` → task `"comp"` |
 
 ## 4. Flujo completo — ejemplo con script
 
-**Script abierto:** `T:\VFX-MOR\102\MOR_2029A_040\Comp\1_projects\MOR_2029A_040_comp_v004.nk`
+**Script abierto:** `T:\VFX-PROJA\102\PROJA_2029A_040\Comp\1_projects\PROJA_2029A_040_comp_v004.nk`
 
 | Paso | Resultado |
 |------|-----------|
-| `_get_source_file_name` | `"MOR_2029A_040_comp_v004.nk"`, source=`script` |
-| `clean_base_name` | `"MOR_2029A_040_comp"` |
-| `extract_project_name` | `"MOR"` |
-| `extract_shot_code` | `"MOR_2029A_040"` |
+| `_get_source_file_name` | `"PROJA_2029A_040_comp_v004.nk"`, source=`script` |
+| `clean_base_name` | `"PROJA_2029A_040_comp"` |
+| `extract_project_name` | `"PROJA"` |
+| `extract_shot_code` | `"PROJA_2029A_040"` |
 | `infer_task_name` | `"comp"` |
-| DB query | `find_shot("MOR", "MOR_2029A_040")` → task `"comp"` |
+| DB query | `find_shot("PROJA", "PROJA_2029A_040")` → task `"comp"` |
 
 ---
 
@@ -165,8 +166,8 @@ Luego `find_task(shot, task_name)` busca dentro de `shot["tasks"]` por `task_typ
 ### DB local de PipeSync
 
 `C:\Portable\LGA\PipeSync\cache\pipesync.db`
-- `projects.project_name` — nombre del proyecto (ej: `"MOR"`)
-- `shots.shot_name` — shot code completo incluyendo proyecto (ej: `"MOR_2033_050"`)
+- `projects.project_name` — nombre del proyecto (ej: `"PROJA"`)
+- `shots.shot_name` — shot code completo incluyendo proyecto (ej: `"PROJA_2033_050"`)
 - `tasks.task_type` — nombre de la task en minúsculas (ej: `"comp"`, `"roto"`, `"cleanup"`)
 - `versions` — versiones asociadas a cada task
 - `version_notes` — notas/comentarios de cada versión

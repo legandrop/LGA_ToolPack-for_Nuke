@@ -1,5 +1,9 @@
 # ChangeLog
 
+## v2.68
+
+- **Show Flow Notes no encontraba los shots con un primer bloque de descripción numérico.** Con `PROJA_000_115_010_Desc_comp` la detección de series (tres bloques numéricos tras el proyecto) armaba el shot code con la task incluida y la búsqueda en la DB fallaba. La copia local de `LGA_NKS_Flow_NamingUtils` (v1.15) se alinea con la de HieroTools: el shot se ancla en el último bloque cuando es una task con track o un plate, y las series dejan de detectarse. La doc de Show Flow Notes describe el ancla y sus ejemplos pasan a nombres ficticios. [ ShowFlowNotes - Anclar el shot en la task y sacar series ]
+
 ## v2.67
 
 - **Write Presets reconoce el `.cube` como LMT del shot.** Al pegar un preset de cadena el LMT solo se completaba con un `.clf`, así que un shot con el look en `.cube` dejaba el nodo vacío. Ahora, sin `.amf`, el plan es el `.cdl` suelto y un solo LMT: el `.clf` y, si no hay, el `.cube` (nunca los dos), con el working space sacado del nombre y, por defecto, ACEScct. Con varios `.cube` distintos pregunta cuál. El nodo LMT del preset recibe el LMT del shot sea cual sea su formato, también con ruta fija en un preset armado a mano. Con `.amf` no cambia nada. Las versiones de un LUT se reconocen también con `_V` mayúscula. Write Presets v2.86. [ WritePresets - El LMT del shot puede ser un .cube ]

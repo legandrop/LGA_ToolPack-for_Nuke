@@ -10,6 +10,9 @@ platforms: [win, mac]
 
 ## Unreleased
 
+## v2.68
+- [fixed] Show Flow Notes finds shots whose name has a single description block or a description that starts with a number.
+
 ## v2.67
 - [improved] Write Presets loads the shot's look files correctly with the OCIO v2 configs that ship with Nuke 17, uses the shot's .cube LUT when there is no .clf, and warns when a look file can't be loaded.
 - [improved] Write Presets keeps its follow-up dialogs, including the frame range question and plate selection, near the presets window instead of opening them in the middle of the screen.

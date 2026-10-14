@@ -1,14 +1,14 @@
 """
 ____________________________________________________________________
 
-  LGA_NKS_Flow_NamingUtils v1.14 | Lega
+  LGA_NKS_Flow_NamingUtils v1.15 | Lega
 
   Utilidades para detectar y extraer información de nombres de archivos/shots
-  Compatible con sistemas de nomenclatura actuales y series:
+  Compatible con estos sistemas de nomenclatura:
   - PROYECTO_SEQ_SHOT_DESC1_DESC2 (5 bloques con descripción)
   - PROYECTO_SEQ_SHOT (3 bloques simplificado)
-  - PROYECTO_TempEP_SEQ_SHOT_DESC1_DESC2 (6 bloques con descripción)
-  - PROYECTO_TempEP_SEQ_SHOT (4 bloques simplificado)
+  Si el ultimo bloque antes de la version es una task con track o un plate
+  (aPlate, bPlate...), el shot es todo lo anterior y no se cuentan bloques.
 
   Usado por runtime activo:
   - LGA_NKS_Flow_Panel.py
@@ -33,6 +33,12 @@ ____________________________________________________________________
   - LGA_NKS_Edit_Panel_py/LGA_NKS_CompareVerToEditref.py
   - LGA_NKS_Edit_Panel_py/LGA_NKS_CompareEXR_to_aPlate.py
 
+  v1.15: Igual que la v1.22 de la copia de HieroTools: el shot code se ancla
+         en el ultimo bloque cuando es una task con track (comp, roto, cleanup,
+         cg y aliases) o un plate, y se saca la deteccion de series. Con un
+         primer bloque de descripcion numerico (PROYECTO_SEQ_SHOT_010_Desc) la
+         serie confundia el formato y el shot code se llevaba la task.
+         Ejemplos con nombres ficticios en vez de proyectos reales.
   v1.14: Actualiza las referencias documentales a las carpetas privadas
          Flow Rev y Flow S3 de HieroTools.
   v1.13: Copia local para LGA_ToolPack, usada por Show Flow Notes sin depender
@@ -78,83 +84,84 @@ def _is_numeric_block(value):
     return bool(value) and value[0].isdigit()
 
 
-def _is_series_format(parts):
-    """
-    Detecta formato de serie:
-    Después del proyecto, los 3 bloques siguientes empiezan con dígito.
-    """
-    return len(parts) >= 4 and all(_is_numeric_block(p) for p in parts[1:4])
+# Bloques del shot sin descripcion: PROYECTO_SEQ_SHOT. Ya no existe la base de
+# serie (PROYECTO_TEMP_EP_SEQ_SHOT): no se usa mas, y detectarla por "tres
+# bloques numericos tras el proyecto" confundia un shot con descripcion cuyo
+# primer bloque es numerico (PROYECTO_SEQ_SHOT_010_Desc).
+_BASE_BLOCKS = 3
+
+# Ancla del parser: tasks con track en el timeline (espejo de TRACK_TASKS de
+# LGA_NKS_TaskScope en HieroTools, que aca no se puede importar) mas aliases,
+# y los plates de _input (<shot>_aPlate_v01, <shot>_bPlate...).
+_ANCHOR_TASKS = frozenset({"comp", "roto", "cleanup", "cg"} | set(TASK_NAME_ALIASES))
+_PLATE_TOKEN_RE = re.compile(r"^[a-z]plate$", re.IGNORECASE)
+
+
+def _is_anchor_token(block):
+    """True si el bloque es una task registrada (o alias) o un plate."""
+    if not block:
+        return False
+    return block.lower() in _ANCHOR_TASKS or bool(_PLATE_TOKEN_RE.match(block))
 
 
 def _analyze_shotname(base_name):
     """
-    Analiza el shotname y retorna:
-    (core_parts, is_series, has_description, base_count)
+    Separa el nombre base en shot y task. Retorna (shot_parts, task_block | None).
+
+    1. Ancla: si el ultimo bloque es una task registrada o un plate, el shot es
+       todo lo anterior, tenga la descripcion uno o dos bloques.
+    2. Conteo, si el ultimo bloque no se reconoce: base de 3 bloques, +2 de
+       descripcion si sobran al menos dos bloques.
     """
     if not base_name:
-        return [], False, False, 0
+        return [], None
 
-    parts = base_name.split("_")
-    core_parts = _strip_version_suffix(parts)
+    core_parts = _strip_version_suffix(base_name.split("_"))
     if not core_parts:
-        return [], False, False, 0
+        return [], None
 
-    is_series = _is_series_format(core_parts)
-    base_count = 4 if is_series else 3
-    has_description = len(core_parts) >= (base_count + 2)
+    if len(core_parts) > _BASE_BLOCKS and _is_anchor_token(core_parts[-1]):
+        return core_parts[:-1], core_parts[-1]
 
-    return core_parts, is_series, has_description, base_count
+    shot_count = _BASE_BLOCKS + (2 if len(core_parts) >= _BASE_BLOCKS + 2 else 0)
+    task = core_parts[shot_count] if len(core_parts) > shot_count else None
+    return core_parts[:shot_count], task
 
 
 def detect_shotname_format(base_name):
     """
-    Detecta el formato del shotname basado en el nombre base del archivo.
-    
-    Técnicas de detección:
-    - Si después del proyecto los 3 bloques siguientes empiezan con dígito → formato de serie
-    - Si hay al menos 2 bloques adicionales tras el bloque base → formato con descripción
-    
+    Detecta si el shotname lleva bloques de descripción: todo bloque del shot
+    que sobra después de PROYECTO_SEQ_SHOT.
+
     Args:
         base_name (str): Nombre base del archivo sin extensión ni versión
-        
-    Returns:
-        bool: True si es formato con descripción (5/6 bloques), False si es simplificado (3/4 bloques)
-    """
-    core_parts, _, has_description, _ = _analyze_shotname(base_name)
-    if not core_parts:
-        return False
 
-    return has_description
+    Returns:
+        bool: True si el shot tiene descripción, False si es simplificado
+    """
+    shot_parts, _ = _analyze_shotname(base_name)
+    return len(shot_parts) > _BASE_BLOCKS
 
 
 def extract_shot_code(base_name):
     """
     Extrae el shot_code de un nombre base de archivo.
     Detecta automáticamente el formato y extrae el shot_code correcto.
-    
+
     Args:
         base_name (str): Nombre base del archivo sin extensión ni versión
-        
+
     Returns:
-        str: Shot code extraído con o sin descripción (incluye variante de serie)
+        str: Shot code extraído con o sin descripción
     """
-    core_parts, _, has_description, base_count = _analyze_shotname(base_name)
-    if not core_parts:
-        return ""
-
-    desc_count = 2 if has_description else 0
-    target_count = base_count + desc_count
-
-    if len(core_parts) >= target_count:
-        return "_".join(core_parts[:target_count])
-
-    return "_".join(core_parts)
+    shot_parts, _ = _analyze_shotname(base_name)
+    return "_".join(shot_parts)
 
 
 def extract_project_name(base_name):
     """
     Extrae el nombre del proyecto del nombre base del archivo (primer bloque antes de _).
-    Ej: "MOR_1048_060_Compo" → "MOR".
+    Ej: "PROJA_1048_060_Compo" → "PROJA".
 
     NOTA: Este método es el fallback. Prefiere extract_project_name_from_path()
     cuando tenés la ruta completa del archivo disponible.
@@ -177,15 +184,15 @@ def extract_project_name_from_path(file_path):
     Extrae el nombre del proyecto desde el segmento de ruta "VFX-NOMBRE".
 
     Los proyectos VFX siempre viven bajo una carpeta raíz con el patrón "VFX-NOMBRE"
-    (ej: T:/VFX-MORLASP/...). El nombre del proyecto en la DB es "NOMBRE"
+    (ej: T:/VFX-PROJALT/...). El nombre del proyecto en la DB es "NOMBRE"
     (sin el prefijo "VFX-").
 
     Si no se encuentra ningún segmento con ese patrón, retorna None para que
     el caller pueda hacer fallback a extract_project_name().
 
     Ej:
-        "T:/VFX-MORLASP/101/MOR_1048_060/..." → "MORLASP"
-        "T:/VFX-BRDA/102/..."                 → "BRDA"
+        "T:/VFX-PROJALT/101/PROJA_1048_060/..." → "PROJALT"
+        "T:/VFX-PROJF/102/..."                 → "PROJF"
         "/path/sin/prefijo/vfx/..."           → None
 
     Args:
@@ -241,17 +248,7 @@ def extract_task_name(base_name):
     Returns:
         str: Nombre de la tarea o None si no se encuentra
     """
-    core_parts, _, has_description, base_count = _analyze_shotname(base_name)
-    if not core_parts:
-        return None
-
-    # Estructura base:
-    # - Standard: PROYECTO_SEQ_SHOT
-    # - Serie: PROYECTO_TEMP_EP_SEQ_SHOT
-    # Si hay descripción, suma DESC1_DESC2 antes de TASK
-    task_index = base_count + (2 if has_description else 0)
-
-    if len(core_parts) > task_index:
-        return core_parts[task_index]
-
-    return None
+    # Devuelve el bloque tal cual ("Compo", "aPlate"): normalizarlo es cosa
+    # del caller, con normalize_task_name().
+    _, task = _analyze_shotname(base_name)
+    return task
