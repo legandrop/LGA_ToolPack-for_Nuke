@@ -371,6 +371,16 @@ Creates a Grade node and, on the Mask input, adds a Keyer node branching off the
 
 
 
+## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Blur-Fusion v1.00 | Lega
+
+Creates a Blur-Fusion group under the selected node: it estimates the foreground colour in soft edges such as hair or motion blur, so the background no longer bleeds through when the subject is comped over something else.<br>
+Connect the plate to **Source** and the matte (alpha) to **Matte**; with no Matte connected it uses the Source alpha. No clean plate needed: the background colour is estimated from the plate itself.<br>
+It is the method of *Approximate Fast Foreground Colour Estimation* (Forte and Pitié, ICIP 2021), built with native nodes: two passes of box blurs, a **large size** (90 px) and a **small size** (6 px). Works in linear light; the output is premultiplied by the matte, or unpremultiplied with **premultiply** off.
+
+<br>
+
+
+
 <br><br>
 <img src="Doc_Media/knobs.svg" alt="KNOBS" width="120" height="33">
 

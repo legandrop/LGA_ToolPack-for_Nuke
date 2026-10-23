@@ -462,6 +462,18 @@ add_tool(
 )
 
 
+# Sin atajo: se usa poco y no hay uno libre que se lea solo.
+add_tool(
+    n,
+    label="  Blur-Fusion",
+    key="Build_Blur_Fusion",
+    module="LGA_build_BlurFusion",
+    attr="main",
+    icon=icon_Knobs,
+    context=None,
+)
+
+
 # Añadir sección KNOBS
 n.addCommand("KNOBS", lambda: None)
 

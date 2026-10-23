@@ -11,6 +11,7 @@ platforms: [win, mac]
 ## Unreleased
 
 ## v2.68
+- [new] Blur-Fusion, in TP > NODE BUILDS, creates a group that cleans the colour of soft edges such as hair from a plate and its matte, so the original background no longer shows through when you comp the subject over something else.
 - [fixed] Show Flow Notes finds shots whose name has a single description block or a description that starts with a number.
 
 ## v2.67
