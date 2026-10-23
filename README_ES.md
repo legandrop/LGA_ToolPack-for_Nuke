@@ -371,16 +371,6 @@ Crea un nodo Grade y en el input Mask suma un nodo Keyer que sale de la rama del
 
 
 
-## <img src="Doc_Media/image5.png" alt="" width="6" height="16" style="margin-right:3px;"> Blur-Fusion v1.00 | Lega
-
-Crea un grupo Blur-Fusion debajo del nodo seleccionado: estima el color del frente en los bordes semitransparentes, como el pelo o el motion blur, para que el fondo no se trasluzca al componer el sujeto sobre otra cosa.<br>
-El PLATE va al input **Source** y el matte (alpha) al input **Matte**; sin Matte conectado usa el alpha del Source. No necesita placa limpia: el color del fondo se estima del mismo PLATE.<br>
-Es el método de *Approximate Fast Foreground Colour Estimation* (Forte y Pitié, ICIP 2021), armado con nodos nativos: dos pasadas de blur de caja, **large size** (90 px) y **small size** (6 px). Trabaja en luz lineal; la salida sale premultiplicada por el matte, o sin premultiplicar con **premultiply** apagado.
-
-<br>
-
-
-
 <br><br>
 <img src="Doc_Media/knobs.svg" alt="KNOBS" width="120" height="33">
 
