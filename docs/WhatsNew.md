@@ -11,6 +11,7 @@ platforms: [win, mac]
 ## Unreleased
 
 ## v2.68
+- [fixed][win] Snapshot Gallery's Shift+click brings FrameRev to the front with focus instead of opening it behind Nuke.
 - [fixed] Show Flow Notes finds shots whose name has a single description block or a description that starts with a number.
 
 ## v2.67

@@ -1,9 +1,11 @@
 """
 ___________________________________________________________________________________
 
-  LGA_viewer_SnapShot_Gallery v1.09 | Lega
+  LGA_viewer_SnapShot_Gallery v1.10 | Lega
   Crea una ventana que muestra los snapshots guardados organizados por proyecto
 
+  v1.10 - En Windows, FrameRev se abre al frente y con foco, no detras de
+          Nuke (LGA_FrameRev_Front_ToolPack).
   v1.09 - Shift+click abre el JPG en FrameRev (--edit-image), la app de
           anotacion de LGA, en vez del ShareX Image Editor que traian las
           HieroTools. FrameRev se ubica por el registro de apps LGA y la
@@ -756,15 +758,23 @@ class ThumbnailWidget(QLabel):
             )
         comando = [editor_path, "--edit-image", os.path.abspath(self.image_path)]
         try:
-            subprocess.Popen(comando, **kwargs)
+            proceso = subprocess.Popen(comando, **kwargs)
             debug_print(f"Abriendo en FrameRev: {comando}")
-            return True
         except Exception as e:
             log_error(f"Error al abrir FrameRev: {e}")
             QMessageBox.warning(
                 self, "Error", f"FrameRev could not be started:\n{str(e)}"
             )
             return True
+        # En Windows la ventana de un proceso nuevo queda detras de Nuke: Nuke,
+        # que esta al frente, se la cede cuando aparece.
+        try:
+            from LGA_FrameRev_Front_ToolPack import bring_to_front_when_ready
+
+            bring_to_front_when_ready(proceso, debug_print)
+        except Exception as e:
+            log_error(f"No se pudo traer FrameRev al frente: {e}")
+        return True
 
     def mousePressEvent(self, event):
         """Maneja click para abrir, Shift+click para editar y Alt+click para revelar."""

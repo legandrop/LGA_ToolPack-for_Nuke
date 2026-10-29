@@ -351,6 +351,22 @@ dos `if` son independientes, la intención de Alt no se pierde—. Ojo con la
 asimetría: en el menú, `Alt+Shift+F9` es el que compone la tira. La misma
 combinación hace cosas distintas según dónde se apriete.
 
+**Al frente y con foco (Windows).** Hasta la galería v1.09, FrameRev se abría
+detrás de Nuke: la ventana la muestra un proceso nuevo, y Windows no deja que un
+proceso que no es el del frente se active solo (su `activateWindow()` sólo hace
+titilar el botón de la barra de tareas). Nuke, que está al frente en el momento
+del click, sí puede cederle el frente. Después del `Popen`,
+`LGA_FrameRev_Front_ToolPack.bring_to_front_when_ready()` llama a
+`AllowSetForegroundWindow(pid)` y arranca un `QTimer` de 100 ms en el hilo de la
+UI que espera la ventana principal de FrameRev (visible, sin dueño, que no sea
+tool window ni esté encapada por DWM, la más grande) y le hace
+`SetForegroundWindow`. Corta cuando FrameRev quedó al frente, cuando se cerró, a
+los 15 s, o cuando el usuario ya está en otra app: ahí no se le roba el foco. Sin
+`HWND_TOPMOST`: queda adelante, no "siempre encima". El resultado va al log
+(`FrameRev al frente: done a los 0.9 s ...`). Es copia de `LGA_NKS_FrameRev` v1.01
+de HieroTools —los packs no importan código entre sí—: un arreglo en una va en
+las dos. Tests: `tests/test_framerev_front.py`.
+
 ## Funciones Principales
 
 ### `take_snapshot(save_to_gallery=True, use_write=False, compare=False)`
