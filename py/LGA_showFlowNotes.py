@@ -253,7 +253,7 @@ COLORS = {
     "txt_principal": UIColor.TEXT,
     # Los tres siguientes viven SOLO en el header de version, que ahora es
     # ACCENT: el numero fuerte va en el blanco sobre acento.
-    "txt_principal_strong": UIColor.TEXT_ON_ACCENT,
+    "txt_principal_strong": UIColor.TEXT_ON_COLOR,
     "txt_secundario": UIColor.TEXT,
     "txt_subtle": UIColor.TEXT_STRONG,
     "txt_desc_title": UIColor.TEXT_STRONG,

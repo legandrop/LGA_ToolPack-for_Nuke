@@ -179,7 +179,9 @@ familia `Inter`.
 | Fondo de una ventana | `Style.WINDOW` |
 | Ventana de ajustes, con campos y grupos | `Style.FORM` (toma todos los hijos) |
 | Caja apoyada sobre la ventana | `Style.PANEL` |
-| El botón que ejecuta la acción | `Style.BTN_PRIMARY` |
+| El botón que ejecuta la acción | `Style.BTN_PRIMARY` (texto gris claro, blanco solo en hover) |
+| Texto sobre el violeta, fuera de un botón | `Color.TEXT_ON_ACCENT`; en hover, `Color.TEXT_ON_ACCENT_HOVER` |
+| Texto blanco sobre un color de dato o de error | `Color.TEXT_ON_COLOR` |
 | Cancel, Close, cualquier otro | `Style.BTN_SECONDARY` |
 | Botón auxiliar de una fila de herramientas | `Style.BTN_SMALL` |
 | Switch compacto de opciones mutuamente excluyentes | `Style.PILL_CONTAINER`, `Style.PILL_ACTIVE`, `Style.PILL_INACTIVE`; `Style.PILL_CONTAINER_SUNKEN` si comparte el fondo de la ventana |
@@ -204,6 +206,17 @@ familia `Inter`.
   *traga* Enter a propósito —porque hay más de una opción válida y ninguna es la
   recomendada— entonces **no se marca ninguno**: un botón marcado que Enter no
   activa es un cartel que miente.
+- 🔴 **Sobre el violeta NUNCA va texto blanco.** El texto de un botón violeta
+  (o de cualquier cosa con fondo `Color.ACCENT`) va en `Color.TEXT_ON_ACCENT`,
+  un gris claro (`#D0D0D0`). El blanco puro es **solo del hover**:
+  `Color.TEXT_ON_ACCENT_HOVER`. `Style.BTN_PRIMARY` ya lo hace así; no se pisa
+  el `color` de un botón violeta con `#FFFFFF`, `white` ni `TEXT_STRONG`. Por
+  qué: con blanco en reposo el botón grita más que todo lo demás y el hover no
+  tiene a dónde subir. Hasta `v1.30` el módulo lo pintaba blanco en los dos
+  estados, y era un error.
+  Para texto sobre un color que **no** es el violeta (la pastilla con el color
+  de un usuario o de un estado, la cruz roja de cerrar) el blanco puro es
+  `Color.TEXT_ON_COLOR`. No se usa `TEXT_ON_ACCENT` para eso.
 - **El cuerpo del mensaje va gris (`Color.TEXT`), el blanco se reserva.**
   `Color.TEXT_STRONG` es solo para lo que decide la respuesta: cuántos, dónde, y
   la advertencia. Si se destaca todo, no se destaca nada.

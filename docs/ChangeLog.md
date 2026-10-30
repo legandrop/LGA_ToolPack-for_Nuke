@@ -2,6 +2,8 @@
 
 ## v2.68
 
+- **Los botones violetas escribian en blanco.** Sobre el violeta el texto va en gris claro y el blanco es solo del hover, pero `Style.BTN_PRIMARY` usaba `TEXT_ON_ACCENT` (`#FFFFFF`) en los dos estados y el hover no tenia a donde subir. `TEXT_ON_ACCENT` pasa a `#D0D0D0` en los seis temas, `TEXT_ON_ACCENT_HOVER` es el blanco del hover y `TEXT_ON_COLOR` conserva el blanco para texto sobre colores que no son el violeta (datos, la cruz roja): lo usan `LGA_showFlowNotes`, sin cambio visible. Regla escrita en `Docu_UI_Style.md` y en `AGENTS.md`. `LGA_UI_Style_*` v1.30, igual en las cuatro copias. [ UI - Texto gris sobre el violeta ]
+
 - **El Shift+click de la galería de Snapshots abría FrameRev detrás de Nuke.** En Windows la ventana de un proceso nuevo no puede tomar el foco sola, así que FrameRev quedaba atrás y sólo titilaba en la barra de tareas. Ahora Nuke, que está al frente, le da permiso al lanzarlo y, cuando aparece su ventana principal, la trae con `SetForegroundWindow` desde un `QTimer` que no traba la UI. Si el usuario ya se fue a otra app no le roba el foco, y no la deja "siempre encima". Módulo nuevo `LGA_FrameRev_Front_ToolPack` (copia de la lógica de HieroTools) con su test; galería v1.10. [ Snapshot - FrameRev se abre al frente ]
 
 - **Blur-Fusion pasa al NodePack.** Es un nodo Group y va con los demás nodos de LGizmos, no como herramienta del menú TP. Se quitan del ToolPack `LGA_build_BlurFusion.py`, su entrada en NODE BUILDS, la clave `Build_Blur_Fusion` de Enable Tools, su doc y las secciones de los dos README; el ítem de WhatsNew se retira porque nunca se publicó. El nodo sigue en LGA_NodePack como `LGA_BlurFusion`, en LGizmos > Edges. [ BlurFusion - Pasa al NodePack ]

@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.29 | Lega
+  LGA_UI_Style_ToolPack v1.30 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,12 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.30: Sobre el violeta NUNCA va texto blanco: el boton de accion
+         escribe en gris claro (TEXT_ON_ACCENT, #D0D0D0) y el blanco
+         queda solo para su hover (TEXT_ON_ACCENT_HOVER). Antes salia
+         blanco en reposo y en hover, y el hover no tenia a donde subir.
+         TEXT_ON_COLOR conserva el blanco puro para texto sobre colores
+         que no son el violeta (datos, error).
   v1.29: Style.PILL_CONTAINER_SUNKEN separa el switch de placement del fondo
          de una ventana sin alterar el toggle Studio/Client.
   v1.28: Style.PILL_CONTAINER, PILL_ACTIVE y PILL_INACTIVE centralizan el
@@ -210,7 +216,14 @@ class Color(object):
     TEXT_STRONG = "#E8E8E8"  # titulos y lo destacado con emphasis()
     TEXT_DIM = "#6E6E6E"  # secundario, deshabilitado, metadatos
     TEXT_HEADER = "#999999"  # cabecera de tabla: entre el cuerpo y el dim
-    TEXT_ON_ACCENT = "#FFFFFF"  # unico blanco puro: sobre el violeta lleno
+    # Sobre el violeta NUNCA va blanco en reposo: gris claro, y el blanco es
+    # solo del hover. Con blanco en reposo el boton grita y el hover no tiene
+    # a donde subir.
+    TEXT_ON_ACCENT = "#D0D0D0"  # texto sobre el violeta, en reposo
+    TEXT_ON_ACCENT_HOVER = "#FFFFFF"  # texto sobre el violeta, SOLO en hover
+    # Blanco puro sobre un color que NO es el violeta: pastilla con el color
+    # de un usuario o de un estado, la cruz roja de cerrar.
+    TEXT_ON_COLOR = "#FFFFFF"
 
     # --- bordes ------------------------------------------------------------
     BORDER = "#333333"  # borde de tablas y cajas
@@ -531,7 +544,9 @@ THEMES = (
             "TEXT_STRONG": "#E8E8E8",
             "TEXT_DIM": "#6E6E6E",
             "TEXT_HEADER": "#999999",
-            "TEXT_ON_ACCENT": "#FFFFFF",
+            "TEXT_ON_ACCENT": "#D0D0D0",
+            "TEXT_ON_ACCENT_HOVER": "#FFFFFF",
+            "TEXT_ON_COLOR": "#FFFFFF",
             "BORDER": "#333333",
             "BORDER_STRONG": "#444444",
             "BORDER_HOVER": "#555555",
@@ -563,7 +578,7 @@ THEMES = (
         "id": "lga",
         "label": "LGA",
         "desc": (
-            "Los colores exactos de las apps Qt/C++ de LGA (FileManager S3, PipeSync). Como el del pack pero mas oscuro, y sin ningun texto blanco."
+            "Los colores exactos de las apps Qt/C++ de LGA (FileManager S3, PipeSync). Como el del pack pero mas oscuro, y sin texto blanco salvo el hover del boton violeta."
         ),
         "colors": {
             "WINDOW": "#161616",
@@ -579,6 +594,8 @@ THEMES = (
             "TEXT_DIM": "#7B7B7B",
             "TEXT_HEADER": "#8F8F8F",
             "TEXT_ON_ACCENT": "#D0D0D0",
+            "TEXT_ON_ACCENT_HOVER": "#FFFFFF",
+            "TEXT_ON_COLOR": "#D0D0D0",
             "BORDER": "#303030",
             "BORDER_STRONG": "#3A3A3A",
             "BORDER_HOVER": "#4A4A4A",
@@ -625,7 +642,9 @@ THEMES = (
             "TEXT_STRONG": "#F0F0F0",
             "TEXT_DIM": "#6A6A6A",
             "TEXT_HEADER": "#8F8F8F",
-            "TEXT_ON_ACCENT": "#FFFFFF",
+            "TEXT_ON_ACCENT": "#D0D0D0",
+            "TEXT_ON_ACCENT_HOVER": "#FFFFFF",
+            "TEXT_ON_COLOR": "#FFFFFF",
             "BORDER": "#2C2C2C",
             "BORDER_STRONG": "#3D3D3D",
             "BORDER_HOVER": "#525252",
@@ -672,7 +691,9 @@ THEMES = (
             "TEXT_STRONG": "#E9EDF3",
             "TEXT_DIM": "#6B7484",
             "TEXT_HEADER": "#939CAA",
-            "TEXT_ON_ACCENT": "#FFFFFF",
+            "TEXT_ON_ACCENT": "#D0D0D0",
+            "TEXT_ON_ACCENT_HOVER": "#FFFFFF",
+            "TEXT_ON_COLOR": "#FFFFFF",
             "BORDER": "#2E3440",
             "BORDER_STRONG": "#3E4553",
             "BORDER_HOVER": "#4E5666",
@@ -719,7 +740,9 @@ THEMES = (
             "TEXT_STRONG": "#EFEFEF",
             "TEXT_DIM": "#828282",
             "TEXT_HEADER": "#A6A6A6",
-            "TEXT_ON_ACCENT": "#FFFFFF",
+            "TEXT_ON_ACCENT": "#D0D0D0",
+            "TEXT_ON_ACCENT_HOVER": "#FFFFFF",
+            "TEXT_ON_COLOR": "#FFFFFF",
             "BORDER": "#3F3F3F",
             "BORDER_STRONG": "#505050",
             "BORDER_HOVER": "#616161",
@@ -766,7 +789,9 @@ THEMES = (
             "TEXT_STRONG": "#FFFFFF",
             "TEXT_DIM": "#787878",
             "TEXT_HEADER": "#A0A0A0",
-            "TEXT_ON_ACCENT": "#FFFFFF",
+            "TEXT_ON_ACCENT": "#D0D0D0",
+            "TEXT_ON_ACCENT_HOVER": "#FFFFFF",
+            "TEXT_ON_COLOR": "#FFFFFF",
             "BORDER": "#303030",
             "BORDER_STRONG": "#484848",
             "BORDER_HOVER": "#5E5E5E",
@@ -999,13 +1024,14 @@ QPushButton {
     border-radius: %(radius)dpx;
     %(semibold)s
 }
-QPushButton:hover { background-color: %(accent_hover)s; color: %(on_accent)s; }
+QPushButton:hover { background-color: %(accent_hover)s; color: %(on_accent_hover)s; }
 QPushButton:disabled { background-color: %(accent_dis)s; color: %(text_dim)s; }
 """ % {
         "accent": Color.ACCENT,
         "accent_hover": Color.ACCENT_HOVER,
         "accent_dis": Color.ACCENT_DISABLED,
         "on_accent": Color.TEXT_ON_ACCENT,
+        "on_accent_hover": Color.TEXT_ON_ACCENT_HOVER,
         "text_dim": Color.TEXT_DIM,
         "radius": Metric.RADIUS,
         "semibold": semibold_css(),
@@ -1096,11 +1122,11 @@ QPushButton {
     font-weight: bold;
     border-radius: %(radius)dpx;
 }
-QPushButton:hover { background-color: %(error)s; color: %(on_accent)s; }
+QPushButton:hover { background-color: %(error)s; color: %(on_color)s; }
 """ % {
         "text_dim": Color.TEXT_DIM,
         "error": Color.ERROR,
-        "on_accent": Color.TEXT_ON_ACCENT,
+        "on_color": Color.TEXT_ON_COLOR,
         "radius": Metric.RADIUS_SMALL,
     }
 
