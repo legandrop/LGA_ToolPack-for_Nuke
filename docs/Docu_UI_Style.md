@@ -291,10 +291,30 @@ no aplica la hoja.
 `QMessageBox` hijos.** Por eso trae también una regla para sus botones: sin ella
 el cartel queda con el fondo del pack y los botones del tema del host.
 
-**Los tooltips los aplica `LGA_tooltip_helper`**, que sólo agrega su CSS si el
-stylesheet no tiene ya un `QToolTip`. Por eso `Style.FORM` **no** define uno. El
-helper vive sólo en el ToolPack: los otros packs usan `Style.TOOLTIP` como
-fallback cuando no está.
+**🔴 Tooltips: el nativo de Qt, NUNCA (regla dura, 2026-11-03).** Ni
+`widget.setToolTip(texto)`, ni `QToolTip.showText`, ni un `QToolTip { }` en una
+hoja como reemplazo: sale con el tema del host, pegado al cursor y distinto en
+cada ventana. Todo tooltip va con el tooltip propio, **el mismo globo de las
+apps LGA** (PipeSync, FileManagerS3, Mighty Tools): caja oscura `#242424`,
+borde de 1 px, flecha que apunta al control, sombra, aparece a los 600 ms.
+
+- API: `set_custom_tooltip(widget, texto)` (texto vacío lo saca) y
+  `tooltip_label("Click:")` para los rótulos, de `LGA_UI_CustomTooltip_<pack>.py`.
+- Hoy vive solo en HieroTools: `LGA_NKS_Shared/LGA_UI_CustomTooltip_HieroTools.py`,
+  port de `CustomTooltip.cpp` de `LGA_Base_QT_C_Py`. Un pack que no lo tenga lo
+  **copia de ahí antes de poner su primer tooltip** (como el módulo de estilo:
+  por copia, cambiando solo los imports del adapter y del módulo de estilo).
+- Al tocar una ventana, sus tooltips nativos pasan al propio en la misma pasada.
+- Redacción: la fuente de verdad de las apps,
+  `C:\Portable\LGA_Base_QT_C_Py\docs\Doc_CustomTooltip.md`. En corto: castellano;
+  no repetir lo que el control ya dice; `Click:`/`Shift+Click:` solo cuando hay
+  dos o más interacciones; una oración por renglón (`<br>`); rótulos en
+  `#E8E8E8` negrita (`tooltip_label`); `<sbr/>` y `<sBR/>` para separar.
+- El linter de `lga-nuke-ui` lo marca como error (UI007).
+
+`LGA_tooltip_helper` (ToolPack) y `Style.TOOLTIP` son el sistema viejo: le dan
+estilo al `QToolTip` nativo. Quedan para el código que todavía no se migró; no
+se usan en código nuevo.
 
 ## Cómo verificar un cambio sin abrir Nuke
 
