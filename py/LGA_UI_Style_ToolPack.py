@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.31 | Lega
+  LGA_UI_Style_ToolPack v1.32 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,8 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.32: Style.MENU, la hoja del menu contextual. Sin ella el QMenu
+         heredaba la hoja de su padre y salia con el color de un label.
   v1.31: Color.TEXT_MARKER: el numero o la vineta de una lista dentro de
          un texto de cuerpo, mitad entre TEXT y TEXT_STRONG. Lo escribe
          _derivados(), asi vale para los seis temas sin hexes a mano.
@@ -1278,6 +1280,38 @@ QToolTip {
     padding: 12px;
 }
 """
+
+    # Menu contextual. Sin hoja propia el QMenu hereda la de su padre: un
+    # menu abierto desde un label pintado con el color de un proyecto salia
+    # con ese color. La hoja propia de un widget le gana a la heredada sin
+    # importar la especificidad, asi que alcanza con ponersela al menu. Sin
+    # radio en el QMenu: es una ventana y en Windows las esquinas quedan con
+    # el fondo cuadrado. La fuente la pone apply_ui_font(menu).
+    Style.MENU = """
+QMenu {
+    background-color: %(surface)s;
+    color: %(text)s;
+    border: 1px solid %(border)s;
+    padding: 4px;
+}
+QMenu::item {
+    background: transparent;
+    padding: 5px 18px;
+    border-radius: %(radius)dpx;
+}
+QMenu::item:selected { background-color: %(hover)s; color: %(text_strong)s; }
+QMenu::item:disabled { color: %(text_dim)s; }
+QMenu::separator { height: 1px; background: %(border_soft)s; margin: 4px 6px; }
+""" % {
+        "surface": Color.SURFACE,
+        "text": Color.TEXT,
+        "text_strong": Color.TEXT_STRONG,
+        "text_dim": Color.TEXT_DIM,
+        "hover": Color.SURFACE_HOVER,
+        "border": Color.BORDER_STRONG,
+        "border_soft": Color.BORDER,
+        "radius": Metric.RADIUS_SMALL,
+    }
 
     # Barra de progreso. El riel va en un violeta apagado y el relleno en el
     # violeta de la app: es la misma senal que el boton de accion, asi que se

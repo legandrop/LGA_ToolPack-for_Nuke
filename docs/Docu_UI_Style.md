@@ -186,6 +186,7 @@ familia `Inter`.
 | Botón auxiliar de una fila de herramientas | `Style.BTN_SMALL` |
 | Switch compacto de opciones mutuamente excluyentes | `Style.PILL_CONTAINER`, `Style.PILL_ACTIVE`, `Style.PILL_INACTIVE`; `Style.PILL_CONTAINER_SUNKEN` si comparte el fondo de la ventana |
 | Botón cuadrado con un glifo (swap, `+`, `-`) | `Style.BTN_ICON` |
+| Menú contextual (`QMenu`) | `Style.MENU` en el menú + `apply_ui_font(menu)`; sin hoja propia hereda la de su padre (el color de un label) |
 | La cruz de cerrar de una ventana sin frame | `Style.BTN_CLOSE` |
 | Tabla | `Style.TABLE` |
 | Área scrolleable que no es tabla ni form | `SCROLLBAR` (concatenado a lo tuyo) |
