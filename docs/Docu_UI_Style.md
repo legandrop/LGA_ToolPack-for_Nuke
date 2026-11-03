@@ -112,8 +112,8 @@ label.setStyleSheet("color: %s;" % UI.Color.TEXT)
 `_derivados()` mezclando otros dos, para que un tema nuevo no obligue a
 calcular hexes a ojo. Son el fondo de una celda de estado en la fila
 seleccionada (`OK_BG_SELECTED` y sus dos hermanos, mezclados contra el gris de
-selección) y los cinco de `Outside`, que se mezclan contra el fondo de **ese**
-tema.
+selección), los cinco de `Outside`, que se mezclan contra el fondo de **ese**
+tema, y `TEXT_MARKER`, mitad entre `TEXT` y `TEXT_STRONG`.
 
 **Fuentes del pack.** `load_fonts()` registra Inter y JetBrains Mono desde
 `py/fonts/`, y `font_family()` / `mono_family()` devuelven el nombre real de la
@@ -220,6 +220,10 @@ familia `Inter`.
 - **El cuerpo del mensaje va gris (`Color.TEXT`), el blanco se reserva.**
   `Color.TEXT_STRONG` es solo para lo que decide la respuesta: cuántos, dónde, y
   la advertencia. Si se destaca todo, no se destaca nada.
+- **El número o la viñeta de una lista dentro de un texto de cuerpo va en
+  `Color.TEXT_MARKER`**, un escalón por encima de `TEXT`: separa un ítem del
+  otro sin llegar al blanco de los títulos. Lo usa el brief numerado de la
+  ventanita de Shot Marks (HieroTools), con un poco de aire entre ítems.
 - **Todo path va coloreado y en su propia línea**, debajo del texto. Embebido en
   el medio de una oración se corta por donde cae el wrap y se vuelve ilegible.
 - **El color de un path se ancla en el shotname, y el shot va INCLUIDO.** Si en

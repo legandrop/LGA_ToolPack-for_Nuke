@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_UI_Style_ToolPack v1.30 | Lega
+  LGA_UI_Style_ToolPack v1.31 | Lega
 
   Punto UNICO de ajuste del look de las ventanas del ToolPack. Todo lo
   visual sale de aca: colores, fondos, bordes, esquinas, espaciados y
@@ -28,6 +28,9 @@ ____________________________________________________________________
       button.setStyleSheet(Style.BTN_PRIMARY)
       label.setText("Saving to:<br>%s" % colorize_path(destination))
 
+  v1.31: Color.TEXT_MARKER: el numero o la vineta de una lista dentro de
+         un texto de cuerpo, mitad entre TEXT y TEXT_STRONG. Lo escribe
+         _derivados(), asi vale para los seis temas sin hexes a mano.
   v1.30: Sobre el violeta NUNCA va texto blanco: el boton de accion
          escribe en gris claro (TEXT_ON_ACCENT, #D0D0D0) y el blanco
          queda solo para su hover (TEXT_ON_ACCENT_HOVER). Antes salia
@@ -381,6 +384,12 @@ class Color(object):
     # El texto secundario de un control APAGADO, un escalon por debajo de
     # TEXT_DIM. Lo escribe _derivados(), como los de arriba.
     TEXT_DISABLED = "#4E4E4E"
+
+    # El numero o la vineta de una lista dentro de un texto de cuerpo (el
+    # brief numerado de Shot Marks): un escalon por encima de TEXT para que
+    # se distinga un item del otro, sin llegar al blanco de los titulos. Lo
+    # escribe _derivados(), mitad entre TEXT y TEXT_STRONG.
+    TEXT_MARKER = "#C8C8C8"
 
     # Nombre propio de una entidad del pipeline destacado en un mensaje: una
     # task, un preset, un nodo. Hoy vale lo mismo que PATH_COMMON y se ve
@@ -1558,6 +1567,9 @@ def _derivados(colores):
         # escalon: dejandolo en TEXT_DIM, el atajo de un boton deshabilitado
         # se leia igual de fuerte que el de uno activo.
         "TEXT_DISABLED": _mix(colores["TEXT_DIM"], colores["SURFACE_RAISED"], 0.55),
+        # El numero de una lista sobre texto de cuerpo: mitad entre el cuerpo y
+        # los titulos, en cualquier tema.
+        "TEXT_MARKER": _mix(colores["TEXT"], colores["TEXT_STRONG"]),
         # El icono destructivo con el boton apagado: el mismo rojo mezclado
         # contra la superficie del boton, o sea atenuado sin dejar de ser rojo.
         # DANGER_ICON no esta en THEME_TOKENS, asi que sale del modulo.
