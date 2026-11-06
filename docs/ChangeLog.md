@@ -2,6 +2,8 @@
 
 ## v2.68
 
+- **Settings tenía una sección Write Presets que no hacía nada.** Su botón "Open Editor" sólo mostraba un cartel "Coming soon": era un placeholder de antes de que existieran los presets, que hoy se guardan y aplican desde el menú (Write Presets y Write Presets - Save Selection). Se quitan la sección, su divisor y el método del cartel. `LGA_ToolPack_settings` v0.49. [ Settings - Quitar la seccion Write Presets ]
+
 - **Token para el numero de una lista.** El brief numerado de Shot Marks (HieroTools) necesitaba un gris entre el cuerpo y los titulos para el numero de cada item, y no habia uno neutro: los grises intermedios eran de otros usos (pastilla, texto sobre el violeta). `Color.TEXT_MARKER` lo escribe `_derivados()`, mitad entre `TEXT` y `TEXT_STRONG`, asi vale para los seis temas sin hexes a mano. Regla en `Docu_UI_Style.md`. Sin cambio visible en este pack. `LGA_UI_Style_*` v1.31, igual en las cuatro copias. [ UI - Token TEXT_MARKER ]
 
 - **Los botones violetas escribian en blanco.** Sobre el violeta el texto va en gris claro y el blanco es solo del hover, pero `Style.BTN_PRIMARY` usaba `TEXT_ON_ACCENT` (`#FFFFFF`) en los dos estados y el hover no tenia a donde subir. `TEXT_ON_ACCENT` pasa a `#D0D0D0` en los seis temas, `TEXT_ON_ACCENT_HOVER` es el blanco del hover y `TEXT_ON_COLOR` conserva el blanco para texto sobre colores que no son el violeta (datos, la cruz roja): lo usan `LGA_showFlowNotes`, sin cambio visible. Regla escrita en `Docu_UI_Style.md` y en `AGENTS.md`. `LGA_UI_Style_*` v1.30, igual en las cuatro copias. [ UI - Texto gris sobre el violeta ]

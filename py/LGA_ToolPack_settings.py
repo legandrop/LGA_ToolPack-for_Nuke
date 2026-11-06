@@ -1,9 +1,12 @@
 """
 _____________________________________________________________________________________________________
 
-  LGA_ToolPack_settings v0.48 | Lega
+  LGA_ToolPack_settings v0.49 | Lega
   Configuracion de la herramienta LGA_ToolPack
 
+  v0.49: Se quita la seccion Write Presets: su boton "Open Editor" solo
+         mostraba un cartel "Coming soon". Los presets ya se guardan y
+         se aplican desde el menu (Write Presets).
   v0.48: Los dos checkboxes de Render Complete llevan lgaLabeled: sin
          la propiedad la hoja del pack deja el texto pegado al cuadrito
          (spacing 0).
@@ -405,25 +408,6 @@ class SettingsWindow(QWidget):
         self.save_color_space_button.clicked.connect(self.save_color_space_settings)
         color_space_layout.addWidget(self.save_color_space_button, 0, Qt.AlignRight)
         main_layout.addLayout(color_space_layout)
-
-        main_layout.addSpacing(LINE_SPACING)
-        line4 = QFrame()
-        line4.setFrameShape(QFrame.HLine)
-        main_layout.addWidget(line4)
-        main_layout.addSpacing(LINE_SPACING)
-
-        # --- Write Presets Section (Placeholder) ---
-        write_presets_layout = QVBoxLayout()
-        write_presets_title = QLabel("Write Presets")
-        write_presets_title.setProperty("lgaTitle", True)
-        write_presets_layout.addWidget(write_presets_title)
-        self.open_write_presets_btn = QPushButton("Open Editor")
-        self.open_write_presets_btn.setStyleSheet(Style.BTN_SECONDARY)
-        self.open_write_presets_btn.clicked.connect(
-            self.show_write_presets_not_implemented
-        )
-        write_presets_layout.addWidget(self.open_write_presets_btn, 0, Qt.AlignHCenter)
-        main_layout.addLayout(write_presets_layout)
         main_layout.addStretch()
 
     def save_write_focus_settings(self):
@@ -649,14 +633,6 @@ class SettingsWindow(QWidget):
             self.wav_path_input.setText(file_path)
             # Guardar inmediatamente el nuevo path seleccionado
             save_wav_path_to_config(file_path)
-
-    def show_write_presets_not_implemented(self):
-        """Muestra un mensaje indicando que la función aún no está implementada."""
-        QMessageBox.information(
-            self,
-            "Not Implemented",
-            "The Write Presets editor is not yet implemented.\nComing soon!",
-        )
 
     def keyPressEvent(self, event):
         """Cerrar la ventana si se presiona ESC."""
