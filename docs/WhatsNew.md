@@ -11,8 +11,9 @@ platforms: [win, mac]
 ## Unreleased
 
 ## v2.68
-- [fixed][win] Snapshot Gallery's Shift+click brings FrameRev to the front with focus instead of opening it behind Nuke.
-- [fixed] Show Flow Notes finds shots whose name has a single description block or a description that starts with a number.
+- [improved] Collect del Media Manager avisa cuántos archivos y carpetas hay en la carpeta de destino cuando no está vacía, así ves antes de copiar que lo que ya estaba ahí va a aparecer mezclado con lo colectado.
+- [fixed][win] El Shift+click de Snapshot Gallery trae FrameRev al frente y con el foco, en vez de abrirlo detrás de Nuke.
+- [fixed] Show Flow Notes encuentra los shots cuyo nombre tiene un solo bloque de descripción o una descripción que empieza con un número.
 
 ## v2.67
 - [improved] Write Presets loads the shot's look files correctly with the OCIO v2 configs that ship with Nuke 17, uses the shot's .cube LUT when there is no .clf, and warns when a look file can't be loaded.

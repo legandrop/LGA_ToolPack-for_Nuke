@@ -2,6 +2,10 @@
 
 ## v2.68
 
+- **Un collect podía parecer que se traía material que nunca copió.** Collect copia adentro del destino sin limpiarlo, y no miraba si esa carpeta ya tenía algo. Como `raiz_de_collect` usa tal cual la carpeta que ya se llama como el shot —correcto, para no anidar una igual adentro—, elegir sin saberlo la carpeta de trabajo de otra herramienta dejaba el collect encima de cientos de carpetas de pruebas, y el escaneo siguiente del script colectado las listaba todas como material sin uso. Ahora `contenido_de_destino` las cuenta y Collect avisa cuántos archivos y carpetas hay antes de copiar. Avisa nomás, no bloquea: copiar no destruye lo que estaba. El conteo corta en un tope para no caminar un disco de red entero. Los nueve módulos del Media Manager van a v2.60.
+
+[ MediaManager - Avisar cuando el destino del collect no esta vacio ]
+
 - **Settings tenía una sección Write Presets que no hacía nada.** Su botón "Open Editor" sólo mostraba un cartel "Coming soon": era un placeholder de antes de que existieran los presets, que hoy se guardan y aplican desde el menú (Write Presets y Write Presets - Save Selection). Se quitan la sección, su divisor y el método del cartel. `LGA_ToolPack_settings` v0.49. [ Settings - Quitar la seccion Write Presets ]
 
 - **Token para el numero de una lista.** El brief numerado de Shot Marks (HieroTools) necesitaba un gris entre el cuerpo y los titulos para el numero de cada item, y no habia uno neutro: los grises intermedios eran de otros usos (pastilla, texto sobre el violeta). `Color.TEXT_MARKER` lo escribe `_derivados()`, mitad entre `TEXT` y `TEXT_STRONG`, asi vale para los seis temas sin hexes a mano. Regla en `Docu_UI_Style.md`. Sin cambio visible en este pack. `LGA_UI_Style_*` v1.31, igual en las cuatro copias. [ UI - Token TEXT_MARKER ]

@@ -1,10 +1,18 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_FileScanner v2.59 | Lega
+  LGA_MediaManager_FileScanner v2.60 | Lega
 
   Escaneo del proyecto, tabla de medias y relink de archivos offline.
 
+  v2.60: Collect avisa cuando el destino ya existe y tiene archivos,
+         con cuantos y en cuantas carpetas. Copia adentro sin limpiar,
+         asi que ese contenido se queda y el proximo escaneo del script
+         colectado lo lista junto con lo colectado: elegir sin saberlo
+         la carpeta de trabajo de otra herramienta -con el nombre del
+         shot y cientos de carpetas de pruebas- daba un collect que
+         parecia haberse traido material que nunca copio. Avisa nomas,
+         no bloquea.
   v2.58: El boton pasa a decir "Reload All Reads", como la tool de
          ToolPack-B de la que sale: "Reload" solo no dice sobre QUE. Y
          en el espacio libre se destacan el tamano y la letra del disco
@@ -5687,6 +5695,31 @@ class FileScanner(QWidget):
                 "The destination is inside the current shot folder, so the "
                 "collected copy will hang from it and show up in the next "
                 "scans of this script.\n\nCollect there anyway?",
+                yes_text="Collect here",
+            ):
+                return
+
+        # El destino puede existir y tener material de OTRA cosa adentro.
+        # Collect copia ahi y no lo limpia, asi que todo eso se queda y el
+        # proximo escaneo del script colectado lo lista mezclado con lo que si
+        # se colecto: la lectura natural es que el collect se trajo de mas.
+        # Avisa nomas, no bloquea: copiar no destruye lo que ya estaba.
+        ya_archivos, ya_carpetas, hay_mas = mm_collect.contenido_de_destino(destino)
+        self.logger.debug(
+            "[COLLECT] Contenido previo del destino: %d%s archivo(s) en %d "
+            "carpeta(s)" % (ya_archivos, "+" if hay_mas else "", ya_carpetas)
+        )
+        if ya_archivos:
+            if not ask_question(
+                self,
+                "Collect",
+                "The destination folder already exists and is not empty: "
+                "%s%d file(s) in %d folder(s).\n\n"
+                "Collect copies into it without clearing it, so that content "
+                "stays there and the next scan of the collected script will "
+                "list it along with the collected media.\n\n"
+                "Collect there anyway?"
+                % ("more than " if hay_mas else "", ya_archivos, ya_carpetas),
                 yes_text="Collect here",
             ):
                 return

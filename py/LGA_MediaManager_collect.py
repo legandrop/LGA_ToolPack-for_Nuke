@@ -1,7 +1,7 @@
 """
 _______________________________________________________________________
 
-  LGA_MediaManager_collect v2.59 | Lega
+  LGA_MediaManager_collect v2.60 | Lega
 
   El PLAN de un Collect: que archivo va a que carpeta del destino, con
   que ruta relativa queda cada knob, y que choca con que.
@@ -18,6 +18,20 @@ _______________________________________________________________________
   destino de cada archivo, y la ruta relativa se calcula contra la raiz
   del collect, que es donde va a quedar el .nk.
 
+  v2.60: Suma contenido_de_destino, que cuenta lo que YA hay en la
+         carpeta donde va a aterrizar el collect. No es una politica de
+         destino -copiar no destruye lo que estaba, asi que no invalida
+         el destino- y por eso no vive en revisar_destino: es el dato
+         para avisarlo. Pasaba esto: el destino elegido era la carpeta
+         de trabajo de otra herramienta, se llamaba igual que el shot
+         -asi que raiz_de_collect la uso tal cual, que es correcto- y
+         tenia cientos de carpetas de pruebas adentro. El collect
+         copiaba solo las rutas del script, pero el escaneo siguiente
+         listaba todo lo demas como material sin uso y la lectura
+         natural era que el collect se habia traido el disco entero.
+         El conteo corta en TOPE_CONTEO_DESTINO: para el aviso alcanza
+         saber que son muchos, y caminar decenas de miles de archivos
+         en un disco de red cuesta mas que la respuesta.
   v2.52: El destino deja de ser una invencion -una subcarpeta por
          nombre de location, con el .nk en la raiz- y pasa a reproducir
          la estructura REAL que definen los Settings. Es lo unico que
@@ -510,6 +524,54 @@ def revisar_destino(raiz, destino_nk, nk_actual, shot_dir):
     if shot_dir and _dentro_de_real(raiz, shot_dir):
         return DESTINO_EN_EL_SHOT, shot_dir
     return DESTINO_OK, None
+
+
+# Tope del conteo del destino. Con mas que esto el aviso dice lo mismo, y
+# caminar un arbol de decenas de miles de archivos en un disco de red cuesta
+# mas que la respuesta que se necesita.
+TOPE_CONTEO_DESTINO = 5000
+
+
+def contenido_de_destino(raiz, caminar=None):
+    """
+    Que hay YA en la carpeta donde va a aterrizar el collect.
+
+    Devuelve (archivos, carpetas, hay_mas). `hay_mas` es True cuando el conteo
+    se corto en TOPE_CONTEO_DESTINO.
+
+    Collect copia adentro del destino y NO lo limpia, asi que lo que ya vive
+    ahi se queda y el proximo escaneo del script colectado lo lista mezclado
+    con lo colectado. Medido en un caso real: el destino elegido era la carpeta
+    de trabajo de otra herramienta, se llamaba igual que el shot -asi que
+    raiz_de_collect la uso tal cual, que es lo correcto- y tenia 300 carpetas
+    de pruebas adentro. El collect copio sus once rutas y nada mas, pero el
+    escaneo siguiente mostro las 300 carpetas como material sin uso y parecia
+    que el collect se habia traido el disco entero.
+
+    Mirar esto NO es una politica de destino y por eso no vive en
+    revisar_destino: ahi se decide si el destino sirve, y tener contenido no lo
+    invalida -copiar no destruye nada-. Es un dato para avisar.
+
+    `caminar` es os.walk; se puede inyectar para probar sin disco.
+    """
+    caminar = caminar or os.walk
+    raiz = con_barras(raiz).rstrip("/")
+    if not raiz or not os.path.isdir(raiz):
+        return 0, 0, False
+
+    archivos = 0
+    carpetas = 0
+    try:
+        for _actual, subcarpetas, nombres in caminar(raiz):
+            carpetas += len(subcarpetas)
+            archivos += len(nombres)
+            if archivos >= TOPE_CONTEO_DESTINO:
+                return TOPE_CONTEO_DESTINO, carpetas, True
+    except OSError:
+        # Un destino que no se puede recorrer no frena el collect: la copia va
+        # a fallar sola y con su propio error, que dice mas que este.
+        pass
+    return archivos, carpetas, False
 
 
 def accion_para(entrada, incluir_workdir):
