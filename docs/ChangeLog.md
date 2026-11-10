@@ -2,6 +2,10 @@
 
 ## v2.68
 
+- **La doc del Media Manager no tenía el Collect.** `LGA_mediaManager_Readme.md` quedó en el 3 de septiembre, anterior al módulo del collect, así que la herramienta más delicada de la tool no estaba descripta en ningún lado y la doc decía "los siete módulos". Suma la sección "Collect: el script y su media a otra carpeta": qué considera usado y en qué se diferencia del estado `Unused` de la tabla, las cuatro acciones, la estructura reproducida en el destino, qué revisa antes de copiar y el orden copiar → reapuntar → Save As con sus reversiones. Las referencias técnicas suman `collect`, `download`, `logging` y `LGA_NodeFiles`, que tampoco estaban.
+
+[ MediaManager - Documentar el Collect ]
+
 - **Un collect podía parecer que se traía material que nunca copió.** Collect copia adentro del destino sin limpiarlo, y no miraba si esa carpeta ya tenía algo. Como `raiz_de_collect` usa tal cual la carpeta que ya se llama como el shot —correcto, para no anidar una igual adentro—, elegir sin saberlo la carpeta de trabajo de otra herramienta dejaba el collect encima de cientos de carpetas de pruebas, y el escaneo siguiente del script colectado las listaba todas como material sin uso. Ahora `contenido_de_destino` las cuenta y Collect avisa cuántos archivos y carpetas hay antes de copiar. Avisa nomás, no bloquea: copiar no destruye lo que estaba. El conteo corta en un tope para no caminar un disco de red entero. Los nueve módulos del Media Manager van a v2.60.
 
 [ MediaManager - Avisar cuando el destino del collect no esta vacio ]

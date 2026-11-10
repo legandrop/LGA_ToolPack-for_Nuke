@@ -4,7 +4,7 @@
 # LGA_mediaManager
 
 La versión de la herramienta no se escribe acá: vive en el header de
-`py/LGA_mediaManager.py` y los siete módulos la comparten. La ventana de
+`py/LGA_mediaManager.py` y los otros ocho módulos la comparten. La ventana de
 ajustes la muestra abajo a la izquierda, leyéndola de ese header.
 
 ## División de Responsabilidades
@@ -239,6 +239,117 @@ queda al usuario si se equivocó de selección. Y las filas se sacan de la tabla
 sólo si su archivo realmente dejó de estar: con una tanda cancelada a la mitad,
 sacarlas todas mostraría como borrado lo que sigue en disco.
 
+## Collect: el script y su media a otra carpeta
+
+El botón **Collect…** es el único que no trabaja sobre la selección sino sobre
+el **script entero**, y por eso va aparte y sin atajo. Copia la media que el
+script usa, reescribe cada knob en relativo y guarda una copia del `.nk` en el
+destino. El plan entero vive en `LGA_MediaManager_collect.py`, que **no importa
+Nuke ni Qt a propósito**: se puede probar sin abrir el host.
+
+### Qué considera "usado"
+
+El inventario sale de `LGA_NodeFiles.collect_entries(prefer_selection=False)`:
+**todos los knobs de archivo de todos los nodos del script**, no la cadena
+conectada al Write. Un Read apagado o desconectado entra igual. Se baja a los
+Group pero **no** a los Precomp ni a los LiveGroup, cuyos nodos vienen de otro
+`.nk`.
+
+Esto es distinto del estado `Unused` de la tabla, que mira el disco y pregunta
+si algún Read usa ese archivo. Son dos universos: el escaneo parte de las scan
+locations, y Collect parte de los knobs.
+
+### Qué se hace con cada entrada
+
+`accion_para()` decide, y `armar_plan()` arma una entrada por knob:
+
+| Acción | Cuándo | Qué pasa |
+|---|---|---|
+| `ACTION_COPY` | lo normal, y los recursos de pipeline (el kernel de un BlinkScript) | se copia el archivo y se reapunta el knob |
+| `ACTION_MKDIR` | un knob de carpeta, como el `dataDirectory` de un CopyCat | se crea vacía y se reapunta: adentro vive historia del entrenamiento, no material del comp |
+| `ACTION_REPOINT` | la salida de un Write | se reapunta sin copiar: el render puede no existir todavía |
+| `ACTION_SKIP` | una expresión TCL, o un knob vacío | no se toca; una expresión armada sobre `script_directory()` sigue sola al script |
+
+Una **secuencia** se expande con `archivos_de_secuencia()`, que lista la carpeta
+y casa por regex. El token del frame es el **último** del nombre y se sustituye
+por posición, y el padding es flexible (`%04d` también casa frames de cinco
+dígitos). Se copian **todos los frames que existan en disco con ese nombre**: no
+se mira el `first`/`last` del Read.
+
+### El destino reproduce la estructura del shot
+
+Esto es lo que hace que el script colectado resuelva adentro del collect.
+`analizar_estructura()` mira qué se puede reproducir, `raiz_de_collect()` decide
+la carpeta del shot y `destino_del_script()` dónde cae el `.nk`:
+
+- El usuario elige la carpeta **contenedora**; Collect le cuelga adentro la del
+  shot. Si la elegida ya se llama como el shot, **se usa tal cual**, para no
+  anidar una carpeta igual adentro.
+- Cada archivo va a su ruta real relativa al shot, y el `.nk` a su misma
+  posición relativa. Si el `.nk` no queda en su lugar, sus rutas relativas
+  resuelven al shot **viejo**.
+- Se crea el **esqueleto completo**: la carpeta del `.nk` y todas las scan
+  locations, tengan contenido o no. Son carpetas vacías, sí, pero son las
+  carpetas propias del shot; sin ellas una location vacía no existe en el
+  destino y el script colectado resuelve a cero carpetas.
+- Lo que vive **fuera** del shot cae en la location llamada `input`, o en la
+  primera de la lista, o en `_outside` si ninguna está adentro del shot. El
+  criterio depende de un nombre que el usuario puede cambiar, así que la
+  location elegida se muestra en el cartel de confirmación.
+
+Las **colisiones** —dos orígenes distintos que caen en el mismo destino— se
+resuelven en `_sin_colision()`, alargando la sub-ruta con más segmentos del
+origen y, si no alcanza, con un hash. Dos archivos que se pisan en silencio es
+el peor modo de fallar: el script queda apuntando a un archivo que no es el
+suyo y nadie se entera.
+
+### Qué revisa antes de copiar
+
+`revisar_destino()` tiene la política de destino, y devuelve un veredicto:
+
+- `DESTINO_PISA_SCRIPT` **bloquea**: el `.nk` colectado caería exactamente sobre
+  el que está abierto. Se compara la ruta final del script, que es la condición
+  exacta, resolviendo los alias del sistema de archivos (una letra mapeada con
+  `subst` es el mismo lugar con otro nombre).
+- `DESTINO_EN_EL_SHOT` **avisa**: queda una copia del plano colgando del shot
+  vivo, que el próximo escaneo va a listar. Copiar no rompe nada, así que se
+  deja seguir.
+
+Aparte, `contenido_de_destino()` cuenta lo que **ya hay** en la carpeta de
+destino y Collect avisa cuántos archivos y carpetas son. No es una política de
+destino —copiar no destruye lo que estaba, así que no lo invalida— y por eso no
+vive en `revisar_destino()`: es el dato para avisarlo. Collect copia adentro sin
+limpiar, así que ese contenido se queda y el próximo escaneo del script
+colectado lo lista junto con lo colectado. El caso real que lo motivó: el
+destino elegido era la carpeta de trabajo de otra herramienta, se llamaba igual
+que el shot —así que `raiz_de_collect()` la usó tal cual, que es lo correcto— y
+tenía cientos de carpetas de pruebas adentro; el collect copió sólo las rutas
+del script, pero el escaneo siguiente mostró todo lo demás como material sin uso
+y parecía que se había traído el disco entero. El conteo corta en
+`TOPE_CONTEO_DESTINO`: para el aviso alcanza saber que son muchos, y caminar
+decenas de miles de archivos en un disco de red cuesta más que la respuesta.
+
+### El orden importa, y es al revés del que parece
+
+**No** se pasa a relativo y después se hace Save As. Una ruta relativa se
+calcula contra un ancla, así que convertir primero deja los `../..` apuntando
+contra la carpeta vieja. El orden es: decidir el destino de cada archivo →
+copiar → reescribir los knobs → Save As.
+
+- La copia va en un `CopyWorker`, fuera del hilo principal. El cierre
+  (`_on_collect_finished`) vuelve al principal.
+- **Cancelada la copia, no se reescribe nada**: dejar los knobs apuntando a un
+  destino a medio copiar deja el script roto y sin aviso de qué falta.
+- Sólo se reapunta lo que de verdad llegó. Cada item guarda un **testigo** —el
+  primer destino de su copia—: si al terminar no existe, ese knob se deja
+  apuntando al original, que sigue funcionando.
+- `aplicar_rutas()` escribe todo en **un** bloque de undo y fija el
+  `project_directory` en la expresión que hace resolver los relativos desde
+  donde quede el `.nk`.
+- Si el **Save As falla**, se llama a `deshacer()`. Sin eso el script abierto
+  queda con todos sus knobs en relativo contra una carpeta donde nunca se
+  guardó: offline entero por un fallo que no fue del usuario.
+
 ## Download: descarga desde Wasabi
 
 El botón **Download** (Alt+D) es el *Download Clip* de HieroTools llevado a la
@@ -456,6 +567,10 @@ Training_250715_215458.110000.cat   →  Training_250715_215458.#.cat [110000-15
 | `py/LGA_MediaManager_settings.py` | `SettingsWindow._build()`, `LocationRow`, `_fit_table()`, `_persist_theme()`, `_editable_state()`, y las tuplas `COL_*` con los anchos de la tabla |
 | `py/LGA_MediaManager_config.py` | `load_settings()`, `format_ini()`, `save_settings()`, `get_write_path()`, `DEFAULT_*` |
 | `py/LGA_MediaManager_paths.py` | `parse_path()`, `resolve()`, `scanning_parent()` |
+| `py/LGA_MediaManager_collect.py` | `analizar_estructura()`, `raiz_de_collect()`, `destino_del_script()`, `revisar_destino()`, `contenido_de_destino()`, `accion_para()`, `armar_plan()`, `_sin_colision()`, `archivos_de_secuencia()`, `archivos_de()`, `carpetas_a_crear()`, `inventario()`, `aplicar_rutas()`, `deshacer()`, `guardar_como()`, las `ACTION_*` y las `DESTINO_*` |
+| `py/LGA_MediaManager_download.py` | la descarga desde Wasabi por FileManager S3 |
+| `py/LGA_MediaManager_logging.py` | `setup_debug_logging()`, `configure_logger()`, `get_log_file_path()`, `debug_print()`: el log va a `logs/LGA_mediaManager.log` y se pisa en cada corrida |
+| `py/LGA_NodeFiles.py` | `collect_entries()`, `walk_group()`, `role_for()`, `is_folder_knob()`, `resolve_against()`, `KNOB_ROLES`, `FOLDER_KNOBS`, `RECURSE_CLASSES` |
 | `py/LGA_MediaManager_utils.py` | `PathDelegate`, `ReadCellDelegate`, `TransparentTextDelegate`, `paint_row_separator()`, `tinted_icon()`, `ProgressWindow`, `BatchWorker`, `CopyWorker`, `DeleteWorker`, `expand_sequence()`, `ScannerWorker`, `RelinkSearchWorker`, `PathResolveWorker`, los `COL_*` |
 | `py/LGA_UI_Style_ToolPack.py` | `theme()`, `apply_ui_font()`, `semibold_css()`, `THEMES` |
 | `docs/Docu_UI_Style.md` | Cómo se usa el módulo de estilo y las trampas de Qt ya pisadas |
