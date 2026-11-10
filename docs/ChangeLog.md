@@ -2,6 +2,10 @@
 
 ## v2.68
 
+- **La doc técnica de una tool ahora es obligatoria, y la regla es dura.** La anterior decía "mantener actualizada la documentación relacionada con el cambio": una buena intención sin obligación, y por eso el Collect del Media Manager pasó un mes sin estar documentado en ningún lado. `AGENTS.md` suma la sección "Doc técnica de cada tool: obligatoria y al día": se actualiza en la misma pasada que el código, si no existe se crea con lo que se entendió al hacer el cambio, se corrige lo que el cambio deja falso aunque no sea del encargo, toda función que la doc nombre se verifica con `grep` contra el código, y la sección de referencias técnicas es obligatoria y nombra todos los módulos.
+
+[ ToolPack - Regla dura de doc tecnica por tool ]
+
 - **La doc del Media Manager no tenía el Collect.** `LGA_mediaManager_Readme.md` quedó en el 3 de septiembre, anterior al módulo del collect, así que la herramienta más delicada de la tool no estaba descripta en ningún lado y la doc decía "los siete módulos". Suma la sección "Collect: el script y su media a otra carpeta": qué considera usado y en qué se diferencia del estado `Unused` de la tabla, las cuatro acciones, la estructura reproducida en el destino, qué revisa antes de copiar y el orden copiar → reapuntar → Save As con sus reversiones. Las referencias técnicas suman `collect`, `download`, `logging` y `LGA_NodeFiles`, que tampoco estaban.
 
 [ MediaManager - Documentar el Collect ]
