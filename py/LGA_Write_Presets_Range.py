@@ -1,7 +1,7 @@
 """
 ____________________________________________________________________
 
-  LGA_Write_Presets_Range v2.87 | Lega
+  LGA_Write_Presets_Range v2.88 | Lega
 
   Rango opcional del TimeClip conectado al EditRef para Writes MOV/MXF.
 

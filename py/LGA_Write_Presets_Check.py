@@ -1,10 +1,13 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.87 | Lega
+  LGA_Write_Presets_Check v2.88 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 
+  v2.88: evaluate_file_pattern apaga el undo mientras crea y borra el Write
+         temporal: cada recalculo del preview dejaba un "change write.file"
+         en el historial, aunque se cancelara la ventana sin aplicar nada.
   v2.87: strip_source_extension envuelve [file tail [knob X.file]] con
          [file rootname ...]: con un nombre fuente de pocos bloques
          (adelante_atras_orig.mov) el ultimo bloque traia la extension y
@@ -288,10 +291,27 @@ def evaluate_file_pattern(file_pattern):
     Retorna una tupla (evaluated_path, original_extensions) donde:
     - evaluated_path: el path evaluado o None si hay error
     - original_extensions: lista de extensiones originales del topnode o lista vacia
+
+    Crear y borrar el Write temporal no deja pasos en el historial de undo:
+    el preview se recalcula con cada cambio de la ventana, y cada uno dejaba
+    un "change write.file" que el usuario tenia que deshacer a mano aunque
+    hubiera cancelado sin aplicar nada.
     """
     if not file_pattern:
         return None, []
 
+    undo_ya_apagado = nuke.Undo.disabled()
+    if not undo_ya_apagado:
+        nuke.Undo.disable()
+    try:
+        return _evaluate_file_pattern(file_pattern)
+    finally:
+        if not undo_ya_apagado:
+            nuke.Undo.enable()
+
+
+def _evaluate_file_pattern(file_pattern):
+    """Cuerpo de evaluate_file_pattern; se llama con el undo apagado."""
     try:
         # Obtener el nodo seleccionado o crear un NoOp temporal para tener contexto
         # selectedNode() tambien devuelve un nodo seleccionado ADENTRO de un

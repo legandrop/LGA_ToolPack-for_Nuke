@@ -117,6 +117,10 @@ Los presets que nombran desde el nodo fuente parten su nombre por `_` y se queda
 
 En una secuencia, `rootname` saca `.exr` pero deja el patrón de frames (`..._010.%04d`): si Naming Segments llega hasta ese bloque, el `%04d` entra en el nombre y el preview lo marca en rojo (ver abajo).
 
+### El preview no toca el historial de undo
+
+`evaluate_file_pattern()` crea un Write temporal, lo conecta al nodo seleccionado, evalúa el path con `nuke.filename()` y lo borra. Lo hace al abrir la ventana y con cada cambio de Naming Segments o Folder Up Levels. Por eso apaga el undo (`nuke.Undo.disable()`) mientras dura y lo deja como estaba (si ya venía apagado, no lo prende): sin eso cada recálculo dejaba un paso «change write.file» y, al cancelar, el primer undo del usuario no deshacía nada visible. El cuerpo vive en `_evaluate_file_pattern()`. Los nodos del preset se crean recién al dar OK, dentro de un solo grupo de undo.
+
 ### Detección de Extensiones Originales
 
 El sistema detecta automáticamente cuando los nombres de carpetas o archivos generados incluyen extensiones originales del archivo fuente (topnode), o el patrón de frames (`%04d`) de una secuencia fuente. Esto ocurre cuando se incluyen demasiados segmentos en las expresiones `lrange`, o con un patrón viejo que no usa `rootname`.
@@ -173,7 +177,7 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 - `split_path_at_violet_end(path, shot_folder_parts, is_sequence=False, original_extensions=None)`: Divide el path normalizado en partes visuales (parte violeta, intermedia, subcarpeta y archivo según corresponda). Marca en rojo los segmentos que contienen extensiones originales
 - `split_tcl_path_at_shot_end(tcl_path, shot_folder_parts, is_sequence=False)`: Divide el TCL path en partes visuales correspondientes
 - `is_sequence_pattern(pattern)`: Detecta si un pattern contiene una secuencia de cuadros (`%04d`, `%03d`, etc.)
-- `evaluate_file_pattern(file_pattern)`: Evalúa expresiones TCL creando un Write temporal. Retorna tupla `(evaluated_path, original_extensions)` donde `original_extensions` es una lista de extensiones detectadas del topnode
+- `evaluate_file_pattern(file_pattern)`: Evalúa expresiones TCL creando un Write temporal, con el undo apagado mientras dura (cuerpo en `_evaluate_file_pattern`). Retorna tupla `(evaluated_path, original_extensions)` donde `original_extensions` es una lista de extensiones detectadas del topnode
 - `show_path_check_window(preset, user_text=None, callback=None)`: Muestra la ventana de verificación
 - `PathCheckWindow`: Clase de la ventana que muestra los controles de edición, el TCL path original y el path final normalizado con detección de extensiones problemáticas
 

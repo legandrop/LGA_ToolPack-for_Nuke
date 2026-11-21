@@ -2,6 +2,10 @@
 
 ## v2.68
 
+- **Cancelar la ventana de Write Presets dejaba pasos de undo.** El preview del path crea un Write temporal, lo evalúa y lo borra, y lo hace de nuevo con cada cambio de Naming Segments o Folder Up Levels. Cada vez quedaba un paso «change write.file» en el historial: después de cancelar con Escape, sin haber aplicado nada, había que hacer varios undo antes de llegar al cambio real. `evaluate_file_pattern` apaga el undo mientras dura y lo deja como estaba. Write Presets v2.88.
+
+[ WritePresets - El preview del path no deja pasos de undo ]
+
 - **Naming Segments de Write Presets metía la extensión del nodo fuente en el nombre.** Los presets que nombran desde el Read partían `[file tail [knob [topnode].file]]` por `_`, así que el último bloque traía la extensión pegada: con `adelante_atras_orig.mov`, incluir `orig` daba `adelante_atras_orig.mov_Stab43_v002W.mov`, y sacarlo perdía `orig`. Ahora el nombre fuente va envuelto en `[file rootname ...]`: en el `.ini` y, con `strip_source_extension`, en todo preset cargado y en el Write existente que se abre para editar. Si en una secuencia se cuela el `%04d`, el preview lo marca en rojo. Write Presets v2.87.
 
 [ WritePresets - Naming Segments sin la extension del nodo fuente ]

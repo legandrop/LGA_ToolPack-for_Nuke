@@ -11,6 +11,7 @@ platforms: [win, mac]
 ## Unreleased
 
 ## v2.68
+- [fixed] Cancelar la ventana de Write Presets ya no deja pasos en el historial de undo: el primer undo deshace lo último que hiciste en Nuke.
 - [fixed] En Write Presets, Naming Segments ya no mete la extensión del archivo original en el nombre del render, así podés incluir el último bloque del nombre sin que aparezca, por ejemplo, un ".mov" en el medio.
 - [improved] Collect del Media Manager avisa cuántos archivos y carpetas hay en la carpeta de destino cuando no está vacía, así ves antes de copiar que lo que ya estaba ahí va a aparecer mezclado con lo colectado.
 - [fixed][win] El Shift+click de Snapshot Gallery trae FrameRev al frente y con el foco, en vez de abrirlo detrás de Nuke.
