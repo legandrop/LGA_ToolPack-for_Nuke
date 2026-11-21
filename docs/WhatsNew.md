@@ -11,6 +11,7 @@ platforms: [win, mac]
 ## Unreleased
 
 ## v2.68
+- [fixed] En Write Presets, Naming Segments ya no mete la extensión del archivo original en el nombre del render, así podés incluir el último bloque del nombre sin que aparezca, por ejemplo, un ".mov" en el medio.
 - [improved] Collect del Media Manager avisa cuántos archivos y carpetas hay en la carpeta de destino cuando no está vacía, así ves antes de copiar que lo que ya estaba ahí va a aparecer mezclado con lo colectado.
 - [fixed][win] El Shift+click de Snapshot Gallery trae FrameRev al frente y con el foco, en vez de abrirlo detrás de Nuke.
 - [fixed] Show Flow Notes encuentra los shots cuyo nombre tiene un solo bloque de descripción o una descripción que empieza con un número.

@@ -108,9 +108,18 @@ La ventana muestra en orden:
 
 Los paths se dividen automáticamente: la primera línea muestra la parte que coincide con el shot folder (en violeta), las siguientes muestran el resto del path. Si es una secuencia, se separa la subcarpeta y el archivo en líneas distintas. Esto mejora la legibilidad en paths largos.
 
+### La extensión del nodo fuente nunca entra en el nombre
+
+Los presets que nombran desde el nodo fuente parten su nombre por `_` y se quedan con los primeros bloques (`lrange`). Si se parte `[file tail [knob [topnode].file]]` tal cual, el último bloque trae la extensión pegada (`adelante_atras_orig.mov` → `adelante`, `atras`, `orig.mov`), y con un nombre de pocos bloques Naming Segments no podía incluir el último sin meter el `.mov` (`adelante_atras_orig.mov_Stab43_v002W.mov`). Por eso todo `[file tail [knob X.file]]` (o `[value X.file]`) va envuelto en `[file rootname ...]`:
+
+- El `.ini` de presets ya lo trae escrito así.
+- `strip_source_extension()` lo aplica igual a cada `file_pattern` al cargar los presets (`load_presets`) y al Write existente que se abre para editar (`show_write_path_window`); ahí la corrección se guarda al dar OK aunque no se haya tocado nada. No envuelve dos veces un patrón que ya usa `rootname`.
+
+En una secuencia, `rootname` saca `.exr` pero deja el patrón de frames (`..._010.%04d`): si Naming Segments llega hasta ese bloque, el `%04d` entra en el nombre y el preview lo marca en rojo (ver abajo).
+
 ### Detección de Extensiones Originales
 
-El sistema detecta automáticamente cuando los nombres de carpetas o archivos generados incluyen extensiones originales del archivo fuente (topnode). Esto ocurre cuando se incluyen demasiados segmentos en las expresiones `lrange`, causando que se incluya la extensión original (como `.%04d.exr`) en los nombres generados.
+El sistema detecta automáticamente cuando los nombres de carpetas o archivos generados incluyen extensiones originales del archivo fuente (topnode), o el patrón de frames (`%04d`) de una secuencia fuente. Esto ocurre cuando se incluyen demasiados segmentos en las expresiones `lrange`, o con un patrón viejo que no usa `rootname`.
 
 **Indicadores visuales:**
 - Los segmentos que contienen extensiones originales se muestran en **rojo** (#ff0000) en el "Final Path"
@@ -158,7 +167,8 @@ El control **FOLDER UP LEVELS** siempre está visible y habilitado. La ventana d
 - `has_directory_levels(file_pattern)`: Detecta si el file_pattern tiene niveles de directorio (`../`, `../../`, etc.) y retorna la cantidad máxima
 - `replace_directory_levels(file_pattern, new_level)`: Reemplaza todos los patrones `../` consecutivos con la cantidad especificada de niveles
 - `get_topnode_file_path(temp_write)`: Obtiene el path del archivo del topnode desde un Write temporal buscando recursivamente el Read más alto
-- `extract_original_extension(file_path)`: Extrae la extensión original del archivo, incluyendo el patrón de frames si es secuencia (ej: `.%04d.exr`, `.exr`)
+- `strip_source_extension(file_pattern)`: Envuelve cada `[file tail [knob X.file]]` / `[file tail [value X.file]]` con `[file rootname ...]` para que el nombre fuente entre sin extensión. Idempotente
+- `extract_original_extension(file_path)`: Extrae la extensión original del archivo, incluyendo el patrón de frames si es secuencia (ej: `.%04d.exr`, `.exr`, `%04d`)
 - `contains_original_extension(part, original_extensions)`: Verifica si una parte del path contiene alguna de las extensiones originales
 - `split_path_at_violet_end(path, shot_folder_parts, is_sequence=False, original_extensions=None)`: Divide el path normalizado en partes visuales (parte violeta, intermedia, subcarpeta y archivo según corresponda). Marca en rojo los segmentos que contienen extensiones originales
 - `split_tcl_path_at_shot_end(tcl_path, shot_folder_parts, is_sequence=False)`: Divide el TCL path en partes visuales correspondientes

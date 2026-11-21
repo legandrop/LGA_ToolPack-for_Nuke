@@ -1,10 +1,15 @@
 """
 _______________________________________________________________________________________________________________________________
 
-  LGA_Write_Presets_Check v2.86 | Lega
+  LGA_Write_Presets_Check v2.87 | Lega
   Script para mostrar una ventana de verificación del path normalizado antes de crear un Write node.
   Se usa cuando el usuario hace Shift+Click sobre un preset o edita Writes existentes.
 
+  v2.87: strip_source_extension envuelve [file tail [knob X.file]] con
+         [file rootname ...]: con un nombre fuente de pocos bloques
+         (adelante_atras_orig.mov) el ultimo bloque traia la extension y
+         Naming Segments no podia incluirlo sin meter el .mov. El patron de
+         frames (%04d) de una secuencia se marca en rojo si se cuela.
   v2.81: PathCheckWindow acepta center_at: al abrirse se centra en ese punto
          y se reacomoda si no entra en la pantalla (_center_on).
   v2.80: evaluate_file_pattern ya no conecta el Write temporal a un nodo
@@ -208,7 +213,7 @@ def extract_original_extension(file_path):
     """
     Extrae la extension original del archivo, incluyendo el patron de frames si es secuencia.
     Retorna una lista de posibles extensiones a buscar (con y sin frames).
-    Ejemplo: si el archivo es "shot.%04d.exr", retorna [".%04d.exr", ".exr"]
+    Ejemplo: si el archivo es "shot.%04d.exr", retorna [".%04d.exr", ".exr", "%04d"]
     """
     if not file_path:
         return []
@@ -239,6 +244,12 @@ def extract_original_extension(file_path):
                 simple_ext = "." + ext_match.group(1)
                 if simple_ext not in extensions:
                     extensions.append(simple_ext)
+
+        # El patron de frames solo: con [file rootname ...] la extension ya no
+        # entra, pero si Naming Segments llega hasta el ultimo bloque de una
+        # secuencia ("..._010.%04d" o "..._%04d") el %04d si, y se marca en rojo.
+        if sequence_pattern.group(1) not in extensions:
+            extensions.append(sequence_pattern.group(1))
     else:
         # Si no tiene patron de secuencia, solo extraer la extension normal
         ext_match = re.search(r"\.([^.]+)$", file_name)
@@ -247,6 +258,27 @@ def extract_original_extension(file_path):
 
     debug_print(f"Extensiones originales extraidas de '{file_name}': {extensions}")
     return extensions
+
+
+# [file tail [knob X.file]] o [file tail [value X.file]] sin un [file rootname ...]
+# que lo envuelva: el nombre del nodo fuente entra con su extension.
+_TAIL_SIN_ROOTNAME = re.compile(
+    r"(?<!\[file rootname )\[file tail (\[(?:knob|value) (?:\[topnode\]|[\w.]+)\.file\])\]"
+)
+
+
+def strip_source_extension(file_pattern):
+    """
+    Envuelve cada [file tail [knob X.file]] del file_pattern con [file rootname ...].
+
+    Sin eso, el split por "_" deja la extension pegada al ultimo bloque del
+    nombre fuente ("orig.mov"), y cuando Naming Segments llega hasta ese bloque
+    la extension entra en el nombre del render ("orig.mov_Stab43.mov").
+    Si el patron ya usa rootname, lo deja igual.
+    """
+    if not file_pattern:
+        return file_pattern
+    return _TAIL_SIN_ROOTNAME.sub(r"[file rootname [file tail \1]]", file_pattern)
 
 
 def evaluate_file_pattern(file_pattern):

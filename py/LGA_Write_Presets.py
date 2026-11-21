@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets v2.86 | Lega
+  LGA_Write_Presets v2.87 | Lega
 
   Creates Write nodes with predefined settings for different purposes.
   Supports both script-based and Read node-based path generation.
@@ -19,6 +19,10 @@ _____________________________________________________________________________
     - El titulo de la seccion "Write Presets" de README.md y README_ES.md,
       a mano.
 
+  v2.87: load_presets pasa cada file_pattern por strip_source_extension:
+         Naming Segments ya no puede meter la extension del nodo fuente en
+         el nombre. Al editar un Write existente se muestra y guarda ya
+         corregido, aunque no se toque nada en la ventana.
   v2.84: Los dialogos posteriores comparten el centro de la ventana de presets.
   v2.83: Ofrece limitar Writes MOV/MXF al TimeClip del EditRef.
   v2.82: Compartir presets de cadena arrastrando: soltar un .nk sobre la
@@ -635,7 +639,14 @@ def load_presets():
     config = configparser.ConfigParser(interpolation=None)  # Desactivar interpolación
     ini_path = os.path.join(os.path.dirname(__file__), "LGA_Write_Presets.ini")
     config.read(ini_path)
-    return {section: dict(config[section]) for section in config.sections()}
+    from LGA_Write_Presets_Check import strip_source_extension
+
+    presets = {section: dict(config[section]) for section in config.sections()}
+    # Naming Segments nunca debe poder incluir la extension del nodo fuente.
+    for preset in presets.values():
+        if "file_pattern" in preset:
+            preset["file_pattern"] = strip_source_extension(preset["file_pattern"])
+    return presets
 
 
 def _create_temp_noop_in_view():
@@ -1747,6 +1758,7 @@ class SelectedNodeInfo(QWidget):
             evaluate_file_pattern,
             get_shot_folder_parts,
             normalize_path_preserve_case,
+            strip_source_extension,
         )
 
         # Obtener el Write seleccionado
@@ -1768,6 +1780,11 @@ class SelectedNodeInfo(QWidget):
 
         self.close()
 
+        # Un Write creado con un preset viejo puede traer la extension del
+        # nodo fuente en el nombre: se muestra y se guarda ya corregido.
+        original_pattern = file_pattern
+        file_pattern = strip_source_extension(file_pattern)
+
         # Evaluar y normalizar el path para mostrar el resultado final
         evaluated_path, original_extensions = evaluate_file_pattern(file_pattern)
         normalized_path = None
@@ -1782,6 +1799,9 @@ class SelectedNodeInfo(QWidget):
 
         # Callback para aplicar cambios al Write seleccionado
         def apply_changes_to_write(modified_pattern):
+            # Sin cambios en la ventana igual se guarda la correccion de la extension.
+            if not modified_pattern and file_pattern != original_pattern:
+                modified_pattern = file_pattern
             if modified_pattern:
                 # Aplicar el patrón modificado al Write seleccionado
                 nuke.Undo().begin("Modify Write File Pattern")

@@ -1,7 +1,7 @@
 """
 _____________________________________________________________________________
 
-  LGA_Write_Presets_Chain v2.86 | Lega
+  LGA_Write_Presets_Chain v2.87 | Lega
 
   Presets de cadena de Write Presets: guarda los nodos seleccionados (un
   Write y lo que tenga arriba: OCIO, textos, groups, backdrops) como un

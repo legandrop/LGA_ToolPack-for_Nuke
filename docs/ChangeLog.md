@@ -2,6 +2,10 @@
 
 ## v2.68
 
+- **Naming Segments de Write Presets metía la extensión del nodo fuente en el nombre.** Los presets que nombran desde el Read partían `[file tail [knob [topnode].file]]` por `_`, así que el último bloque traía la extensión pegada: con `adelante_atras_orig.mov`, incluir `orig` daba `adelante_atras_orig.mov_Stab43_v002W.mov`, y sacarlo perdía `orig`. Ahora el nombre fuente va envuelto en `[file rootname ...]`: en el `.ini` y, con `strip_source_extension`, en todo preset cargado y en el Write existente que se abre para editar. Si en una secuencia se cuela el `%04d`, el preview lo marca en rojo. Write Presets v2.87.
+
+[ WritePresets - Naming Segments sin la extension del nodo fuente ]
+
 - **La doc técnica de una tool ahora es obligatoria, y la regla es dura.** La anterior decía "mantener actualizada la documentación relacionada con el cambio": una buena intención sin obligación, y por eso el Collect del Media Manager pasó un mes sin estar documentado en ningún lado. `AGENTS.md` suma la sección "Doc técnica de cada tool: obligatoria y al día": se actualiza en la misma pasada que el código, si no existe se crea con lo que se entendió al hacer el cambio, se corrige lo que el cambio deja falso aunque no sea del encargo, toda función que la doc nombre se verifica con `grep` contra el código, y la sección de referencias técnicas es obligatoria y nombra todos los módulos.
 
 [ ToolPack - Regla dura de doc tecnica por tool ]
